@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- BuildingBlocks -->
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Observability\FluxCommerce.BuildingBlocks.Observability.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Web\FluxCommerce.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- API -->
+    <ProjectReference Include="..\..\..\src\FluxCommerce.Api\FluxCommerce.Api.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Modules - Catalog -->
+    <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Domain\FluxCommerce.Modules.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Application\FluxCommerce.Modules.Catalog.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Infrastructure\FluxCommerce.Modules.Catalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Modules - Cart -->
+    <ProjectReference Include="..\..\..\src\Modules\Cart\FluxCommerce.Modules.Cart.Domain\FluxCommerce.Modules.Cart.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Cart\FluxCommerce.Modules.Cart.Application\FluxCommerce.Modules.Cart.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Cart\FluxCommerce.Modules.Cart.Infrastructure\FluxCommerce.Modules.Cart.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Cart\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Modules - Orders -->
+    <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Domain\FluxCommerce.Modules.Orders.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Application\FluxCommerce.Modules.Orders.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Infrastructure\FluxCommerce.Modules.Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Modules - Inventory -->
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Domain\FluxCommerce.Modules.Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Application\FluxCommerce.Modules.Inventory.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Infrastructure\FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Contracts\FluxCommerce.Modules.Inventory.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Modules - Payments -->
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Domain\FluxCommerce.Modules.Payments.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Application\FluxCommerce.Modules.Payments.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Infrastructure\FluxCommerce.Modules.Payments.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Contracts\FluxCommerce.Modules.Payments.Contracts.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!--
+    Package versions will be added here as NuGet packages are introduced.
+    Phase 0 does not require any packages beyond the implicit .NET SDK references.
+  -->
+
+</Project>

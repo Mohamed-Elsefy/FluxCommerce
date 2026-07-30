@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="DependencyInjection\" />
+    <Folder Include="Configuration\" />
+    <Folder Include="Persistence\" />
+    <Folder Include="Services\" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Domain\FluxCommerce.Modules.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Application\FluxCommerce.Modules.Catalog.Application.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Observability\FluxCommerce.BuildingBlocks.Observability.csproj" />
+  </ItemGroup>
+</Project>
