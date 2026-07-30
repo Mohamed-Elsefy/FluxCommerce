@@ -1,4 +1,5 @@
 using FluxCommerce.Api.Options;
+using FluxCommerce.BuildingBlocks.Web.Middleware;
 
 namespace FluxCommerce.Api.Extensions;
 
@@ -24,6 +25,9 @@ public static class DependencyInjection
 
     private static IServiceCollection AddPresentationLayer(this IServiceCollection services)
     {
+        services.AddExceptionHandler<ExceptionHandler>();
+        services.AddProblemDetails();
+
         services.AddControllers();
 
         services.AddHealthChecks();
