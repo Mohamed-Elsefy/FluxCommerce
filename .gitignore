@@ -1,0 +1,231 @@
+
+
+# ============================================================
+# .NET / Visual Studio
+# ============================================================
+
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+.idea/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Visual Studio Code
+.history/
+*.code-workspace
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code launch settings
+launch.json
+
+# ============================================================
+# .NET Generated Files
+# ============================================================
+
+*.dll
+*.exe
+*.pdb
+*.cache
+*.nupkg
+*.snupkg
+
+# NuGet
+**/packages/
+*.nuget.props
+*.nuget.targets
+project.assets.json
+project.nuget.cache
+
+# ============================================================
+# ASP.NET Core
+# ============================================================
+
+# Local configuration files
+appsettings.Local.json
+appsettings.*.Local.json
+
+# User Secrets
+secrets.json
+
+# Development certificates
+*.pfx
+*.p12
+
+# HTTPS development certificates
+.aspnet/
+https/
+
+# ============================================================
+# Environment Variables
+# ============================================================
+
+.env
+.env.*
+!.env.example
+
+# ============================================================
+# Logs
+# ============================================================
+
+logs/
+*.log
+*.log.*
+log/
+
+# ============================================================
+# Test Results
+# ============================================================
+
+TestResults/
+**/TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coverage.opencover.xml
+coverage.cobertura.xml
+
+# ============================================================
+# Code Coverage
+# ============================================================
+
+.coverage/
+coverage-report/
+
+# ============================================================
+# Entity Framework Core
+# ============================================================
+
+# EF temporary files
+*.ef.tmp
+
+# ============================================================
+# Docker
+# ============================================================
+
+docker-data/
+.docker/
+
+# Local Docker volumes
+**/docker-data/
+
+# ============================================================
+# Database / Local Development
+# ============================================================
+
+*.mdf
+*.ldf
+*.ndf
+
+# SQL Server LocalDB
+*.db
+*.db-shm
+*.db-wal
+
+# SQLite databases
+*.sqlite
+*.sqlite3
+
+# ============================================================
+# OS Generated Files
+# ============================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# macOS folder attributes
+._*
+
+# Linux
+*~
+
+# ============================================================
+# Temporary Files
+# ============================================================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.orig
+
+# ============================================================
+# ReSharper
+# ============================================================
+
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# ============================================================
+# SonarQube
+# ============================================================
+
+.sonarqube/
+.scannerwork/
+
+# ============================================================
+# Local Tools
+# ============================================================
+
+.tooling/
+.dotnet/
+.dotnet-tools/
+
+# ============================================================
+# Publish Output
+# ============================================================
+
+publish/
+out/
+artifacts/
+
+# ============================================================
+# Azure / Deployment
+# ============================================================
+
+*.publishsettings
+*.pubxml.user
+
+# ============================================================
+# Generated Documentation
+# ============================================================
+
+docs/generated/
+
+# ============================================================
+# Temporary IDE / Editor Files
+# ============================================================
+
+*.orig
+*.rej
+*.swp
+*.swo
+
+# ============================================================
+# OS / Editor Misc
+# ============================================================
+
+.directory
