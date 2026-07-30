@@ -1,6 +1,14 @@
 using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Options;
+using FluxCommerce.BuildingBlocks.Persistence;
+using FluxCommerce.BuildingBlocks.Persistence.Configurations;
+using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
+using FluxCommerce.Modules.Cart.Infrastructure;
+using FluxCommerce.Modules.Catalog.Infrastructure;
+using FluxCommerce.Modules.Inventory.Infrastructure;
+using FluxCommerce.Modules.Orders.Infrastructure;
+using FluxCommerce.Modules.Payments.Infrastructure;
 
 namespace FluxCommerce.Api.Extensions;
 
@@ -36,6 +44,18 @@ public static class DependencyInjection
 
     private static IServiceCollection AddInfrastructureLayer(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+        services.AddSingleton<ICurrentUser>(_ => new CurrentUser());
+        services.AddScoped<DomainEventInterceptor>();
+
+        services.AddPersistence(configuration);
+
+        services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
+        services.AddCartInfrastructure(GetConnectionString(configuration, "Cart"));
+        services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
+        services.AddInventoryInfrastructure(GetConnectionString(configuration, "Inventory"));
+        services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
+
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])
@@ -43,5 +63,17 @@ public static class DependencyInjection
                 .AddCheck<RabbitMQHealthCheck>("rabbitmq", tags: ["messaging", "infrastructure"]);
 
         return services;
+    }
+
+    private static string GetConnectionString(IConfiguration configuration, string moduleName)
+    {
+        var moduleSection = configuration.GetSection($"{DatabaseOptions.SectionName}:ModuleConnections:{moduleName}");
+        var moduleConnection = moduleSection.Value;
+
+        if (!string.IsNullOrWhiteSpace(moduleConnection))
+            return moduleConnection;
+
+        return configuration.GetSection($"{DatabaseOptions.SectionName}:ConnectionString").Value
+            ?? throw new InvalidOperationException($"Database connection string is not configured for module '{moduleName}'.");
     }
 }

@@ -9,6 +9,8 @@ public class DatabaseOptions
     [Required]
     public string ConnectionString { get; init; } = string.Empty;
 
+    public Dictionary<string, string> ModuleConnections { get; init; } = [];
+
     public int MaxRetryCount { get; init; } = 3;
 
     public int CommandTimeoutSeconds { get; init; } = 30;
@@ -16,4 +18,11 @@ public class DatabaseOptions
     public bool EnableDetailedErrors { get; init; } = false;
 
     public bool EnableSensitiveDataLogging { get; init; } = false;
+
+    public string GetModuleConnectionString(string moduleName)
+    {
+        return ModuleConnections.TryGetValue(moduleName, out var moduleConnection)
+            ? moduleConnection
+            : ConnectionString;
+    }
 }

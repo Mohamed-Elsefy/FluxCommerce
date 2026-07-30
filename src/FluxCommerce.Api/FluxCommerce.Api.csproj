@@ -18,11 +18,26 @@
     <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Application\FluxCommerce.Modules.Payments.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Modules - Contracts -->
+    <!-- Module - Contracts -->
     <ProjectReference Include="..\Modules\Catalog\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Cart\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Contracts\FluxCommerce.Modules.Inventory.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Contracts\FluxCommerce.Modules.Payments.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Module - Infrastructure -->
+    <ProjectReference Include="..\Modules\Catalog\FluxCommerce.Modules.Catalog.Infrastructure\FluxCommerce.Modules.Catalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Cart\FluxCommerce.Modules.Cart.Infrastructure\FluxCommerce.Modules.Cart.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Infrastructure\FluxCommerce.Modules.Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Infrastructure\FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Infrastructure\FluxCommerce.Modules.Payments.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
   </ItemGroup>
 </Project>
