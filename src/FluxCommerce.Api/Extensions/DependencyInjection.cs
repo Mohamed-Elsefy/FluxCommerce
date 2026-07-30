@@ -1,3 +1,4 @@
+using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Options;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
 
@@ -30,13 +31,17 @@ public static class DependencyInjection
 
         services.AddControllers();
 
-        services.AddHealthChecks();
-
         return services;
     }
 
     private static IServiceCollection AddInfrastructureLayer(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddHealthChecks()
+                .AddCheck<AppHealthCheck>("app", tags: ["app"])
+                .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])
+                .AddCheck<RedisHealthCheck>("redis", tags: ["cache", "infrastructure"])
+                .AddCheck<RabbitMQHealthCheck>("rabbitmq", tags: ["messaging", "infrastructure"]);
+
         return services;
     }
 }
