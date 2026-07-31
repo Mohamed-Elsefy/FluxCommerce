@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Folder Include="Retry\" />
+    <Folder Include="Clocks\" />
+    <Folder Include="Ids\" />
+    <Folder Include="Contexts\" />
+  </ItemGroup>
+
+</Project>

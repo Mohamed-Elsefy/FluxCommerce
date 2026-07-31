@@ -1,10 +1,92 @@
 <Solution>
-  <Folder Name="/docs/">
-    <File Path="docs/ARCHITECTURE.md" />
-    <File Path="docs/PROJECT_CONTEXT.md" />
+
+  <!-- Docs -->
+  <Folder Name="/docs/" />
+  <Folder Name="/docs/adr/">
+    <File Path="docs/adr/001-modular-monolith.md" />
+    <File Path="docs/adr/002-database-boundaries.md" />
+    <File Path="docs/adr/003-building-blocks.md" />
+    <File Path="docs/adr/004-messaging-reliability.md" />
+    <File Path="docs/adr/005-observability.md" />
   </Folder>
+  <Folder Name="/docs/completed/">
+    <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
+  </Folder>
+  <Folder Name="/docs/current/">
+    <File Path="docs/current/ARCHITECTURE.md" />
+    <File Path="docs/current/PROJECT_CONTEXT.md" />
+  </Folder>
+  <Folder Name="/docs/phases/">
+    <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
+  </Folder>
+
+  <!-- Solution Items -->
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
+    <File Path="docker-compose.yml" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FluxCommerce.Api/FluxCommerce.Api.csproj" Id="d3be0d92-40c2-425f-bcf1-f050a9f485c8" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Application/FluxCommerce.BuildingBlocks.Application.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Domain/FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Idempotency/FluxCommerce.BuildingBlocks.Idempotency.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Infrastructure/FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Messaging/FluxCommerce.BuildingBlocks.Messaging.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Observability/FluxCommerce.BuildingBlocks.Observability.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Outbox/FluxCommerce.BuildingBlocks.Outbox.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Persistence/FluxCommerce.BuildingBlocks.Persistence.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Resilience/FluxCommerce.BuildingBlocks.Resilience.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Web/FluxCommerce.BuildingBlocks.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Cart/">
+    <Project Path="src/Modules/Cart/FluxCommerce.Modules.Cart.Application/FluxCommerce.Modules.Cart.Application.csproj" />
+    <Project Path="src/Modules/Cart/FluxCommerce.Modules.Cart.Contracts/FluxCommerce.Modules.Cart.Contracts.csproj" />
+    <Project Path="src/Modules/Cart/FluxCommerce.Modules.Cart.Domain/FluxCommerce.Modules.Cart.Domain.csproj" />
+    <Project Path="src/Modules/Cart/FluxCommerce.Modules.Cart.Infrastructure/FluxCommerce.Modules.Cart.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Catalog/">
+    <Project Path="src/Modules/Catalog/FluxCommerce.Modules.Catalog.Application/FluxCommerce.Modules.Catalog.Application.csproj" />
+    <Project Path="src/Modules/Catalog/FluxCommerce.Modules.Catalog.Contracts/FluxCommerce.Modules.Catalog.Contracts.csproj" />
+    <Project Path="src/Modules/Catalog/FluxCommerce.Modules.Catalog.Domain/FluxCommerce.Modules.Catalog.Domain.csproj" />
+    <Project Path="src/Modules/Catalog/FluxCommerce.Modules.Catalog.Infrastructure/FluxCommerce.Modules.Catalog.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Inventory/">
+    <Project Path="src/Modules/Inventory/FluxCommerce.Modules.Inventory.Application/FluxCommerce.Modules.Inventory.Application.csproj" />
+    <Project Path="src/Modules/Inventory/FluxCommerce.Modules.Inventory.Contracts/FluxCommerce.Modules.Inventory.Contracts.csproj" />
+    <Project Path="src/Modules/Inventory/FluxCommerce.Modules.Inventory.Domain/FluxCommerce.Modules.Inventory.Domain.csproj" />
+    <Project Path="src/Modules/Inventory/FluxCommerce.Modules.Inventory.Infrastructure/FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Orders/">
+    <Project Path="src/Modules/Orders/FluxCommerce.Modules.Orders.Application/FluxCommerce.Modules.Orders.Application.csproj" />
+    <Project Path="src/Modules/Orders/FluxCommerce.Modules.Orders.Contracts/FluxCommerce.Modules.Orders.Contracts.csproj" />
+    <Project Path="src/Modules/Orders/FluxCommerce.Modules.Orders.Domain/FluxCommerce.Modules.Orders.Domain.csproj" />
+    <Project Path="src/Modules/Orders/FluxCommerce.Modules.Orders.Infrastructure/FluxCommerce.Modules.Orders.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Payments/">
+    <Project Path="src/Modules/Payments/FluxCommerce.Modules.Payments.Application/FluxCommerce.Modules.Payments.Application.csproj" />
+    <Project Path="src/Modules/Payments/FluxCommerce.Modules.Payments.Contracts/FluxCommerce.Modules.Payments.Contracts.csproj" />
+    <Project Path="src/Modules/Payments/FluxCommerce.Modules.Payments.Domain/FluxCommerce.Modules.Payments.Domain.csproj" />
+    <Project Path="src/Modules/Payments/FluxCommerce.Modules.Payments.Infrastructure/FluxCommerce.Modules.Payments.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/Tests/" />
+
+  <!-- Tests / Architecture -->
+  <Folder Name="/Tests/Architecture/">
+    <Project Path="tests/Architecture/FluxCommerce.ArchitectureTests/FluxCommerce.ArchitectureTests.csproj" />
+  </Folder>
+
+  <!-- Tests / UnitTests -->
+  <Folder Name="/Tests/UnitTests/">
+    <Project Path="tests/UnitTests/FluxCommerce.UnitTests/FluxCommerce.UnitTests.csproj" />
+  </Folder>
+
+  <!-- Tests / IntegrationTests -->
+  <Folder Name="/Tests/IntegrationTests/">
+    <Project Path="tests/IntegrationTests/FluxCommerce.IntegrationTests/FluxCommerce.IntegrationTests.csproj" />
+  </Folder>
+
 </Solution>
