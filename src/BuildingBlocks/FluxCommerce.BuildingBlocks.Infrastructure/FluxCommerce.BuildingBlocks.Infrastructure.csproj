@@ -6,10 +6,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="RabbitMQ.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="DependencyInjection\" />
     <Folder Include="Configuration\" />
     <Folder Include="Persistence\" />
     <Folder Include="Services\" />
+    <Folder Include="Caching\" />
+    <Folder Include="Messaging\" />
   </ItemGroup>
 
 </Project>
