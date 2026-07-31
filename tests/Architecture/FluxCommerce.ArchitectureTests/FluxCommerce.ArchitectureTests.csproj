@@ -1,4 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <ItemGroup>
     <!-- BuildingBlocks -->
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
@@ -8,11 +19,16 @@
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Observability\FluxCommerce.BuildingBlocks.Observability.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Web\FluxCommerce.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Outbox\FluxCommerce.BuildingBlocks.Outbox.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Idempotency\FluxCommerce.BuildingBlocks.Idempotency.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Resilience\FluxCommerce.BuildingBlocks.Resilience.csproj" />
   </ItemGroup>
+
   <ItemGroup>
     <!-- API -->
     <ProjectReference Include="..\..\..\src\FluxCommerce.Api\FluxCommerce.Api.csproj" />
   </ItemGroup>
+
   <ItemGroup>
     <!-- Modules - Catalog -->
     <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Domain\FluxCommerce.Modules.Catalog.Domain.csproj" />
