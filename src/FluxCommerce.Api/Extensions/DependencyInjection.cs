@@ -1,6 +1,7 @@
 using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Options;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
+using FluxCommerce.BuildingBlocks.Observability;
 using FluxCommerce.BuildingBlocks.Persistence;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
@@ -19,7 +20,8 @@ public static class DependencyInjection
     {
         services.AddOptionsConfiguration(configuration)
                 .AddPresentationLayer()
-                .AddInfrastructureLayer(configuration);
+                .AddInfrastructureLayer(configuration)
+                .AddObservability(configuration);
 
         return services;
     }
