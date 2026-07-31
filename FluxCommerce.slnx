@@ -19,9 +19,12 @@
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Application/FluxCommerce.BuildingBlocks.Application.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Domain/FluxCommerce.BuildingBlocks.Domain.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Infrastructure/FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Idempotency/FluxCommerce.BuildingBlocks.Idempotency.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Messaging/FluxCommerce.BuildingBlocks.Messaging.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Observability/FluxCommerce.BuildingBlocks.Observability.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Outbox/FluxCommerce.BuildingBlocks.Outbox.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Persistence/FluxCommerce.BuildingBlocks.Persistence.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Resilience/FluxCommerce.BuildingBlocks.Resilience.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Web/FluxCommerce.BuildingBlocks.Web.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Folder Include="Messages\" />
+    <Folder Include="Stores\" />
+    <Folder Include="Detection\" />
+  </ItemGroup>
+
+</Project>

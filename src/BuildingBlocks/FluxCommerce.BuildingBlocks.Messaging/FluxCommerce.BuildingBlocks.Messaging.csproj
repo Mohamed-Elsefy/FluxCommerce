@@ -8,6 +8,7 @@
     <Folder Include="Contracts\" />
     <Folder Include="Events\" />
     <Folder Include="Metadata\" />
+    <Folder Include="Versioning\" />
   </ItemGroup>
 
 </Project>
