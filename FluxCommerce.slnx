@@ -1,10 +1,23 @@
 <Solution>
 
   <!-- Docs -->
-  <Folder Name="/docs/">
-    <File Path="docs/ARCHITECTURE.md" />
-    <File Path="docs/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
-    <File Path="docs/PROJECT_CONTEXT.md" />
+  <Folder Name="/docs/" />
+  <Folder Name="/docs/adr/">
+    <File Path="docs/adr/001-modular-monolith.md" />
+    <File Path="docs/adr/002-database-boundaries.md" />
+    <File Path="docs/adr/003-building-blocks.md" />
+    <File Path="docs/adr/004-messaging-reliability.md" />
+    <File Path="docs/adr/005-observability.md" />
+  </Folder>
+  <Folder Name="/docs/completed/">
+    <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
+  </Folder>
+  <Folder Name="/docs/current/">
+    <File Path="docs/current/ARCHITECTURE.md" />
+    <File Path="docs/current/PROJECT_CONTEXT.md" />
+  </Folder>
+  <Folder Name="/docs/phases/">
+    <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
   </Folder>
 
   <!-- Solution Items -->

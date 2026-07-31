@@ -1,4 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>efc79ec9-ee91-4d14-aebc-55903c49c60e</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- BuildingBlocks -->
     <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />

@@ -1,8 +1,9 @@
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-namespace FluxCommerce.BuildingBlocks.Persistence;
+namespace FluxCommerce.BuildingBlocks.Persistence.DbContexts;
 
 public abstract class BaseDbContext : DbContext
 {

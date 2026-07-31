@@ -1,4 +1,4 @@
-namespace FluxCommerce.BuildingBlocks.Persistence.Configurations;
+namespace FluxCommerce.BuildingBlocks.Application.Abstractions;
 
 public interface IDateTimeProvider
 {

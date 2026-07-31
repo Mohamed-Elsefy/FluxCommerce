@@ -1,6 +1,6 @@
-using FluxCommerce.BuildingBlocks.Persistence;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 
-namespace FluxCommerce.Api;
+namespace FluxCommerce.Api.Security;
 
 public sealed class CurrentUser : ICurrentUser
 {

@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Persistence.Configurations;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 
 namespace FluxCommerce.BuildingBlocks.Persistence.DesignTime;
 

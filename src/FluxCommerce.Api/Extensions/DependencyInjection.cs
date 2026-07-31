@@ -1,9 +1,10 @@
 using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Options;
+using FluxCommerce.Api.Security;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
+using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Observability;
-using FluxCommerce.BuildingBlocks.Persistence;
-using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
 using FluxCommerce.Modules.Cart.Infrastructure;

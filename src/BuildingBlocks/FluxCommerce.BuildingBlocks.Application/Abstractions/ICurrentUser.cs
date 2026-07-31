@@ -1,4 +1,4 @@
-namespace FluxCommerce.BuildingBlocks.Persistence;
+namespace FluxCommerce.BuildingBlocks.Application.Abstractions;
 
 public interface ICurrentUser
 {

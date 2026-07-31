@@ -1,4 +1,4 @@
-namespace FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+namespace FluxCommerce.BuildingBlocks.Application.Abstractions;
 
 public interface IUnitOfWork
 {
