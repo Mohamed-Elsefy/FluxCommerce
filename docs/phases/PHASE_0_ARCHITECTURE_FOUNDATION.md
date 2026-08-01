@@ -10,8 +10,8 @@ This document defines the complete scope and implementation requirements for Pha
 
 The AI coding agent MUST read and understand the following documents before implementing this phase:
 
-1. `docs/PROJECT_CONTEXT.md`
-2. `docs/ARCHITECTURE.md`
+1. `docs/current/PROJECT_CONTEXT.md`
+2. `docs/current/ARCHITECTURE.md`
 3. This document
 
 `PROJECT_CONTEXT.md` is the highest-level project context and takes precedence over this document if there is any conflict.

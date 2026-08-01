@@ -18,6 +18,7 @@
   </Folder>
   <Folder Name="/docs/phases/">
     <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
+    <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
   </Folder>
 
   <!-- Solution Items -->
