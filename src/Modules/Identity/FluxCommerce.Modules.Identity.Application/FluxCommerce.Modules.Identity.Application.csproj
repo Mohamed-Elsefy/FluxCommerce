@@ -1,13 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Commands\" />
+    <Folder Include="Commands\Login" />
+    <Folder Include="Commands\Logout" />
+    <Folder Include="Commands\Refresh" />
+    <Folder Include="Commands\RegisterAdmin\" />
+    <Folder Include="Commands\RegisterCustomer\" />
     <Folder Include="Interfaces\" />
+    <Folder Include="Mappings\" />
     <Folder Include="Queries\" />
+    <Folder Include="Security\" />
+    <Folder Include="Validation\" />
   </ItemGroup>
 </Project>
