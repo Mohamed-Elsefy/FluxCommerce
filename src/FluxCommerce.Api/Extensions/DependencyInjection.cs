@@ -12,6 +12,7 @@ using FluxCommerce.Modules.Catalog.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Payments.Infrastructure;
+using FluxCommerce.Modules.Identity.Infrastructure;
 
 namespace FluxCommerce.Api.Extensions;
 
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
         services.AddInventoryInfrastructure(GetConnectionString(configuration, "Inventory"));
         services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
+        services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
 
         services.AddRedis(GetRedisConnectionString(configuration));
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));

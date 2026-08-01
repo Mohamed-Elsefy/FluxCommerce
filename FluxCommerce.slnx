@@ -55,6 +55,12 @@
     <Project Path="src/Modules/Catalog/FluxCommerce.Modules.Catalog.Domain/FluxCommerce.Modules.Catalog.Domain.csproj" />
     <Project Path="src/Modules/Catalog/FluxCommerce.Modules.Catalog.Infrastructure/FluxCommerce.Modules.Catalog.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/FluxCommerce.Modules.Identity.Application/FluxCommerce.Modules.Identity.Application.csproj" />
+    <Project Path="src/Modules/Identity/FluxCommerce.Modules.Identity.Contracts/FluxCommerce.Modules.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/FluxCommerce.Modules.Identity.Domain/FluxCommerce.Modules.Identity.Domain.csproj" />
+    <Project Path="src/Modules/Identity/FluxCommerce.Modules.Identity.Infrastructure/FluxCommerce.Modules.Identity.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Inventory/">
     <Project Path="src/Modules/Inventory/FluxCommerce.Modules.Inventory.Application/FluxCommerce.Modules.Inventory.Application.csproj" />
     <Project Path="src/Modules/Inventory/FluxCommerce.Modules.Inventory.Contracts/FluxCommerce.Modules.Inventory.Contracts.csproj" />
