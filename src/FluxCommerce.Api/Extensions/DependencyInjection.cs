@@ -1,12 +1,12 @@
 using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Options;
-using FluxCommerce.Api.Security;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Observability;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure;
@@ -22,6 +22,7 @@ public static class DependencyInjection
     {
         services.AddOptionsConfiguration(configuration)
                 .AddPresentationLayer()
+                .AddJwtAuthentication(configuration)
                 .AddInfrastructureLayer(configuration)
                 .AddObservability(configuration);
 
@@ -50,8 +51,7 @@ public static class DependencyInjection
     private static IServiceCollection AddInfrastructureLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
-        services.AddSingleton<ICurrentUser>(_ => new CurrentUser());
-        services.AddScoped<DomainEventInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
 
         services.AddPersistence(configuration);
 

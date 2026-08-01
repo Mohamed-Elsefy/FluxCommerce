@@ -8,7 +8,7 @@ public sealed class LogoutCommandValidator
     {
         var errors = new Dictionary<string, string[]>();
 
-        RefreshTokenRules.Validate(command.RefreshToken, errors);
+        TokenRules.Validate(command.RefreshToken, "RefreshToken", errors);
 
         return errors.Count == 0
             ? ValidationResult.Success()

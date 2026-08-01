@@ -51,6 +51,10 @@ public sealed class User : AggregateRoot<Guid>
         _roles.AddRange(roles);
     }
 
+    #pragma warning disable CS8618
+    private User() { }
+    #pragma warning restore CS8618
+
     public static User Register(
         Guid id,
         Email email,
@@ -98,12 +102,12 @@ public sealed class User : AggregateRoot<Guid>
     public bool IsLockedAt(DateTime utcNow) =>
         Lockout.IsLockedAt(utcNow);
 
-    public DomainResult Authenticate(string providedPasswordHash, DateTime utcNow)
+    public DomainResult Authenticate(bool credentialsMatch, DateTime utcNow)
     {
         if (Lockout.IsLockedAt(utcNow))
             return DomainResult.Failure(UserErrors.AccountLocked);
 
-        if (!string.Equals(providedPasswordHash, PasswordHash, StringComparison.Ordinal))
+        if (!credentialsMatch)
         {
             Lockout = Lockout.RecordFailedAttempt(utcNow);
             return DomainResult.Failure(UserErrors.InvalidCredentials);
@@ -120,9 +124,6 @@ public sealed class User : AggregateRoot<Guid>
 
     public DomainResult VerifyEmail(string token, DateTime utcNow)
     {
-        if (IsEmailVerified)
-            return DomainResult.Success();
-
         var verificationToken = VerificationToken;
 
         if (verificationToken is null || !verificationToken.Matches(token))
@@ -191,12 +192,12 @@ public sealed class User : AggregateRoot<Guid>
         return DomainResult.Success();
     }
 
-    public DomainResult ChangePassword(string currentPasswordHash, string newPasswordHash, DateTime utcNow)
+    public DomainResult ChangePassword(bool currentPasswordIsCorrect, string newPasswordHash, DateTime utcNow)
     {
         if (string.IsNullOrWhiteSpace(newPasswordHash))
             throw new ArgumentException("A new password hash is required.", nameof(newPasswordHash));
 
-        if (!string.Equals(currentPasswordHash, PasswordHash, StringComparison.Ordinal))
+        if (!currentPasswordIsCorrect)
             return DomainResult.Failure(UserErrors.InvalidCredentials);
 
         PasswordHash = newPasswordHash;

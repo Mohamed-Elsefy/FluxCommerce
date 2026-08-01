@@ -59,11 +59,16 @@ public sealed class LoginCommandHandler : ICommandHandler<LoginCommand, Result<L
 
         var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
 
-        if (user is null)
-            return Result.Failure<LoginResponse>(InvalidCredentials());
-
         var utcNow = _dateTimeProvider.UtcNow;
-        var authentication = user.Authenticate(_passwordHasher.Hash(command.Password), utcNow);
+
+        if (user is null)
+        {
+            _passwordHasher.Verify(command.Password, DummyPasswordHash);
+            return Result.Failure<LoginResponse>(InvalidCredentials());
+        }
+
+        var credentialsMatch = _passwordHasher.Verify(command.Password, user.PasswordHash);
+        var authentication = user.Authenticate(credentialsMatch, utcNow);
 
         if (authentication.IsFailure)
         {
@@ -91,6 +96,9 @@ public sealed class LoginCommandHandler : ICommandHandler<LoginCommand, Result<L
 
     private static Error InvalidCredentials() =>
         Error.Unauthorized(UserErrors.InvalidCredentials.Code, UserErrors.InvalidCredentials.Description);
+
+    private const string DummyPasswordHash =
+        "PBKDF2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
     private static Error MapFailure(DomainError error)
     {

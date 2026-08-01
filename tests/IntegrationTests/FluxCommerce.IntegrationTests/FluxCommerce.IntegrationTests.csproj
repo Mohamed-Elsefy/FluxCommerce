@@ -1,2 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  </Project>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\FluxCommerce.Api\FluxCommerce.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Infrastructure\FluxCommerce.Modules.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

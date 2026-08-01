@@ -6,13 +6,16 @@ public sealed record DomainError
 
     public string Description { get; }
 
-    private DomainError(string code, string description)
+    private DomainError(string code, string description, bool isSentinel = false)
     {
-        if (string.IsNullOrWhiteSpace(code))
-            throw new ArgumentException("An error code is required.", nameof(code));
+        if (!isSentinel)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                throw new ArgumentException("An error code is required.", nameof(code));
 
-        if (string.IsNullOrWhiteSpace(description))
-            throw new ArgumentException("An error description is required.", nameof(description));
+            if (string.IsNullOrWhiteSpace(description))
+                throw new ArgumentException("An error description is required.", nameof(description));
+        }
 
         Code = code;
         Description = description;
@@ -20,5 +23,5 @@ public sealed record DomainError
 
     public static DomainError Create(string code, string description) => new(code, description);
 
-    public static readonly DomainError None = new(string.Empty, string.Empty);
+    public static readonly DomainError None = new(string.Empty, string.Empty, isSentinel: true);
 }

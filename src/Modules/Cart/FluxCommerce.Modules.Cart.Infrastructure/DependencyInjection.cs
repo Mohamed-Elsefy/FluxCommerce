@@ -8,7 +8,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddCartInfrastructure(this IServiceCollection services, string connectionString)
     {
-        services.AddDbContextPool<CartDbContext>(options =>
+        services.AddDbContext<CartDbContext>(options =>
             options.UseSqlServer(connectionString, sqlOptions =>
             {
                 sqlOptions.EnableRetryOnFailure(3);

@@ -10,7 +10,7 @@ internal static class ArchitectureRegistry
     private static readonly string[] BuildingBlockProjects =
         ["Domain", "Application", "Infrastructure", "Messaging", "Observability", "Persistence", "Web", "Outbox", "Idempotency", "Resilience"];
 
-    private static readonly string[] Modules = ["Catalog", "Cart", "Orders", "Inventory", "Payments"];
+    private static readonly string[] Modules = ["Catalog", "Cart", "Orders", "Inventory", "Payments", "Identity"];
 
     private static readonly string[] Layers = ["Domain", "Application", "Infrastructure", "Contracts"];
 
@@ -49,6 +49,9 @@ internal static class ArchitectureRegistry
         "Microsoft.EntityFrameworkCore.ChangeTracking",
         "Microsoft.EntityFrameworkCore.Query",
     ];
+
+    public static IReadOnlyList<string> DbContextNamespaces { get; } =
+        GetNamespaces(Modules.Select(m => $"{ModulesRoot}.{m}.Infrastructure.DbContexts"));
 
     public static IReadOnlyList<string> AspNetCoreNamespaces { get; } =
     [

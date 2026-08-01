@@ -13,6 +13,7 @@ public static class PipelineConfiguration
         app.UseMiddleware<RequestLoggingMiddleware>();
         app.UseHttpsRedirection();
 
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapHealthChecks("/health/live", new HealthCheckOptions

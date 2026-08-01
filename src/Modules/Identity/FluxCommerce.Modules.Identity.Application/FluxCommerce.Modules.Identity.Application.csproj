@@ -7,11 +7,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Commands\ChangePassword\" />
+    <Folder Include="Commands\ForgotPassword\" />
     <Folder Include="Commands\Login" />
     <Folder Include="Commands\Logout" />
     <Folder Include="Commands\Refresh" />
     <Folder Include="Commands\RegisterAdmin\" />
     <Folder Include="Commands\RegisterCustomer\" />
+    <Folder Include="Commands\ResendVerification\" />
+    <Folder Include="Commands\ResetPassword\" />
+    <Folder Include="Commands\VerifyEmail\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappings\" />
     <Folder Include="Queries\" />
