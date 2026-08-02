@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <UserSecretsId>efc79ec9-ee91-4d14-aebc-55903c49c60e</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\FluxCommerce.Modules.Identity.Application\FluxCommerce.Modules.Identity.Application.csproj" />

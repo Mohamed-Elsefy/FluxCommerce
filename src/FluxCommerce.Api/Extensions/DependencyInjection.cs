@@ -22,6 +22,7 @@ public static class DependencyInjection
     {
         services.AddOptionsConfiguration(configuration)
                 .AddPresentationLayer()
+                .AddSwaggerConfiguration()
                 .AddJwtAuthentication(configuration)
                 .AddInfrastructureLayer(configuration)
                 .AddObservability(configuration);
@@ -31,9 +32,20 @@ public static class DependencyInjection
 
     private static IServiceCollection AddOptionsConfiguration(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
-        services.Configure<MessageBrokerOptions>(configuration.GetSection(MessageBrokerOptions.SectionName));
-        services.Configure<CacheOptions>(configuration.GetSection(CacheOptions.SectionName));
+        services.AddOptions<DatabaseOptions>()
+            .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<MessageBrokerOptions>()
+            .Bind(configuration.GetSection(MessageBrokerOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<CacheOptions>()
+            .Bind(configuration.GetSection(CacheOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }

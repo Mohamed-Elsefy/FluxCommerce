@@ -1,19 +1,34 @@
 using FluxCommerce.BuildingBlocks.Persistence.DesignTime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 
 public sealed class PaymentsDesignTimeDbContextFactory : IDesignTimeDbContextFactory<PaymentsDbContext>
 {
+    private const string ConnectionStringKey = "Database:ModuleConnections:Payments";
+
     public PaymentsDbContext CreateDbContext(string[] args)
     {
-        var connectionString = args.Length > 0
-            ? args[0]
-            : "Server=localhost;Database=FluxCommerce_Payments;Trusted_Connection=True;TrustServerCertificate=True;";
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddUserSecrets<PaymentsDesignTimeDbContextFactory>()
+            .AddEnvironmentVariables()
+            .Build();
+
+        var connectionString = configuration[ConnectionStringKey]
+            ?? throw new InvalidOperationException(
+                $"Connection string '{ConnectionStringKey}' is not configured. " +
+                "Set it via user secrets (e.g. 'dotnet user-secrets set \"Database:ModuleConnections:Payments\" \"<connection-string>\"') or an environment variable.");
 
         var optionsBuilder = new DbContextOptionsBuilder<PaymentsDbContext>();
-        optionsBuilder.UseSqlServer(connectionString);
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Payments");
+        });
 
         return new PaymentsDbContext(
             optionsBuilder.Options,

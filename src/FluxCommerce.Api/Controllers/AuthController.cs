@@ -58,6 +58,7 @@ public sealed class AuthController : ApiControllerBase
         _getCurrentUserHandler = getCurrentUserHandler;
     }
 
+    /// <summary>Registers a new customer account.</summary>
     [HttpPost("register")]
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterCustomerRequest request, CancellationToken cancellationToken)
@@ -66,6 +67,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _registerCustomerHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Authenticates a user and returns an access token with a refresh token.</summary>
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
@@ -74,6 +76,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _loginHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Rotates an existing refresh token and returns a new token pair.</summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request, CancellationToken cancellationToken)
@@ -82,6 +85,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _refreshHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Revokes the presented refresh token.</summary>
     [HttpPost("logout")]
     [AllowAnonymous]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
@@ -90,6 +94,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _logoutHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Confirms an email address using the verification token.</summary>
     [HttpPost("verify-email")]
     [AllowAnonymous]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
@@ -98,6 +103,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _verifyEmailHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Issues a new email verification token for a registered but unverified account.</summary>
     [HttpPost("resend-verification")]
     [AllowAnonymous]
     public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request, CancellationToken cancellationToken)
@@ -106,6 +112,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _resendVerificationHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Requests a password reset token for an existing account.</summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
@@ -114,6 +121,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _forgotPasswordHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Sets a new password using a password reset token.</summary>
     [HttpPost("reset-password")]
     [AllowAnonymous]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
@@ -122,6 +130,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _resetPasswordHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Changes the authenticated user's password using the current password.</summary>
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
@@ -129,6 +138,7 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _changePasswordHandler.HandleAsync(command, cancellationToken));
     }
 
+    /// <summary>Returns the profile of the authenticated user.</summary>
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {

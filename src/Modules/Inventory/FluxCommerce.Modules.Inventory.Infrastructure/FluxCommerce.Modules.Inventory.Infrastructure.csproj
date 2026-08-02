@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <UserSecretsId>efc79ec9-ee91-4d14-aebc-55903c49c60e</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Inventory.Domain\FluxCommerce.Modules.Inventory.Domain.csproj" />
     <ProjectReference Include="..\FluxCommerce.Modules.Inventory.Application\FluxCommerce.Modules.Inventory.Application.csproj" />
@@ -9,6 +13,10 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Observability\FluxCommerce.BuildingBlocks.Observability.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
