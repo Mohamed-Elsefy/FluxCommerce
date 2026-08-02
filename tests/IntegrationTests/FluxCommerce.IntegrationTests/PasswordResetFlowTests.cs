@@ -69,6 +69,25 @@ public class PasswordResetFlowTests
     }
 
     [Fact]
+    public async Task ForgotPassword_SendsResetEmail_WithTokenMatchingDatabase()
+    {
+        var email = $"resetmail-{Guid.NewGuid():N}@example.com";
+        await RegisterAndVerify(email);
+
+        var forgot = await _client.PostAsJsonAsync("auth/forgot-password", new { email });
+        Assert.Equal(HttpStatusCode.OK, forgot.StatusCode);
+
+        var storedToken = TestDatabase.GetPasswordResetToken(_factory, email);
+        var message = TestDatabase.GetLastEmail(_factory, email);
+
+        Assert.Equal(email, message.ToEmail);
+        Assert.Equal("Reset your FluxCommerce password", message.Subject);
+        Assert.Contains($"https://localhost:4200/reset-password?token={storedToken}", message.HtmlBody);
+        Assert.Contains($"https://localhost:4200/reset-password?token={storedToken}", message.TextBody);
+        Assert.Contains("1 hour", message.HtmlBody);
+    }
+
+    [Fact]
     public async Task ForgotPassword_WithUnknownEmail_ReturnsOk()
     {
         var response = await _client.PostAsJsonAsync(

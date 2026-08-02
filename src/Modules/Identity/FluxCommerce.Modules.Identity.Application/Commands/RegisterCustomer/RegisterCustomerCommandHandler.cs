@@ -3,7 +3,9 @@ using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
+using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
 using FluxCommerce.Modules.Identity.Application.Mappings;
+using FluxCommerce.Modules.Identity.Application.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Identity.Domain.ValueObjects;
@@ -14,17 +16,23 @@ public sealed class RegisterCustomerCommandHandler : ICommandHandler<RegisterCus
 {
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly ITokenGenerator _tokenGenerator;
+    private readonly IEmailVerificationService _emailVerificationService;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
 
     public RegisterCustomerCommandHandler(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
+        ITokenGenerator tokenGenerator,
+        IEmailVerificationService emailVerificationService,
         IDateTimeProvider dateTimeProvider,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
+        _tokenGenerator = tokenGenerator;
+        _emailVerificationService = emailVerificationService;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
     }
@@ -54,15 +62,37 @@ public sealed class RegisterCustomerCommandHandler : ICommandHandler<RegisterCus
             return Result.Failure<UserResponse>(
                 Error.Conflict("Identity.DuplicateEmail", "An account with this email address already exists."));
 
+        var utcNow = _dateTimeProvider.UtcNow;
+        var verificationToken = _tokenGenerator.GenerateEmailVerificationToken();
+        var verificationTokenExpiresAtUtc = utcNow.Add(TokenLifetimes.EmailVerification);
+
         var user = User.Register(
             Guid.NewGuid(),
             email,
             _passwordHasher.Hash(command.Password),
-            _dateTimeProvider.UtcNow,
-            [Roles.Customer]);
+            utcNow,
+            [Roles.Customer],
+            verificationToken: verificationToken,
+            verificationTokenExpiresAtUtc: verificationTokenExpiresAtUtc);
 
         await _userRepository.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _emailVerificationService.SendVerificationEmailAsync(
+                user.Id,
+                user.Email.Value,
+                verificationToken,
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            return Result.Failure<UserResponse>(
+                Error.Failure(
+                    "Identity.EmailSendFailed",
+                    "The account was created, but the verification email could not be sent. Please request a new verification email."));
+        }
 
         return Result.Success(UserResponseMapper.ToResponse(user));
     }

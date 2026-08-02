@@ -60,6 +60,16 @@ services:
     networks:
       - fluxcommerce
 
+  smtp4dev:
+    image: rnwood/smtp4dev:latest
+    container_name: fluxcommerce-smtp4dev
+    ports:
+      - "2525:25"
+      - "5000:80"
+    restart: unless-stopped
+    networks:
+      - fluxcommerce
+
 volumes:
   sqlserver_data:
   redis_data:

@@ -64,6 +64,38 @@ public class AuthFlowTests
     }
 
     [Fact]
+    public async Task Registration_CreatesExactlyOneVerificationToken()
+    {
+        var email = $"token-{Guid.NewGuid():N}@example.com";
+
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+
+        var token = TestDatabase.GetVerificationToken(_factory, email);
+        Assert.False(string.IsNullOrEmpty(token));
+
+        Assert.Equal(1, TestDatabase.CountVerificationTokenRows(_factory, email));
+    }
+
+    [Fact]
+    public async Task Registration_SendsVerificationEmail_WithTokenMatchingDatabase()
+    {
+        var email = $"email-{Guid.NewGuid():N}@example.com";
+
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+
+        var storedToken = TestDatabase.GetVerificationToken(_factory, email);
+        var message = TestDatabase.GetLastEmail(_factory, email);
+
+        Assert.Equal(email, message.ToEmail);
+        Assert.Equal("Verify your FluxCommerce account", message.Subject);
+        Assert.Contains($"https://localhost:4200/verify-email?token={storedToken}", message.HtmlBody);
+        Assert.Contains($"https://localhost:4200/verify-email?token={storedToken}", message.TextBody);
+        Assert.Contains("24 hours", message.HtmlBody);
+    }
+
+    [Fact]
     public async Task DuplicateRegistration_ReturnsConflict()
     {
         var email = $"duplicate-{Guid.NewGuid():N}@example.com";

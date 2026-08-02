@@ -38,6 +38,21 @@ public class ForgotPasswordCommandHandlerTests
     }
 
     [Fact]
+    public async Task ForgotPassword_EmailSendFails_StillSucceedsSilently_AndTokenIsPersisted()
+    {
+        await SeedUser();
+        _resetEmails.ExceptionToThrow = new InvalidOperationException("SMTP unavailable");
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new ForgotPasswordCommand("user@example.com"));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(_users.Users.Single().ResetToken!.Matches("new-reset-token"));
+        Assert.Equal(1, _unitOfWork.SaveChangesCount);
+        Assert.Empty(_resetEmails.Sent);
+    }
+
+    [Fact]
     public async Task ForgotPassword_WithUnknownEmail_SucceedsSilently()
     {
         var handler = CreateHandler();

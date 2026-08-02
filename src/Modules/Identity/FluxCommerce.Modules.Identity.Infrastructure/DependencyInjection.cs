@@ -17,6 +17,7 @@ using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Infrastructure.Authentication;
 using FluxCommerce.Modules.Identity.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Identity.Infrastructure.Emailing;
 using FluxCommerce.Modules.Identity.Infrastructure.Repositories;
 using FluxCommerce.Modules.Identity.Infrastructure.Security;
 using FluxCommerce.Modules.Identity.Infrastructure.Services;
@@ -51,6 +52,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<ITokenGenerator, TokenGenerator>();
         services.AddSingleton<IJwtProvider, JwtProvider>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
         services.AddScoped<IEmailVerificationService, EmailVerificationService>();
         services.AddScoped<IPasswordResetService, PasswordResetService>();

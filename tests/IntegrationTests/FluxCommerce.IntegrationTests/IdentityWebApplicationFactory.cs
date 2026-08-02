@@ -1,4 +1,6 @@
+using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
 using FluxCommerce.Modules.Identity.Infrastructure.DbContexts;
+using FluxCommerce.IntegrationTests.TestInfrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -13,6 +15,8 @@ public sealed class IdentityWebApplicationFactory : WebApplicationFactory<Progra
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
 
+    public InMemoryEmailSender EmailSender { get; } = new();
+
     public IdentityWebApplicationFactory()
     {
         ClientOptions.BaseAddress = new Uri("https://localhost");
@@ -23,6 +27,17 @@ public sealed class IdentityWebApplicationFactory : WebApplicationFactory<Progra
     {
         builder.ConfigureServices(services =>
         {
+            var emailSenderDescriptors = services
+                .Where(d => d.ServiceType == typeof(IEmailSender))
+                .ToList();
+
+            foreach (var descriptor in emailSenderDescriptors)
+            {
+                services.Remove(descriptor);
+            }
+
+            services.AddSingleton<IEmailSender>(EmailSender);
+
             var descriptors = services
                 .Where(d =>
                     d.ServiceType == typeof(IdentityDbContext)

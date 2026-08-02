@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Identity.Application.Emailing;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,23 @@ public static class TestDatabase
 
     public static Guid GetUserId(IdentityWebApplicationFactory factory, string email) =>
         Query(factory, user => user.Id, email);
+
+    public static EmailMessage GetLastEmail(IdentityWebApplicationFactory factory, string toEmail) =>
+        factory.EmailSender.Sent.Last(message => message.ToEmail == toEmail);
+
+    public static int CountVerificationTokenRows(IdentityWebApplicationFactory factory, string email)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<FluxCommerce.Modules.Identity.Infrastructure.DbContexts.IdentityDbContext>();
+
+        var userId = dbContext.Set<User>()
+            .Single(user => user.Email.Value == email)
+            .Id;
+
+        return dbContext.Database
+            .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM EmailVerificationTokens WHERE UserId = {userId}")
+            .Single();
+    }
 
     private static TResult Query<TResult>(
         IdentityWebApplicationFactory factory,

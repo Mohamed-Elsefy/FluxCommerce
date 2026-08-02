@@ -68,11 +68,18 @@ public sealed class ForgotPasswordCommandHandler : ICommandHandler<ForgotPasswor
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _passwordResetService.SendPasswordResetEmailAsync(
-            user.Id,
-            user.Email.Value,
-            tokenValue,
-            cancellationToken);
+        try
+        {
+            await _passwordResetService.SendPasswordResetEmailAsync(
+                user.Id,
+                user.Email.Value,
+                tokenValue,
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            return Result.Success();
+        }
 
         return Result.Success();
     }

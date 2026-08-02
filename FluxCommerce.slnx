@@ -15,6 +15,7 @@
   <Folder Name="/docs/current/">
     <File Path="docs/current/ARCHITECTURE.md" />
     <File Path="docs/current/PROJECT_CONTEXT.md" />
+    <File Path="docs/current/SMTP_LOCAL_DEVELOPMENT.md" />
   </Folder>
   <Folder Name="/docs/phases/">
     <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />

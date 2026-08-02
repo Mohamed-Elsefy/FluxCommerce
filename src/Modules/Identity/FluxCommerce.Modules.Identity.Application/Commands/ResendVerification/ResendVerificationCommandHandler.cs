@@ -70,11 +70,18 @@ public sealed class ResendVerificationCommandHandler : ICommandHandler<ResendVer
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _emailVerificationService.SendVerificationEmailAsync(
-            user.Id,
-            user.Email.Value,
-            tokenValue,
-            cancellationToken);
+        try
+        {
+            await _emailVerificationService.SendVerificationEmailAsync(
+                user.Id,
+                user.Email.Value,
+                tokenValue,
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            return Result.Success(new ResendVerificationResponse(false, null));
+        }
 
         return Result.Success(new ResendVerificationResponse(true, expiresAtUtc));
     }

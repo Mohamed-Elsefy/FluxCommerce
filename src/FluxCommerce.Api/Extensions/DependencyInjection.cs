@@ -24,6 +24,7 @@ public static class DependencyInjection
                 .AddPresentationLayer()
                 .AddSwaggerConfiguration()
                 .AddJwtAuthentication(configuration)
+                .AddEmailOptions(configuration)
                 .AddInfrastructureLayer(configuration)
                 .AddObservability(configuration);
 

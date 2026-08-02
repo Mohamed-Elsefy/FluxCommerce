@@ -12,9 +12,11 @@ public class RegisterAdminCommandHandlerTests
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly FakeDateTimeProvider _clock = new();
     private readonly PasswordHasher _hasher = new();
+    private readonly TokenGenerator _tokenGenerator = new();
+    private readonly FakeEmailVerificationService _emails = new();
 
     private RegisterAdminCommandHandler CreateHandler() =>
-        new(_users, _hasher, _clock, _unitOfWork);
+        new(_users, _hasher, _tokenGenerator, _emails, _clock, _unitOfWork);
 
     [Fact]
     public async Task Register_Succeeds_AndCreatesAdmin()
@@ -27,6 +29,26 @@ public class RegisterAdminCommandHandlerTests
         var user = Assert.Single(_users.Users);
         Assert.Equal(Roles.Admin, Assert.Single(user.Roles));
         Assert.True(_hasher.Verify("Str0ng!Pass1", user.PasswordHash));
+        Assert.NotNull(user.VerificationToken);
+        Assert.False(user.VerificationToken.IsUsed);
+        Assert.True(user.VerificationToken.ExpiresAtUtc > _clock.UtcNow);
+        var sent = Assert.Single(_emails.Sent);
+        Assert.Equal(user.VerificationToken.Value, sent.Token);
+        Assert.Equal(user.Id, sent.UserId);
+    }
+
+    [Fact]
+    public async Task Register_EmailSendFails_ReturnsFailure_ButUserIsPersisted()
+    {
+        _emails.ExceptionToThrow = new InvalidOperationException("SMTP unavailable");
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "Str0ng!Pass1"));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Identity.EmailSendFailed", result.Error.Code);
+        Assert.Single(_users.Users);
+        Assert.Equal(1, _unitOfWork.SaveChangesCount);
     }
 
     [Fact]
