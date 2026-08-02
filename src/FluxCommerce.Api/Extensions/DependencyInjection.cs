@@ -1,17 +1,18 @@
 using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Options;
-using FluxCommerce.Api.Security;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Observability;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Payments.Infrastructure;
+using FluxCommerce.Modules.Identity.Infrastructure;
 
 namespace FluxCommerce.Api.Extensions;
 
@@ -21,6 +22,9 @@ public static class DependencyInjection
     {
         services.AddOptionsConfiguration(configuration)
                 .AddPresentationLayer()
+                .AddSwaggerConfiguration()
+                .AddJwtAuthentication(configuration)
+                .AddEmailOptions(configuration)
                 .AddInfrastructureLayer(configuration)
                 .AddObservability(configuration);
 
@@ -29,9 +33,20 @@ public static class DependencyInjection
 
     private static IServiceCollection AddOptionsConfiguration(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
-        services.Configure<MessageBrokerOptions>(configuration.GetSection(MessageBrokerOptions.SectionName));
-        services.Configure<CacheOptions>(configuration.GetSection(CacheOptions.SectionName));
+        services.AddOptions<DatabaseOptions>()
+            .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<MessageBrokerOptions>()
+            .Bind(configuration.GetSection(MessageBrokerOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<CacheOptions>()
+            .Bind(configuration.GetSection(CacheOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }
@@ -49,8 +64,7 @@ public static class DependencyInjection
     private static IServiceCollection AddInfrastructureLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
-        services.AddSingleton<ICurrentUser>(_ => new CurrentUser());
-        services.AddScoped<DomainEventInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
 
         services.AddPersistence(configuration);
 
@@ -59,6 +73,7 @@ public static class DependencyInjection
         services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
         services.AddInventoryInfrastructure(GetConnectionString(configuration, "Inventory"));
         services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
+        services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
 
         services.AddRedis(GetRedisConnectionString(configuration));
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));

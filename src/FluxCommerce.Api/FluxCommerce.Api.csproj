@@ -21,6 +21,7 @@
     <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Application\FluxCommerce.Modules.Orders.Application.csproj" />
     <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Application\FluxCommerce.Modules.Inventory.Application.csproj" />
     <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Application\FluxCommerce.Modules.Payments.Application.csproj" />
+    <ProjectReference Include="..\Modules\Identity\FluxCommerce.Modules.Identity.Application\FluxCommerce.Modules.Identity.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Module - Contracts -->
@@ -29,6 +30,7 @@
     <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Contracts\FluxCommerce.Modules.Inventory.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Contracts\FluxCommerce.Modules.Payments.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,14 +40,17 @@
     <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Infrastructure\FluxCommerce.Modules.Orders.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Infrastructure\FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Infrastructure\FluxCommerce.Modules.Payments.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\FluxCommerce.Modules.Identity.Infrastructure\FluxCommerce.Modules.Identity.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 </Project>

@@ -9,10 +9,21 @@ public static class PipelineConfiguration
     public static WebApplication ConfigurePipeline(this WebApplication app)
     {
         app.UseExceptionHandler();
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI(options =>
+            {
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "FluxCommerce API v1");
+            });
+        }
+
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
         app.UseHttpsRedirection();
 
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapHealthChecks("/health/live", new HealthCheckOptions

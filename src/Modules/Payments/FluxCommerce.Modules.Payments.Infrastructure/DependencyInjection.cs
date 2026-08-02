@@ -8,7 +8,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddPaymentsInfrastructure(this IServiceCollection services, string connectionString)
     {
-        services.AddDbContextPool<PaymentsDbContext>(options =>
+        services.AddDbContext<PaymentsDbContext>(options =>
             options.UseSqlServer(connectionString, sqlOptions =>
             {
                 sqlOptions.EnableRetryOnFailure(3);

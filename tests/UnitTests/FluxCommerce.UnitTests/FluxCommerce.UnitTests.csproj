@@ -1,2 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  </Project>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Application\FluxCommerce.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Infrastructure\FluxCommerce.Modules.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
