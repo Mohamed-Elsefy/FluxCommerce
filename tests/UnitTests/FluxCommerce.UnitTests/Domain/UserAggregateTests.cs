@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
+using FluxCommerce.Modules.Identity.Domain.Enums;
 using FluxCommerce.Modules.Identity.Domain.Errors;
 using FluxCommerce.Modules.Identity.Domain.Events;
 using FluxCommerce.Modules.Identity.Domain.ValueObjects;
@@ -16,6 +17,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email(email),
             passwordHash,
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -35,6 +38,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "password-hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -42,6 +47,15 @@ public class UserAggregateTests
 
         Assert.Equal("user@example.com", user.Email.Value);
         Assert.Equal("password-hash", user.PasswordHash);
+        Assert.Equal("John", user.FirstName);
+        Assert.Equal("Doe", user.LastName);
+        Assert.Equal("John Doe", user.DisplayName);
+        Assert.Null(user.PhoneNumber);
+        Assert.False(user.IsPhoneVerified);
+        Assert.Null(user.AvatarUrl);
+        Assert.Equal("en", user.PreferredLanguage);
+        Assert.Equal("UTC", user.TimeZone);
+        Assert.Equal(UserStatus.Pending, user.Status);
         Assert.Contains(Roles.Customer, user.Roles);
         Assert.False(user.IsEmailVerified);
         Assert.Equal(UtcNow, user.RegisteredAtUtc);
@@ -55,13 +69,65 @@ public class UserAggregateTests
     public void Register_WithInvalidArguments_Throws(string? passwordHash)
     {
         Assert.Throws<ArgumentException>(() =>
-            User.Register(Guid.NewGuid(), new Email("user@example.com"), passwordHash!, UtcNow, [Roles.Customer]));
+            User.Register(Guid.NewGuid(), new Email("user@example.com"), passwordHash!, "John", "Doe", UtcNow, [Roles.Customer]));
 
         Assert.Throws<ArgumentException>(() =>
-            User.Register(Guid.Empty, new Email("user@example.com"), "hash", UtcNow, [Roles.Customer]));
+            User.Register(Guid.Empty, new Email("user@example.com"), "hash", "John", "Doe", UtcNow, [Roles.Customer]));
 
         Assert.Throws<ArgumentException>(() =>
-            User.Register(Guid.NewGuid(), new Email("user@example.com"), "hash", UtcNow, []));
+            User.Register(Guid.NewGuid(), new Email("user@example.com"), "hash", "John", "Doe", UtcNow, []));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Register_WithInvalidFirstName_Throws(string? firstName)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            User.Register(Guid.NewGuid(), new Email("user@example.com"), "hash", firstName!, "Doe", UtcNow, [Roles.Customer]));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Register_WithInvalidLastName_Throws(string? lastName)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            User.Register(Guid.NewGuid(), new Email("user@example.com"), "hash", "John", lastName!, UtcNow, [Roles.Customer]));
+    }
+
+    [Fact]
+    public void Register_TrimsNames()
+    {
+        var user = User.Register(
+            Guid.NewGuid(),
+            new Email("user@example.com"),
+            "hash",
+            "  John  ",
+            "  Doe  ",
+            UtcNow,
+            [Roles.Customer]);
+
+        Assert.Equal("John", user.FirstName);
+        Assert.Equal("Doe", user.LastName);
+        Assert.Equal("John Doe", user.DisplayName);
+    }
+
+    [Fact]
+    public void Register_GeneratesDisplayNameFromNames()
+    {
+        var user = User.Register(
+            Guid.NewGuid(),
+            new Email("user@example.com"),
+            "hash",
+            "Maria",
+            "Garcia",
+            UtcNow,
+            [Roles.Customer]);
+
+        Assert.Equal("Maria Garcia", user.DisplayName);
     }
 
     // ---- Authentication / lockout ----
@@ -113,6 +179,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -166,6 +234,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -176,6 +246,7 @@ public class UserAggregateTests
         Assert.True(result.IsSuccess);
         Assert.True(user.IsEmailVerified);
         Assert.Equal(UtcNow, user.EmailVerifiedAtUtc);
+        Assert.Equal(UserStatus.Active, user.Status);
         Assert.True(user.GetDomainEvents().OfType<EmailVerified>().Any());
     }
 
@@ -186,6 +257,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -196,6 +269,7 @@ public class UserAggregateTests
         Assert.True(result.IsFailure);
         Assert.Equal(UserErrors.InvalidToken, result.Error);
         Assert.False(user.IsEmailVerified);
+        Assert.Equal(UserStatus.Pending, user.Status);
     }
 
     [Fact]
@@ -205,6 +279,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -223,6 +299,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "verify-token",
@@ -243,6 +321,8 @@ public class UserAggregateTests
             Guid.NewGuid(),
             new Email("user@example.com"),
             "hash",
+            "John",
+            "Doe",
             UtcNow,
             [Roles.Customer],
             "old-token",

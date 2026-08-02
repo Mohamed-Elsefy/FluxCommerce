@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Identity.Contracts.Enums;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
 
@@ -11,5 +12,25 @@ public static class UserResponseMapper
             user.Email.Value,
             user.Roles,
             user.IsEmailVerified,
-            user.RegisteredAtUtc);
+            user.RegisteredAtUtc,
+            user.FirstName,
+            user.LastName,
+            user.DisplayName,
+            user.PhoneNumber,
+            user.IsPhoneVerified,
+            user.AvatarUrl,
+            user.PreferredLanguage,
+            user.TimeZone,
+            ToStatus(user.Status));
+
+    private static UserStatus ToStatus(Domain.Enums.UserStatus status) =>
+        status switch
+        {
+            Domain.Enums.UserStatus.Pending => UserStatus.Pending,
+            Domain.Enums.UserStatus.Active => UserStatus.Active,
+            Domain.Enums.UserStatus.Suspended => UserStatus.Suspended,
+            Domain.Enums.UserStatus.Locked => UserStatus.Locked,
+            Domain.Enums.UserStatus.Deleted => UserStatus.Deleted,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
 }

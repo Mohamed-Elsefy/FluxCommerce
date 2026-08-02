@@ -3,6 +3,8 @@ using FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Identity.Infrastructure.Security;
 using FluxCommerce.UnitTests.TestInfrastructure;
+using ContractUserStatus = FluxCommerce.Modules.Identity.Contracts.Enums.UserStatus;
+using DomainUserStatus = FluxCommerce.Modules.Identity.Domain.Enums.UserStatus;
 using Xunit;
 
 namespace FluxCommerce.UnitTests.Application;
@@ -24,13 +26,25 @@ public class RegisterCustomerCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1", "John", "Doe"));
 
         Assert.True(result.IsSuccess);
         var user = Assert.Single(_users.Users);
         Assert.Equal(Roles.Customer, Assert.Single(user.Roles));
         Assert.Equal("user@example.com", result.Value.Email);
+        Assert.Equal("John", result.Value.FirstName);
+        Assert.Equal("Doe", result.Value.LastName);
+        Assert.Equal("John Doe", result.Value.DisplayName);
+        Assert.Null(result.Value.PhoneNumber);
+        Assert.False(result.Value.IsPhoneVerified);
+        Assert.Null(result.Value.AvatarUrl);
+        Assert.Equal("en", result.Value.PreferredLanguage);
+        Assert.Equal("UTC", result.Value.TimeZone);
+        Assert.Equal(ContractUserStatus.Pending, result.Value.Status);
         Assert.False(result.Value.IsEmailVerified);
+        Assert.Equal("John", user.FirstName);
+        Assert.Equal("Doe", user.LastName);
+        Assert.Equal(DomainUserStatus.Pending, user.Status);
         Assert.NotEqual("Str0ng!Pass1", user.PasswordHash);
         Assert.True(_hasher.Verify("Str0ng!Pass1", user.PasswordHash));
         Assert.NotNull(user.VerificationToken);
@@ -48,7 +62,7 @@ public class RegisterCustomerCommandHandlerTests
         _emails.ExceptionToThrow = new InvalidOperationException("SMTP unavailable");
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1", "John", "Doe"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.EmailSendFailed", result.Error.Code);
@@ -62,7 +76,7 @@ public class RegisterCustomerCommandHandlerTests
         await _users.AddAsync(TestUsers.CreateUnverified(passwordHash: _hasher.Hash(TestUsers.Password)));
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1", "John", "Doe"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.DuplicateEmail", result.Error.Code);
@@ -76,7 +90,7 @@ public class RegisterCustomerCommandHandlerTests
         await _users.AddAsync(TestUsers.CreateUnverified(email: "user@example.com", passwordHash: _hasher.Hash(TestUsers.Password)));
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand("USER@EXAMPLE.COM", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("USER@EXAMPLE.COM", "Str0ng!Pass1", "John", "Doe"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.DuplicateEmail", result.Error.Code);
@@ -87,7 +101,7 @@ public class RegisterCustomerCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "weak"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "weak", "John", "Doe"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.ValidationFailed", result.Error.Code);
@@ -99,7 +113,7 @@ public class RegisterCustomerCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand("not-an-email", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("not-an-email", "Str0ng!Pass1", "John", "Doe"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.ValidationFailed", result.Error.Code);
@@ -111,9 +125,33 @@ public class RegisterCustomerCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterCustomerCommand(null!, "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterCustomerCommand(null!, "Str0ng!Pass1", "John", "Doe"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.ValidationFailed", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task Register_MissingFirstName_ReturnsValidation()
+    {
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1", "", "Doe"));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Identity.ValidationFailed", result.Error.Code);
+        Assert.Empty(_users.Users);
+    }
+
+    [Fact]
+    public async Task Register_MissingLastName_ReturnsValidation()
+    {
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new RegisterCustomerCommand("user@example.com", "Str0ng!Pass1", "John", null!));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Identity.ValidationFailed", result.Error.Code);
+        Assert.Empty(_users.Users);
     }
 }

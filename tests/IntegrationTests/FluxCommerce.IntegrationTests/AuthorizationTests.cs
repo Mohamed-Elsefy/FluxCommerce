@@ -117,7 +117,7 @@ public class AuthorizationTests
 
     private async Task RegisterAndVerify(string email)
     {
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         register.EnsureSuccessStatusCode();
 
         var resend = await _client.PostAsJsonAsync("auth/resend-verification", new { email });

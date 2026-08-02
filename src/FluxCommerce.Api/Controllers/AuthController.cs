@@ -59,11 +59,19 @@ public sealed class AuthController : ApiControllerBase
     }
 
     /// <summary>Registers a new customer account.</summary>
+    /// <remarks>
+    /// Accepts the account's email, password, first name, and last name.
+    /// The display name is derived from the first and last name; phone number,
+    /// avatar URL, preferred language, and time zone are initialized with defaults
+    /// and can be managed in a later phase.
+    /// The account is created with a pending status and is activated once the
+    /// verification email is confirmed.
+    /// </remarks>
     [HttpPost("register")]
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterCustomerRequest request, CancellationToken cancellationToken)
     {
-        var command = new RegisterCustomerCommand(request.Email, request.Password);
+        var command = new RegisterCustomerCommand(request.Email, request.Password, request.FirstName, request.LastName);
         return Success(await _registerCustomerHandler.HandleAsync(command, cancellationToken));
     }
 

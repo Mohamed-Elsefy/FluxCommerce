@@ -28,17 +28,43 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)")
+                        .HasColumnName("AvatarUrl");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(201)
+                        .HasColumnType("nvarchar(201)")
+                        .HasColumnName("DisplayName");
+
                     b.Property<DateTime?>("EmailVerifiedAtUtc")
                         .HasColumnType("datetime2")
                         .HasColumnName("EmailVerifiedAtUtc");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("FirstName");
 
                     b.Property<bool>("IsEmailVerified")
                         .HasColumnType("bit")
                         .HasColumnName("IsEmailVerified");
 
+                    b.Property<bool>("IsPhoneVerified")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsPhoneVerified");
+
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastLoginAtUtc");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("LastName");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -46,9 +72,30 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(512)")
                         .HasColumnName("PasswordHash");
 
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<string>("PreferredLanguage")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("PreferredLanguage");
+
                     b.Property<DateTime>("RegisteredAtUtc")
                         .HasColumnType("datetime2")
                         .HasColumnName("RegisteredAtUtc");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("TimeZone");
 
                     b.PrimitiveCollection<string>("_roles")
                         .IsRequired()

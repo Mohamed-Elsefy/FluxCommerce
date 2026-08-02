@@ -70,6 +70,8 @@ public sealed class RegisterAdminCommandHandler : ICommandHandler<RegisterAdminC
             Guid.NewGuid(),
             email,
             _passwordHasher.Hash(command.Password),
+            command.FirstName,
+            command.LastName,
             utcNow,
             [Roles.Admin],
             verificationToken: verificationToken,

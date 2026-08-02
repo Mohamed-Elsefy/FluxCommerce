@@ -17,6 +17,40 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("PasswordHash")
             .HasMaxLength(512);
 
+        builder.Property(user => user.FirstName)
+            .HasColumnName("FirstName")
+            .HasMaxLength(User.FirstNameMaxLength);
+
+        builder.Property(user => user.LastName)
+            .HasColumnName("LastName")
+            .HasMaxLength(User.LastNameMaxLength);
+
+        builder.Property(user => user.DisplayName)
+            .HasColumnName("DisplayName")
+            .HasMaxLength(User.DisplayNameMaxLength);
+
+        builder.Property(user => user.PhoneNumber)
+            .HasColumnName("PhoneNumber")
+            .HasMaxLength(User.PhoneNumberMaxLength);
+
+        builder.Property(user => user.IsPhoneVerified)
+            .HasColumnName("IsPhoneVerified");
+
+        builder.Property(user => user.AvatarUrl)
+            .HasColumnName("AvatarUrl")
+            .HasMaxLength(User.AvatarUrlMaxLength);
+
+        builder.Property(user => user.PreferredLanguage)
+            .HasColumnName("PreferredLanguage")
+            .HasMaxLength(User.PreferredLanguageMaxLength);
+
+        builder.Property(user => user.TimeZone)
+            .HasColumnName("TimeZone")
+            .HasMaxLength(User.TimeZoneMaxLength);
+
+        builder.Property(user => user.Status)
+            .HasColumnName("Status");
+
         builder.Property(user => user.IsEmailVerified)
             .HasColumnName("IsEmailVerified");
 

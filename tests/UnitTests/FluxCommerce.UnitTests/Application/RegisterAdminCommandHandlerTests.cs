@@ -1,5 +1,6 @@
 using FluxCommerce.Modules.Identity.Application.Commands.RegisterAdmin;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
+using FluxCommerce.Modules.Identity.Domain.Enums;
 using FluxCommerce.Modules.Identity.Infrastructure.Security;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
@@ -23,11 +24,14 @@ public class RegisterAdminCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "Str0ng!Pass1", "Jane", "Admin"));
 
         Assert.True(result.IsSuccess);
         var user = Assert.Single(_users.Users);
         Assert.Equal(Roles.Admin, Assert.Single(user.Roles));
+        Assert.Equal("Jane", user.FirstName);
+        Assert.Equal("Admin", user.LastName);
+        Assert.Equal(UserStatus.Pending, user.Status);
         Assert.True(_hasher.Verify("Str0ng!Pass1", user.PasswordHash));
         Assert.NotNull(user.VerificationToken);
         Assert.False(user.VerificationToken.IsUsed);
@@ -43,7 +47,7 @@ public class RegisterAdminCommandHandlerTests
         _emails.ExceptionToThrow = new InvalidOperationException("SMTP unavailable");
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "Str0ng!Pass1", "Jane", "Admin"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.EmailSendFailed", result.Error.Code);
@@ -57,7 +61,7 @@ public class RegisterAdminCommandHandlerTests
         await _users.AddAsync(TestUsers.CreateUnverified(passwordHash: _hasher.Hash(TestUsers.Password)));
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterAdminCommand("user@example.com", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterAdminCommand("user@example.com", "Str0ng!Pass1", "Jane", "Admin"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.DuplicateEmail", result.Error.Code);
@@ -69,7 +73,7 @@ public class RegisterAdminCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "weak"));
+        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "weak", "Jane", "Admin"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.ValidationFailed", result.Error.Code);
@@ -80,9 +84,21 @@ public class RegisterAdminCommandHandlerTests
     {
         var handler = CreateHandler();
 
-        var result = await handler.HandleAsync(new RegisterAdminCommand("not-an-email", "Str0ng!Pass1"));
+        var result = await handler.HandleAsync(new RegisterAdminCommand("not-an-email", "Str0ng!Pass1", "Jane", "Admin"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.ValidationFailed", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task Register_MissingNames_ReturnsValidation()
+    {
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new RegisterAdminCommand("admin@example.com", "Str0ng!Pass1", "", null!));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Identity.ValidationFailed", result.Error.Code);
+        Assert.Empty(_users.Users);
     }
 }

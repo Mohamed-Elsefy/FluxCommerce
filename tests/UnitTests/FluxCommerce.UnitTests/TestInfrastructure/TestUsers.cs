@@ -14,11 +14,14 @@ public static class TestUsers
         DateTime? utcNow = null,
         IReadOnlyCollection<string>? roles = null,
         string verificationToken = "verify-token",
-        DateTime? verificationTokenExpiresAtUtc = null)
+        DateTime? verificationTokenExpiresAtUtc = null,
+        string firstName = "John",
+        string lastName = "Doe")
     {
         var now = utcNow ?? new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
         var user = CreateUnverified(
-            id, email, passwordHash, now, roles, verificationToken, verificationTokenExpiresAtUtc ?? now.AddHours(24));
+            id, email, passwordHash, now, roles, verificationToken,
+            verificationTokenExpiresAtUtc ?? now.AddHours(24), firstName, lastName);
 
         user.VerifyEmail(verificationToken, now);
 
@@ -32,7 +35,9 @@ public static class TestUsers
         DateTime? utcNow = null,
         IReadOnlyCollection<string>? roles = null,
         string? verificationToken = "verify-token",
-        DateTime? verificationTokenExpiresAtUtc = null)
+        DateTime? verificationTokenExpiresAtUtc = null,
+        string firstName = "John",
+        string lastName = "Doe")
     {
         var now = utcNow ?? new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
 
@@ -40,6 +45,8 @@ public static class TestUsers
             id ?? Guid.NewGuid(),
             new Email(email),
             passwordHash,
+            firstName,
+            lastName,
             now,
             roles ?? [Roles.Customer],
             verificationToken,

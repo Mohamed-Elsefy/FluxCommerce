@@ -1,3 +1,5 @@
+using FluxCommerce.Modules.Identity.Contracts.Enums;
+
 namespace FluxCommerce.Modules.Identity.Contracts.Responses;
 
 public sealed record UserResponse(
@@ -5,4 +7,13 @@ public sealed record UserResponse(
     string Email,
     IReadOnlyCollection<string> Roles,
     bool IsEmailVerified,
-    DateTime RegisteredAtUtc);
+    DateTime RegisteredAtUtc,
+    string FirstName,
+    string LastName,
+    string? DisplayName,
+    string? PhoneNumber,
+    bool IsPhoneVerified,
+    string? AvatarUrl,
+    string PreferredLanguage,
+    string TimeZone,
+    UserStatus Status);

@@ -60,9 +60,9 @@ public class ProblemDetailsTests
     public async Task DuplicateRegistration_ReturnsProblemDetails()
     {
         var email = $"dup-{Guid.NewGuid():N}@example.com";
-        await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
 
-        var response = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var response = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
@@ -76,7 +76,7 @@ public class ProblemDetailsTests
     {
         var response = await _client.PostAsJsonAsync(
             "auth/register",
-            new { email = $"weak-{Guid.NewGuid():N}@example.com", password = "weak" });
+            new { email = $"weak-{Guid.NewGuid():N}@example.com", password = "weak", firstName = "John", lastName = "Doe" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
@@ -118,7 +118,7 @@ public class ProblemDetailsTests
 
     private async Task RegisterAndVerify(string email)
     {
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         register.EnsureSuccessStatusCode();
 
         var resend = await _client.PostAsJsonAsync("auth/resend-verification", new { email });

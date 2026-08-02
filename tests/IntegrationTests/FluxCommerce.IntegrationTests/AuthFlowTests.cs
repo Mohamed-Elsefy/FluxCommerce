@@ -2,6 +2,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+using ContractUserStatus = FluxCommerce.Modules.Identity.Contracts.Enums.UserStatus;
+using DomainUserStatus = FluxCommerce.Modules.Identity.Domain.Enums.UserStatus;
 using Xunit;
 
 namespace FluxCommerce.IntegrationTests;
@@ -24,7 +26,7 @@ public class AuthFlowTests
         var email = $"journey-{Guid.NewGuid():N}@example.com";
         const string password = "Str0ng!Pass1";
 
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password });
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password, firstName = "John", lastName = "Doe" });
         Assert.Equal(HttpStatusCode.OK, register.StatusCode);
 
         var resend = await _client.PostAsJsonAsync("auth/resend-verification", new { email });
@@ -50,6 +52,8 @@ public class AuthFlowTests
         var meData = (await me.ReadJsonAsync<ApiResponseDto<UserResponse>>()).Data!;
         Assert.Equal(email, meData.Email);
         Assert.True(meData.IsEmailVerified);
+        Assert.Equal("John", meData.FirstName);
+        Assert.Equal("Doe", meData.LastName);
 
         var refresh = await _client.PostAsJsonAsync("auth/refresh", new { refreshToken = loginData.RefreshToken });
         Assert.Equal(HttpStatusCode.OK, refresh.StatusCode);
@@ -68,7 +72,7 @@ public class AuthFlowTests
     {
         var email = $"token-{Guid.NewGuid():N}@example.com";
 
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         Assert.Equal(HttpStatusCode.OK, register.StatusCode);
 
         var token = TestDatabase.GetVerificationToken(_factory, email);
@@ -82,7 +86,7 @@ public class AuthFlowTests
     {
         var email = $"email-{Guid.NewGuid():N}@example.com";
 
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         Assert.Equal(HttpStatusCode.OK, register.StatusCode);
 
         var storedToken = TestDatabase.GetVerificationToken(_factory, email);
@@ -100,10 +104,10 @@ public class AuthFlowTests
     {
         var email = $"duplicate-{Guid.NewGuid():N}@example.com";
 
-        var first = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var first = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
 
-        var second = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+        var second = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
     }
 
@@ -112,7 +116,7 @@ public class AuthFlowTests
     {
         var email = $"weak-{Guid.NewGuid():N}@example.com";
 
-        var response = await _client.PostAsJsonAsync("auth/register", new { email, password = "weak" });
+        var response = await _client.PostAsJsonAsync("auth/register", new { email, password = "weak", firstName = "John", lastName = "Doe" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -230,9 +234,59 @@ public class AuthFlowTests
         Assert.Equal(HttpStatusCode.OK, verifyNew.StatusCode);
     }
 
+    [Fact]
+    public async Task Registration_CapturesNames_AndInitializesDefaults()
+    {
+        var email = $"defaults-{Guid.NewGuid():N}@example.com";
+
+        var register = await _client.PostAsJsonAsync(
+            "auth/register",
+            new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+
+        var data = (await register.ReadJsonAsync<ApiResponseDto<UserResponse>>()).Data!;
+        Assert.Equal("John", data.FirstName);
+        Assert.Equal("Doe", data.LastName);
+        Assert.Equal("John Doe", data.DisplayName);
+        Assert.Null(data.PhoneNumber);
+        Assert.False(data.IsPhoneVerified);
+        Assert.Null(data.AvatarUrl);
+        Assert.Equal("en", data.PreferredLanguage);
+        Assert.Equal("UTC", data.TimeZone);
+        Assert.Equal(ContractUserStatus.Pending, data.Status);
+        Assert.Equal(DomainUserStatus.Pending, TestDatabase.GetUserStatus(_factory, email));
+    }
+
+    [Fact]
+    public async Task EmailVerification_ActivatesUser()
+    {
+        var email = $"activate-{Guid.NewGuid():N}@example.com";
+        await RegisterOnly(email, "Str0ng!Pass1");
+        Assert.Equal(DomainUserStatus.Pending, TestDatabase.GetUserStatus(_factory, email));
+
+        var token = TestDatabase.GetVerificationToken(_factory, email);
+        var verify = await _client.PostAsJsonAsync("auth/verify-email", new { token });
+        Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
+
+        var data = (await verify.ReadJsonAsync<ApiResponseDto<UserResponse>>()).Data!;
+        Assert.True(data.IsEmailVerified);
+        Assert.Equal(ContractUserStatus.Active, data.Status);
+        Assert.Equal(DomainUserStatus.Active, TestDatabase.GetUserStatus(_factory, email));
+    }
+
+    [Fact]
+    public async Task Registration_MissingNames_ReturnsBadRequest()
+    {
+        var email = $"noname-{Guid.NewGuid():N}@example.com";
+
+        var response = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private async Task RegisterOnly(string email, string password)
     {
-        var response = await _client.PostAsJsonAsync("auth/register", new { email, password });
+        var response = await _client.PostAsJsonAsync("auth/register", new { email, password, firstName = "John", lastName = "Doe" });
         response.EnsureSuccessStatusCode();
     }
 

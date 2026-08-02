@@ -70,6 +70,8 @@ public sealed class RegisterCustomerCommandHandler : ICommandHandler<RegisterCus
             Guid.NewGuid(),
             email,
             _passwordHasher.Hash(command.Password),
+            command.FirstName,
+            command.LastName,
             utcNow,
             [Roles.Customer],
             verificationToken: verificationToken,

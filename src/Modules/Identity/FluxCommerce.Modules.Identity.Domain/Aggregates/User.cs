@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Domain.Entities;
 using FluxCommerce.Modules.Identity.Domain.Entities;
+using FluxCommerce.Modules.Identity.Domain.Enums;
 using FluxCommerce.Modules.Identity.Domain.Errors;
 using FluxCommerce.Modules.Identity.Domain.Events;
 using FluxCommerce.Modules.Identity.Domain.Results;
@@ -9,6 +10,24 @@ namespace FluxCommerce.Modules.Identity.Domain.Aggregates;
 
 public sealed class User : AggregateRoot<Guid>
 {
+    public const int FirstNameMaxLength = 100;
+
+    public const int LastNameMaxLength = 100;
+
+    public const int DisplayNameMaxLength = FirstNameMaxLength + 1 + LastNameMaxLength;
+
+    public const int PhoneNumberMaxLength = 30;
+
+    public const int AvatarUrlMaxLength = 2048;
+
+    public const int PreferredLanguageMaxLength = 10;
+
+    public const int TimeZoneMaxLength = 64;
+
+    public const string DefaultPreferredLanguage = "en";
+
+    public const string DefaultTimeZone = "UTC";
+
     private readonly List<RefreshToken> _refreshTokens = [];
 
     private readonly List<string> _roles = [];
@@ -16,6 +35,24 @@ public sealed class User : AggregateRoot<Guid>
     public Email Email { get; }
 
     public string PasswordHash { get; private set; }
+
+    public string FirstName { get; private set; }
+
+    public string LastName { get; private set; }
+
+    public string? DisplayName { get; private set; }
+
+    public string? PhoneNumber { get; private set; }
+
+    public bool IsPhoneVerified { get; private set; }
+
+    public string? AvatarUrl { get; private set; }
+
+    public string PreferredLanguage { get; private set; }
+
+    public string TimeZone { get; private set; }
+
+    public UserStatus Status { get; private set; }
 
     public IReadOnlyCollection<string> Roles => _roles.AsReadOnly();
 
@@ -39,6 +76,8 @@ public sealed class User : AggregateRoot<Guid>
         Guid id,
         Email email,
         string passwordHash,
+        string firstName,
+        string lastName,
         DateTime registeredAtUtc,
         IEnumerable<string> roles,
         LockoutState lockout)
@@ -46,9 +85,31 @@ public sealed class User : AggregateRoot<Guid>
     {
         Email = email;
         PasswordHash = passwordHash;
+        FirstName = ValidateName(firstName, nameof(firstName), FirstNameMaxLength);
+        LastName = ValidateName(lastName, nameof(lastName), LastNameMaxLength);
+        DisplayName = $"{FirstName} {LastName}";
+        PhoneNumber = null;
+        IsPhoneVerified = false;
+        AvatarUrl = null;
+        PreferredLanguage = DefaultPreferredLanguage;
+        TimeZone = DefaultTimeZone;
+        Status = UserStatus.Pending;
         RegisteredAtUtc = registeredAtUtc;
         Lockout = lockout;
         _roles.AddRange(roles);
+    }
+
+    private static string ValidateName(string? value, string paramName, int maxLength)
+    {
+        var name = value?.Trim();
+
+        if (string.IsNullOrEmpty(name))
+            throw new ArgumentException($"A {paramName} is required.", paramName);
+
+        if (name.Length > maxLength)
+            throw new ArgumentException($"{paramName} must not exceed {maxLength} characters.", paramName);
+
+        return name;
     }
 
     #pragma warning disable CS8618
@@ -59,6 +120,8 @@ public sealed class User : AggregateRoot<Guid>
         Guid id,
         Email email,
         string passwordHash,
+        string firstName,
+        string lastName,
         DateTime utcNow,
         IReadOnlyCollection<string> roles,
         string? verificationToken = null,
@@ -82,7 +145,7 @@ public sealed class User : AggregateRoot<Guid>
         if (verificationToken is not null && verificationTokenExpiresAtUtc is null)
             throw new ArgumentException("A verification token expiry is required when a token is provided.", nameof(verificationTokenExpiresAtUtc));
 
-        var user = new User(id, email, passwordHash, utcNow, roles, LockoutState.Create());
+        var user = new User(id, email, passwordHash, firstName, lastName, utcNow, roles, LockoutState.Create());
 
         if (verificationToken is not null)
         {
@@ -135,6 +198,7 @@ public sealed class User : AggregateRoot<Guid>
         verificationToken.MarkUsed(utcNow);
         IsEmailVerified = true;
         EmailVerifiedAtUtc = utcNow;
+        Status = UserStatus.Active;
 
         AddDomainEvent(new EmailVerified(Id));
 

@@ -34,6 +34,8 @@ public class GetCurrentUserCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("user@example.com", result.Value.Email);
+        Assert.Equal("John", result.Value.FirstName);
+        Assert.Equal("Doe", result.Value.LastName);
         Assert.Equal(Roles.Customer, Assert.Single(result.Value.Roles));
         Assert.True(result.Value.IsEmailVerified);
     }

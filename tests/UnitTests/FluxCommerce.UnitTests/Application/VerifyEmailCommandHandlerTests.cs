@@ -1,5 +1,7 @@
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Domain.Entities;
+using ContractUserStatus = FluxCommerce.Modules.Identity.Contracts.Enums.UserStatus;
+using DomainUserStatus = FluxCommerce.Modules.Identity.Domain.Enums.UserStatus;
 using FluxCommerce.Modules.Identity.Infrastructure.Security;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
@@ -34,7 +36,9 @@ public class VerifyEmailCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.True(result.Value.IsEmailVerified);
+        Assert.Equal(ContractUserStatus.Active, result.Value.Status);
         Assert.True(_users.Users.Single().IsEmailVerified);
+        Assert.Equal(DomainUserStatus.Active, _users.Users.Single().Status);
         Assert.Equal(1, _unitOfWork.SaveChangesCount);
     }
 

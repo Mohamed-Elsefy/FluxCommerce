@@ -1,5 +1,6 @@
 using FluxCommerce.Modules.Identity.Application.Emailing;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
+using FluxCommerce.Modules.Identity.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,9 @@ public static class TestDatabase
 
     public static Guid GetUserId(IdentityWebApplicationFactory factory, string email) =>
         Query(factory, user => user.Id, email);
+
+    public static UserStatus GetUserStatus(IdentityWebApplicationFactory factory, string email) =>
+        Query(factory, user => user.Status, email);
 
     public static EmailMessage GetLastEmail(IdentityWebApplicationFactory factory, string toEmail) =>
         factory.EmailSender.Sent.Last(message => message.ToEmail == toEmail);
