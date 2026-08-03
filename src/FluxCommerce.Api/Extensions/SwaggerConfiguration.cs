@@ -1,3 +1,4 @@
+using FluxCommerce.Api.Swagger;
 using Microsoft.OpenApi;
 
 namespace FluxCommerce.Api.Extensions;
@@ -17,9 +18,16 @@ public static class SwaggerConfiguration
             options.SwaggerDoc(ApiVersion, new OpenApiInfo
             {
                 Title = "FluxCommerce API",
-                Description = "Enterprise Commerce & Order Management Platform — Modular Monolith API.",
+                Description =
+                    "Enterprise Commerce & Order Management Platform — Modular Monolith API."
+                    + $"\n\nSupported languages: {string.Join(", ", LocalizationConfiguration.SupportedCultures)}. "
+                    + $"Default language: {LocalizationConfiguration.DefaultCulture}. "
+                    + "Set the 'Accept-Language' request header (available on every operation) to receive "
+                    + "localized responses (validation messages and error responses are translated accordingly).",
                 Version = ApiVersion
             });
+
+            options.OperationFilter<AcceptLanguageFilter>();
 
             var xmlFile = $"{typeof(SwaggerConfiguration).Assembly.GetName().Name}.xml";
             var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);

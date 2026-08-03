@@ -1,5 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
+using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.ProblemDetails;
 using FluxCommerce.BuildingBlocks.Web.Responses;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +11,15 @@ namespace FluxCommerce.BuildingBlocks.Web.Controllers;
 
 public abstract class ApiControllerBase : ControllerBase
 {
+    private readonly ILocalizer _localizer;
+    private readonly IErrorCodeLocalizer _errorCodeLocalizer;
+
+    protected ApiControllerBase(ILocalizer localizer, IErrorCodeLocalizer errorCodeLocalizer)
+    {
+        _localizer = localizer;
+        _errorCodeLocalizer = errorCodeLocalizer;
+    }
+
     protected IActionResult Success<T>(Result<T> result)
     {
         return result.IsSuccess
@@ -44,6 +55,8 @@ public abstract class ApiControllerBase : ControllerBase
     {
         var problem = new ValidationProblemDetail
         {
+            Title = _localizer["Errors.Title.ValidationFailed"],
+            Detail = _localizer["Errors.RequestValidation"],
             Instance = Request?.Path,
             TraceId = HttpContext?.TraceIdentifier,
             Errors = errors
@@ -58,7 +71,7 @@ public abstract class ApiControllerBase : ControllerBase
         return StatusCode(statusCode, problem);
     }
 
-    private static (int StatusCode, object Problem) MapError(Error error)
+    private (int StatusCode, object Problem) MapError(Error error)
     {
         return error.Type switch
         {
@@ -67,16 +80,17 @@ public abstract class ApiControllerBase : ControllerBase
                 new ProblemDetail
                 {
                     Type = "https://tools.ietf.org/html/rfc7231#section-6.5.4",
-                    Title = "Not Found",
+                    Title = _localizer["Errors.Title.NotFound"],
                     Status = StatusCodes.Status404NotFound,
-                    Detail = error.Description
+                    Detail = _errorCodeLocalizer.Localize(error.Code, error.Description)
                 }),
 
             ErrorType.Validation => (
                 StatusCodes.Status400BadRequest,
                 new ValidationProblemDetail
                 {
-                    Detail = error.Description,
+                    Title = _localizer["Errors.Title.ValidationFailed"],
+                    Detail = _errorCodeLocalizer.Localize(error.Code, error.Description),
                 }),
 
             ErrorType.Conflict => (
@@ -84,9 +98,9 @@ public abstract class ApiControllerBase : ControllerBase
                 new ProblemDetail
                 {
                     Type = "https://tools.ietf.org/html/rfc7231#section-6.5.8",
-                    Title = "Conflict",
+                    Title = _localizer["Errors.Title.Conflict"],
                     Status = StatusCodes.Status409Conflict,
-                    Detail = error.Description
+                    Detail = _errorCodeLocalizer.Localize(error.Code, error.Description)
                 }),
 
             ErrorType.Unauthorized => (
@@ -94,9 +108,9 @@ public abstract class ApiControllerBase : ControllerBase
                 new ProblemDetail
                 {
                     Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                    Title = "Unauthorized",
+                    Title = _localizer["Errors.Title.Unauthorized"],
                     Status = StatusCodes.Status401Unauthorized,
-                    Detail = error.Description
+                    Detail = _errorCodeLocalizer.Localize(error.Code, error.Description)
                 }),
 
             ErrorType.Forbidden => (
@@ -104,9 +118,9 @@ public abstract class ApiControllerBase : ControllerBase
                 new ProblemDetail
                 {
                     Type = "https://tools.ietf.org/html/rfc7231#section-6.5.3",
-                    Title = "Forbidden",
+                    Title = _localizer["Errors.Title.Forbidden"],
                     Status = StatusCodes.Status403Forbidden,
-                    Detail = error.Description
+                    Detail = _errorCodeLocalizer.Localize(error.Code, error.Description)
                 }),
 
             _ => (
@@ -114,9 +128,9 @@ public abstract class ApiControllerBase : ControllerBase
                 new ProblemDetail
                 {
                     Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
-                    Title = "Bad Request",
+                    Title = _localizer["Errors.Title.BadRequest"],
                     Status = StatusCodes.Status400BadRequest,
-                    Detail = error.Description
+                    Detail = _errorCodeLocalizer.Localize(error.Code, error.Description)
                 })
         };
     }

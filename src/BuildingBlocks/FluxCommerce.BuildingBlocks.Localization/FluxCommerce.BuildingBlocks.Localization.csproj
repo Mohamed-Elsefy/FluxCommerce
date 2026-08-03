@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Abstractions\" />
+    <Folder Include="Implementation\" />
+    <Folder Include="Resources\" />
+    <Folder Include="DependencyInjection\" />
+  </ItemGroup>
+
+</Project>

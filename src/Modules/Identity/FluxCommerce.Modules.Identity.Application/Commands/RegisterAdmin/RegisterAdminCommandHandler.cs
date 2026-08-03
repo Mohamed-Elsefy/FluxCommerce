@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
@@ -20,6 +21,7 @@ public sealed class RegisterAdminCommandHandler : ICommandHandler<RegisterAdminC
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public RegisterAdminCommandHandler(
         IUserRepository userRepository,
@@ -27,7 +29,8 @@ public sealed class RegisterAdminCommandHandler : ICommandHandler<RegisterAdminC
         ITokenGenerator tokenGenerator,
         IEmailVerificationService emailVerificationService,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
@@ -35,13 +38,14 @@ public sealed class RegisterAdminCommandHandler : ICommandHandler<RegisterAdminC
         _emailVerificationService = emailVerificationService;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result<UserResponse>> HandleAsync(
         RegisterAdminCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new RegisterAdminCommandValidator().Validate(command);
+        var validation = new RegisterAdminCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure<UserResponse>(

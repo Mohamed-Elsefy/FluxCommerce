@@ -1,7 +1,10 @@
 <Solution>
 
   <!-- Docs -->
-  <Folder Name="/docs/" />
+  <Folder Name="/docs/">
+    <File Path="docs/ARCHITECTURE.md" />
+    <File Path="docs/PROJECT_CONTEXT.md" />
+  </Folder>
   <Folder Name="/docs/adr/">
     <File Path="docs/adr/001-modular-monolith.md" />
     <File Path="docs/adr/002-database-boundaries.md" />
@@ -14,16 +17,12 @@
     <File Path="docs/completed/PHASE_1_COMPLETION.md" />
   </Folder>
   <Folder Name="/docs/current/">
-    <File Path="docs/current/ARCHITECTURE.md" />
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
-    <File Path="docs/current/LOCALIZATION.md" />
-    <File Path="docs/current/PROJECT_CONTEXT.md" />
     <File Path="docs/current/SMTP_LOCAL_DEVELOPMENT.md" />
   </Folder>
   <Folder Name="/docs/phases/">
     <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
     <File Path="docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md" />
-    <File Path="docs/phases/PHASE_1_6_INTERNATIONALIZATION_I18N.md" />
     <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
   </Folder>
 
@@ -41,6 +40,7 @@
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Domain/FluxCommerce.BuildingBlocks.Domain.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Idempotency/FluxCommerce.BuildingBlocks.Idempotency.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Infrastructure/FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Localization/FluxCommerce.BuildingBlocks.Localization.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Messaging/FluxCommerce.BuildingBlocks.Messaging.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Observability/FluxCommerce.BuildingBlocks.Observability.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Outbox/FluxCommerce.BuildingBlocks.Outbox.csproj" />

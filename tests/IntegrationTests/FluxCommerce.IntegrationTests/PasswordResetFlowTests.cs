@@ -20,7 +20,7 @@ public class PasswordResetFlowTests
     public async Task ForgotAndResetPassword_FullFlow()
     {
         var email = $"reset-{Guid.NewGuid():N}@example.com";
-        await RegisterAndVerify(email);
+        await RegisterAndVerify(_client, email);
 
         var forgot = await _client.PostAsJsonAsync("auth/forgot-password", new { email });
         Assert.Equal(HttpStatusCode.OK, forgot.StatusCode);
@@ -43,7 +43,7 @@ public class PasswordResetFlowTests
     public async Task ResetPassword_TokenIsSingleUse()
     {
         var email = $"resetreplay-{Guid.NewGuid():N}@example.com";
-        await RegisterAndVerify(email);
+        await RegisterAndVerify(_client, email);
         await _client.PostAsJsonAsync("auth/forgot-password", new { email });
         var resetToken = TestDatabase.GetPasswordResetToken(_factory, email);
 
@@ -72,7 +72,7 @@ public class PasswordResetFlowTests
     public async Task ForgotPassword_SendsResetEmail_WithTokenMatchingDatabase()
     {
         var email = $"resetmail-{Guid.NewGuid():N}@example.com";
-        await RegisterAndVerify(email);
+        await RegisterAndVerify(_client, email);
 
         var forgot = await _client.PostAsJsonAsync("auth/forgot-password", new { email });
         Assert.Equal(HttpStatusCode.OK, forgot.StatusCode);
@@ -105,16 +105,37 @@ public class PasswordResetFlowTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private async Task RegisterAndVerify(string email)
+    [Fact]
+    public async Task ForgotPassword_SendsLocalizedResetEmail_WhenFrenchRequested()
     {
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Accept-Language", "fr");
+
+        var email = $"l10nreset-{Guid.NewGuid():N}@example.com";
+        await RegisterAndVerify(client, email);
+
+        var forgot = await client.PostAsJsonAsync("auth/forgot-password", new { email });
+        Assert.Equal(HttpStatusCode.OK, forgot.StatusCode);
+
+        var message = TestDatabase.GetLastEmail(_factory, email);
+
+        Assert.Equal("Réinitialisez votre mot de passe FluxCommerce", message.Subject);
+        Assert.Contains("lang=\"fr\"", message.HtmlBody);
+        Assert.Contains("Réinitialisez votre mot de passe", message.HtmlBody);
+        Assert.Contains("Réinitialisez votre mot de passe FluxCommerce", message.TextBody);
+        Assert.Contains($"https://localhost:4200/reset-password?token={TestDatabase.GetPasswordResetToken(_factory, email)}", message.HtmlBody);
+    }
+
+    private async Task RegisterAndVerify(HttpClient client, string email)
+    {
+        var register = await client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         register.EnsureSuccessStatusCode();
 
-        var resend = await _client.PostAsJsonAsync("auth/resend-verification", new { email });
+        var resend = await client.PostAsJsonAsync("auth/resend-verification", new { email });
         resend.EnsureSuccessStatusCode();
 
         var token = TestDatabase.GetVerificationToken(_factory, email);
-        var verify = await _client.PostAsJsonAsync("auth/verify-email", new { token });
+        var verify = await client.PostAsJsonAsync("auth/verify-email", new { token });
         verify.EnsureSuccessStatusCode();
     }
 }

@@ -2,11 +2,13 @@
 
 ## 1. Phase Overview
 
-Phase 1 (**Identity & Access**) implements the platform-level authentication and authorization capability of the FluxCommerce Enterprise Commerce & Order Management Platform, as defined in `docs/phases/PHASE_1_IDENTITY_ACCESS.md` and `docs/current/PROJECT_CONTEXT.md` (§6.1, §14).
+Phase 1 (**Identity & Access**) implements the platform-level authentication and authorization capability of the FluxCommerce Enterprise Commerce & Order Management Platform, as defined in `docs/phases/PHASE_1_IDENTITY_ACCESS.md` and `docs/PROJECT_CONTEXT.md` (§6.1, §14).
 
 Identity is a **Platform Capability**, not a commerce bounded context. It provides a secure, production-oriented identity system (registration, authentication, JWT access tokens, refresh token rotation, email verification, password reset, account lockout, role-based authorization, and a current-user abstraction) without coupling future commerce modules to identity implementation details.
 
 The phase builds exclusively on the Phase 0 Architecture Foundation (Modular Monolith, Module-per-DbContext, BuildingBlocks, API pipeline, observability, Docker environment) and respects all enforced module boundaries.
+
+Phase 1 additionally includes the **Internationalization (i18n) Foundation** (subphases 1.6.1–1.6.10): the shared, framework-native localization infrastructure (cultures, resources, abstractions) plus localization of validation messages, ProblemDetails, Identity/auth errors, transactional emails, and API documentation — see §14.
 
 ---
 
@@ -38,7 +40,7 @@ The phase builds exclusively on the Phase 0 Architecture Foundation (Modular Mon
 | 3.6 Account Lifecycle | **Completed** | Email verification, password reset, change password, resend verification, lockout, last-login tracking. Unlock exists at the domain level (`User.Unlock()`) with no endpoint/command yet | Domain capability present; admin-facing unlock endpoint deferred |
 | 3.7 API & Authorization | **Completed** | All 10 documented endpoints exposed and verified at runtime; JWT bearer replaces the Phase 0 placeholder; RBAC policies registered; ProblemDetails for all expected failures |
 | 3.8 Security Hardening | **Completed** | Password policy, rotation, revocation, token expiration, clock skew, lockout, replay protection (single-use tokens), registration idempotency, no passwords/tokens in logs |
-| 3.9 Testing & Verification | **Completed** | 12 architecture tests, 143 unit tests, 36 integration tests — all passing (see §7) |
+| 3.9 Testing & Verification | **Completed** | 12 architecture tests, 183 unit tests, 42 integration tests — all passing (see §7) |
 
 ### 2.3 Deliverable Checklist (`PHASE_1_IDENTITY_ACCESS.md` §17)
 
@@ -50,21 +52,22 @@ All listed deliverables exist in the repository: Identity module (4 projects), I
 
 ### Solution Layout
 
-The solution (`FluxCommerce.slnx`) contains **38 projects** in four groups:
+The solution (`FluxCommerce.slnx`) contains **39 projects** in four groups:
 
 ```
 FluxCommerce.slnx
 ├── src/FluxCommerce.Api                    (API host: pipeline, auth wiring, DI composition, health checks)
-├── src/BuildingBlocks/                     (10 projects)
+├── src/BuildingBlocks/                     (11 projects)
 │   ├── Domain / Application / Infrastructure / Persistence / Web
 │   ├── Messaging / Outbox / Idempotency / Resilience / Observability
+│   └── Localization                        ← Phase 1.6 (implemented)
 ├── src/Modules/                            (6 modules × Domain/Application/Infrastructure/Contracts)
 │   ├── Identity   ← Phase 1 (fully implemented)
 │   └── Catalog, Cart, Orders, Inventory, Payments  (foundation stubs from Phase 0)
 └── tests/
     ├── Architecture/FluxCommerce.ArchitectureTests   (12 tests)
-    ├── UnitTests/FluxCommerce.UnitTests              (143 tests)
-    └── IntegrationTests/FluxCommerce.IntegrationTests (36 tests)
+    ├── UnitTests/FluxCommerce.UnitTests              (183 tests)
+    └── IntegrationTests/FluxCommerce.IntegrationTests (42 tests)
 ```
 
 ### Module Layout — Identity
@@ -84,7 +87,7 @@ FluxCommerce.Modules.Identity.Contracts     — Requests (10) and Responses (Use
 
 ### BuildingBlocks
 
-All Phase 0 BuildingBlocks are used by Identity: `AggregateRoot`/`ValueObject`/domain-event primitives (Domain), `ICommandHandler`/`Result`/`Error`/`ICurrentUser`/`IDateTimeProvider`/`IUnitOfWork` (Application), `BaseDbContext` + `DomainEventInterceptor` + design-time helpers (Persistence), `ApiControllerBase` + `ProblemDetail` + middleware (Web), `DateTimeProvider` (Infrastructure). No new BuildingBlocks projects were required; nothing business-specific was moved into BuildingBlocks.
+All Phase 0 BuildingBlocks are used by Identity: `AggregateRoot`/`ValueObject`/domain-event primitives (Domain), `ICommandHandler`/`Result`/`Error`/`ICurrentUser`/`IDateTimeProvider`/`IUnitOfWork` (Application), `BaseDbContext` + `DomainEventInterceptor` + design-time helpers (Persistence), `ApiControllerBase` + `ProblemDetail` + middleware (Web), `DateTimeProvider` (Infrastructure). One new BuildingBlocks project was added during Phase 1.6 — `FluxCommerce.BuildingBlocks.Localization` (culture/current-culture services, `ILocalizer`/`ICurrentCulture` abstractions, shared resources). Nothing business-specific was moved into BuildingBlocks.
 
 ### Identity Architecture
 
@@ -174,14 +177,15 @@ Verified by a full solution test run at audit time (`dotnet test FluxCommerce.sl
 | Suite | Count | Status |
 |-------|-------|--------|
 | Architecture tests | **12 / 12** | Passed (6 Phase 0 boundary rules + 6 Identity-specific rules: module isolation, no forbidden references, no commerce → Identity internals) |
-| Unit tests | **143 / 143** | Passed |
-| Integration tests | **36 / 36** | Passed |
+| Unit tests | **183 / 183** | Passed |
+| Integration tests | **42 / 42** | Passed |
 
-**Total: 191 tests, 0 failures.**
+**Total: 237 tests, 0 failures.**
 
 - **Unit — Domain** (7 files): `UserAggregateTests`, `RefreshTokenTests`, `EmailVerificationTokenTests`, `PasswordResetTokenTests`, `LockoutStateTests`, `EmailTests`, plus `EmailTemplateTests` — invariants, expiry, single-use, rotation, lockout escalation.
 - **Unit — Application** (10 files): one test class per command handler with fake repositories/services — registration (names, defaults, duplicate email), login (dummy-hash path, lockout persistence, 401/403 mapping), refresh (rotation, rejection), logout, verify/resend, reset, change password, current user.
-- **Integration** (5 files): `AuthFlowTests` (register → verify → login, refresh replay rejection, lockout over HTTP, WWW-Authenticate), `PasswordResetFlowTests`, `ChangePasswordTests`, `AuthorizationTests` (token expiry, policies), `ProblemDetailsTests` — all against a real in-memory SQLite database via `IdentityWebApplicationFactory` (real EF, real hashing, in-memory email sender).
+- **Unit — Localization** (Phase 1.6): `LocalizerAbstractionTests`, `SharedResourcesTests` (75 keys × 5 cultures, satellite parity), `IdentityValidationLocalizationTests` (all messages resolve through `ILocalizer`), `EmailTemplateTests` localization additions (French/German/Arabic templates) — see §14.
+- **Integration** (5 files): `AuthFlowTests` (register → verify → login, refresh replay rejection, lockout over HTTP, WWW-Authenticate), `PasswordResetFlowTests`, `ChangePasswordTests`, `AuthorizationTests` (token expiry, policies), `ProblemDetailsTests` — all against a real in-memory SQLite database via `IdentityWebApplicationFactory` (real EF, real hashing, in-memory email sender). Phase 1.6 added localized-request coverage (French `Accept-Language` register/reset flows), `SwaggerLocalizationTests`, and localized `ProblemDetailsTests`.
 
 ---
 
@@ -202,6 +206,15 @@ Additional Phase-1 decisions (recorded in code, no new ADR created):
 - Email verification/password-reset links point at the Angular frontend (`FrontendBaseUrl`) with single-use, expiring tokens.
 - Account lifecycle uses an explicit `UserStatus` (Pending/Active/Suspended/Locked/Deleted) where only Pending/Active are currently produced.
 
+Additional Phase-1.6 (localization) decisions — recorded in this report (§14), in lieu of a separate ADR:
+
+- **Abstractions-only rule.** Domain/Application layers depend only on `ILocalizer`/`ICurrentCulture` (BuildingBlocks.Localization); ASP.NET Core localization types appear only inside the BuildingBlocks implementation.
+- **Single culture registry.** `LocalizationConfiguration.SupportedCultures` (`en`, `fr`, `de`, `es`, `ar`, default `en`) is the compile-time source of truth used by both middleware and Swagger.
+- **No `ResourcesPath`.** Resources resolve purely by type namespace (`…Localization.Resources.SharedResources`); a `ResourcesPath` would double-prefix and break lookups (regression observed and fixed).
+- **Single shared resource tier.** One `SharedResources` set (+ satellites) serves all cross-cutting keys (Validation, Errors, Auth, Common, Success, Email); no per-module sets created in this phase.
+- **Stable error codes.** `Error.Code` remains the machine-readable key; localized display text is resolved at the presentation boundary via `IErrorCodeLocalizer`, with the English `Description` as fallback. Status codes and ProblemDetails shape unchanged.
+- **Request-scoped culture resolution.** Query string → Cookie → `Accept-Language`; storage-backed per-user override (`PreferredLanguage`) deferred.
+
 ---
 
 ## 9. Remaining Work
@@ -218,7 +231,9 @@ Additional Phase-1 decisions (recorded in code, no new ADR created):
 
 - Domain-event dispatch / transactional outbox / RabbitMQ messaging (Phases 6–7) — the `DomainEventInterceptor` hook is stubbed in preparation (TD-1).
 - Cart (Phase 3, Redis), Orders (Phase 4), Inventory (Phase 5), Saga (Phase 8), Stripe payments (Phase 9), failure testing (Phase 12), search (Phase 13), promotions (Phase 14), wishlist (Phase 15), reviews (Phase 16), notifications (Phase 17), shipping (Phase 18), analytics (Phase 19), production hardening (Phase 20).
-- Phase 1.5 (Runtime Preparation) — documented as **Planned** in `docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md`; not started.
+- Phase 1.5 (Runtime Preparation) — **delivered and verified** (Swagger/OpenAPI + JWT authorization, EF Core design-time factories + Identity migrations, runtime configuration, Docker environment, first end-to-end runtime verification) — see `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`.
+- Storage-backed per-user culture override (`PreferredLanguage` as a higher-priority provider) — reserved for a future subphase; current resolution is request-scoped.
+- Per-module resource sets (a second resource tier for module-private strings) — convention defined, not needed until modules localize module-specific strings at scale.
 - Out-of-scope Phase 1 items per §15: OAuth/OIDC, social login, MFA, passkeys, biometrics, device management, session dashboard, permissions management, fine-grained authorization, external identity providers, SSO, federation — none implemented, all deferred.
 
 ---
@@ -246,7 +261,7 @@ Additional Phase-1 decisions (recorded in code, no new ADR created):
 | Area | Status | Evidence |
 |------|--------|----------|
 | Build | **Clean** | Solution builds with 0 warnings / 0 errors (`TreatWarningsAsErrors` + `AnalysisLevel=latest`) |
-| Tests | **191/191 passing** | Unit 143/143, Integration 36/36, Architecture 12/12 (run at audit time) |
+| Tests | **237/237 passing** | Unit 183/183, Integration 42/42, Architecture 12/12 (run at audit time) |
 | Migrations | **3/3 applied** | `migrations list` shows `InitialIdentity`, `EnrichUserProfile`, `AdjustDisplayNameLength` — none pending |
 | Database | **Healthy** | `FluxCommerce_Identity` reachable; SQL Server container healthy; `sql_server` health check Healthy |
 | Docker | **4/4 running** | sqlserver, redis, rabbitmq (healthy), smtp4dev (up) |
@@ -259,7 +274,7 @@ Additional Phase-1 decisions (recorded in code, no new ADR created):
 
 ## 12. Deliverables
 
-**Projects (4 new)** — `FluxCommerce.Modules.Identity.{Domain, Application, Infrastructure, Contracts}`. Solution now contains 38 projects.
+**Projects (5 new)** — `FluxCommerce.Modules.Identity.{Domain, Application, Infrastructure, Contracts}` and `FluxCommerce.BuildingBlocks.Localization`. Solution now contains 39 projects.
 
 **Identity module artifacts**
 - Domain: `User` aggregate (registration, authentication, verification, reset, change password, refresh rotation, logout, role assignment, unlock, last-login, status lifecycle), `RefreshToken`, `EmailVerificationToken`, `PasswordResetToken`, `Email`, `LockoutState`, `UserStatus`, 5 domain events, domain errors, `DomainResult`.
@@ -273,20 +288,90 @@ Additional Phase-1 decisions (recorded in code, no new ADR created):
 
 **Docker** — smtp4dev service added to the Phase 0 compose stack (SMTP 2525 / UI 5000).
 
-**Documentation** — `docs/phases/PHASE_1_IDENTITY_ACCESS.md` (scope), `docs/current/SMTP_LOCAL_DEVELOPMENT.md` (improved developer guide), `docs/current/EF_CORE_COMMANDS.md` (new EF Core reference), this completion report. (ADRs 001–005 are Phase 0 artifacts.)
+**Documentation** — `docs/phases/PHASE_1_IDENTITY_ACCESS.md` (scope), `docs/current/SMTP_LOCAL_DEVELOPMENT.md` (improved developer guide), `docs/current/EF_CORE_COMMANDS.md` (new EF Core reference), this completion report (including the i18n foundation, §14). (ADRs 001–005 are Phase 0 artifacts.)
 
-**Tests** — 2 domain+application+infrastructure unit suites and 1 integration suite populated (36 integration, 143 unit, 12 architecture tests), including `IdentityArchitectureTests` for module isolation.
+**Localization artifacts (Phase 1.6)** — see §14.6 for the full file list: `BuildingBlocks.Localization` project (abstractions + `SharedLocalizer`/`CurrentCulture` + `SharedResources` neutral+satellite sets), API localization configuration/middleware, `ErrorCodeLocalizer`, Swagger `AcceptLanguageFilter`, localized validation rules/handlers/email templates, and the localization test suites.
 
-**Commits** — 7 Phase 1 commits (`0bbbbb9` → `f62e90e`) covering scope doc, module foundation, CQRS + infrastructure, JWT auth, runtime preparation, SMTP support, user profile enrichment.
+**Tests** — 2 domain+application+infrastructure unit suites and 1 integration suite populated (42 integration, 183 unit, 12 architecture tests), including `IdentityArchitectureTests` for module isolation and the Phase 1.6 localization suites (§7).
+
+**Commits** — Phase 1 commits (`0bbbbb9` → `f62e90e`) covering scope doc, module foundation, CQRS + infrastructure, JWT auth, runtime preparation, SMTP support, user profile enrichment; plus `4daec51` (localization architecture & configuration) with the remainder of the i18n implementation in the working tree.
 
 ---
 
 ## 13. Final Assessment
 
-**Overall completion: ~95%.** Every planned Phase 1 objective is delivered; the only partial items are enforcement-level (role policies not yet attached to any endpoint because no role-restricted endpoint exists in scope) and management surfaces (admin-registration endpoint, unlock endpoint) whose command layers are already implemented. Nothing planned for Phase 1 is missing.
+**Overall completion: ~95%.** Every planned Phase 1 objective is delivered, including the Internationalization Foundation (§14) which is fully implemented and verified; the only partial items are enforcement-level (role policies not yet attached to any endpoint because no role-restricted endpoint exists in scope) and management surfaces (admin-registration endpoint, unlock endpoint) whose command layers are already implemented. Nothing planned for Phase 1 is missing.
 
-**Ready for Phase 2:** Yes. The platform capability is fully functional, verified (191/191 tests, clean build, healthy runtime, applied migrations, verified email and health endpoints), and architecture tests confirm module boundaries were preserved. The deferred items in §9 and the technical debt in §10 are non-blocking; TD-1 (event dispatch) and TD-2 (role enforcement) become relevant when commerce modules and admin endpoints arrive.
+**Ready for Phase 2:** Yes. The platform capability is fully functional, verified (237/237 tests, clean build, healthy runtime, applied migrations, verified email and health endpoints), and architecture tests confirm module boundaries were preserved. The deferred items in §9 and the technical debt in §10 are non-blocking; TD-1 (event dispatch) and TD-2 (role enforcement) become relevant when commerce modules and admin endpoints arrive.
 
 **Blocking issues:** None. No known correctness defects exist in Phase 1 scope. The five High-severity review findings from the Phase 1 audit (domain-event dispatch stub, unused RBAC policies, integration-test user-secrets dependency, plus two robustness items) are all non-blocking and scheduled for Phase 1.5/2 work.
 
 **Phase 1 is complete and the project is ready to move to Phase 2 (Catalog).**
+
+---
+
+## 14. Internationalization (i18n) Foundation — Phase 1.6
+
+### 14.1 Overview
+
+Phase 1.6 established the shared localization infrastructure that every module will use. The objective was **not** multilingual business data (Products, Categories, Brands, etc.) — business data remains single-language. Only user-facing strings are localized: validation messages, ProblemDetails, Identity/auth errors, transactional emails, and API documentation.
+
+Supported cultures: **`en`** (default), **`fr`**, **`de`**, **`es`**, **`ar`** (culture registry `LocalizationConfiguration.SupportedCultures` — compile-time, single source of truth).
+
+### 14.2 Subphases Completed
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 1.6.1 | Localization architecture (culture registry, resolution strategy, resource organization) | Implemented |
+| 1.6.2 | ASP.NET Core localization infrastructure (middleware, options, services) | Implemented |
+| 1.6.3 | Shared resource system (resource files) | Implemented |
+| 1.6.4 | Localization abstractions (`ILocalizer`, `ICurrentCulture`) | Implemented |
+| 1.6.5 | Validation localization | Implemented |
+| 1.6.6 | ProblemDetails localization | Implemented |
+| 1.6.7 | Identity localization | Implemented |
+| 1.6.8 | Email localization | Implemented |
+| 1.6.9 | API documentation localization support | Implemented |
+| 1.6.10 | Testing & verification | Implemented |
+
+### 14.3 Key Decisions
+
+- **Abstractions-only rule.** Domain/Application layers depend only on `ILocalizer`/`ICurrentCulture` (BuildingBlocks.Localization), never on ASP.NET Core localization types. `Microsoft.Extensions.Localization` appears only in `SharedLocalizer`.
+- **Single culture registry.** `LocalizationConfiguration.SupportedCultures` + `DefaultCulture`; culture providers: QueryString → Cookie → `Accept-Language`; `Content-Language` response header emitted; middleware placed immediately after `UseExceptionHandler()`.
+- **No `ResourcesPath`.** Resources resolve purely by type namespace (`FluxCommerce.BuildingBlocks.Localization.Resources.SharedResources`); a `ResourcesPath` would double-prefix and break lookups (regression observed and fixed).
+- **Single shared resource tier.** One `SharedResources` set (+ `fr`/`de`/`es`/`ar` satellites) holds cross-cutting keys (Validation, Errors, Auth, Common, Success, Email) — 75 keys per set, full satellite parity. Email copy (`Email.*`) is provisioned in the shared set so the pipeline reuses the single `ILocalizer`.
+- **Stable error codes.** `Error.Code` is the machine-readable key; `IErrorCodeLocalizer` (presentation boundary, API host) maps code → resource key with the English `Description` as fallback. Status codes, `type` URIs and ProblemDetails shape unchanged.
+- **Request-scoped culture.** Storage-backed per-user override (`PreferredLanguage`) deliberately deferred.
+
+### 14.4 What Was Localized
+
+| Area | Mechanism |
+|------|-----------|
+| Validation (1.6.5) | All 10 Identity command validators + rules (`EmailRules`, `PasswordPolicy`, `NameRules`, `TokenRules`) resolve messages via `ILocalizer` (`Validation.*`, `Validation.Fields.*` keys); field names and error codes unchanged |
+| ProblemDetails (1.6.6) | `ApiControllerBase`/`ExceptionHandler` localize `Title`/`Detail` via `ILocalizer` + `IErrorCodeLocalizer`; status codes unchanged |
+| Identity (1.6.7) | Login/register/verify/reset/lockout/auth errors localized (`Authentication.*`, `Errors.*`); `ErrorCodeLocalizer` maps the 12 stable codes → keys |
+| Email (1.6.8) | Verification + Password Reset templates composed from `Email.*` keys; HTML `lang` = resolved UI culture; `EmailTemplates` takes `ILocalizer`; EN copy preserved verbatim |
+| API docs (1.6.9) | `AcceptLanguageFilter` (IOperationFilter) adds the `Accept-Language` header to every operation (enum, default `en`); document description documents supported/default cultures |
+
+### 14.5 Verification Results (1.6.10)
+
+- **Build:** solution builds with **0 warnings / 0 errors**.
+- **Tests:** Architecture **12/12**, Unit **183/183**, Integration **42/42** — all passing (see §7).
+- **Resource audit:** 75 unique keys per set × 5 cultures, **0 duplicates**, full satellite parity, all code-referenced keys present.
+- **Layer isolation:** `Microsoft.Extensions.Localization` referenced only inside `BuildingBlocks.Localization`; modules use abstractions only.
+- **Error-code coverage:** every `Error.Code` produced by Identity Application has a mapping; no hardcoded user-facing validation/email/identity strings remain.
+
+### 14.6 Files
+
+**Created** — `src/BuildingBlocks/FluxCommerce.BuildingBlocks.Localization/` (project: `Abstractions/ILocalizer.cs`, `Abstractions/ICurrentCulture.cs`, `Implementation/SharedLocalizer.cs`, `Implementation/CurrentCulture.cs`, `Resources/SharedResources{.resx, .fr/.de/.es/.ar.resx, .cs}`, `DependencyInjection/LocalizationServiceExtensions.cs`); `src/FluxCommerce.Api/Extensions/LocalizationConfiguration.cs`; `src/FluxCommerce.Api/Localization/ErrorCodeLocalizer.cs`; `src/FluxCommerce.Api/Swagger/AcceptLanguageFilter.cs`; tests: `FakeLocalizer.cs`, `LocalizerAbstractionTests.cs`, `IdentityValidationLocalizationTests.cs`, `SharedResourcesTests.cs`, `EmailTemplateTests.cs` (localization additions), `SwaggerLocalizationTests.cs`, `ProblemDetailsTests.cs` (localization additions).
+
+**Modified** — `PipelineConfiguration.cs` (localization middleware + `Content-Language`), `SwaggerConfiguration.cs`, `AuthController.cs`, `BuildingBlocks.Web` (`ApiControllerBase`, `ExceptionHandler`, `IErrorCodeLocalizer`, `ValidationProblemDetail`), all 10 Identity validators + handlers (inject `ILocalizer`), `EmailTemplates.cs`, `EmailVerificationService.cs`, `PasswordResetService.cs`, Identity Infrastructure/Application csproj (reference to Localization block).
+
+### 14.7 Deferred
+
+- Storage-backed per-user `PreferredLanguage` provider (higher-priority culture provider, future subphase).
+- Per-module resource sets (convention defined; not needed until modules localize module-private strings at scale).
+- Culture registry in configuration (compile-time registry kept deliberately: fail-fast, testable).
+
+### 14.8 Status
+
+**Complete and verified.** The i18n foundation is ready; Phase 2 (Catalog) user-facing strings can be localized by adding keys to the shared resources with no architectural changes.

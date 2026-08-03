@@ -1,3 +1,5 @@
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
+
 namespace FluxCommerce.Modules.Identity.Application.Validation;
 
 public static class PasswordPolicy
@@ -8,30 +10,30 @@ public static class PasswordPolicy
 
     private const string SpecialCharacters = "!@#$%^&*()-_=+[]{};:'\",.<>/?\\|`~";
 
-    public static void Validate(string? password, Dictionary<string, string[]> errors)
+    public static void Validate(string? password, Dictionary<string, string[]> errors, ILocalizer localizer)
     {
         if (string.IsNullOrWhiteSpace(password))
         {
-            ValidationErrors.Add(errors, "Password", "Password is required.");
+            ValidationErrors.Add(errors, "Password", localizer["Validation.Password.Required"]);
             return;
         }
 
         if (password.Length < MinLength)
-            ValidationErrors.Add(errors, "Password", $"Password must be at least {MinLength} characters long.");
+            ValidationErrors.Add(errors, "Password", localizer.Get("Validation.Password.MinLength", MinLength));
 
         if (password.Length > MaxLength)
-            ValidationErrors.Add(errors, "Password", $"Password must not exceed {MaxLength} characters.");
+            ValidationErrors.Add(errors, "Password", localizer.Get("Validation.Password.MaxLength", MaxLength));
 
         if (!password.Any(char.IsUpper))
-            ValidationErrors.Add(errors, "Password", "Password must contain at least one uppercase letter.");
+            ValidationErrors.Add(errors, "Password", localizer["Validation.Password.Uppercase"]);
 
         if (!password.Any(char.IsLower))
-            ValidationErrors.Add(errors, "Password", "Password must contain at least one lowercase letter.");
+            ValidationErrors.Add(errors, "Password", localizer["Validation.Password.Lowercase"]);
 
         if (!password.Any(char.IsDigit))
-            ValidationErrors.Add(errors, "Password", "Password must contain at least one digit.");
+            ValidationErrors.Add(errors, "Password", localizer["Validation.Password.Digit"]);
 
         if (!password.Any(SpecialCharacters.Contains))
-            ValidationErrors.Add(errors, "Password", "Password must contain at least one special character.");
+            ValidationErrors.Add(errors, "Password", localizer["Validation.Password.Special"]);
     }
 }

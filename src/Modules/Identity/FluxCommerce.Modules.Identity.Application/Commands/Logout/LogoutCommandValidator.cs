@@ -1,14 +1,15 @@
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Validation;
 
 namespace FluxCommerce.Modules.Identity.Application.Commands.Logout;
 
-public sealed class LogoutCommandValidator
+public sealed class LogoutCommandValidator(ILocalizer localizer)
 {
     public ValidationResult Validate(LogoutCommand command)
     {
         var errors = new Dictionary<string, string[]>();
 
-        TokenRules.Validate(command.RefreshToken, "RefreshToken", errors);
+        TokenRules.Validate(command.RefreshToken, "RefreshToken", localizer["Validation.Fields.RefreshToken"], errors, localizer);
 
         return errors.Count == 0
             ? ValidationResult.Success()

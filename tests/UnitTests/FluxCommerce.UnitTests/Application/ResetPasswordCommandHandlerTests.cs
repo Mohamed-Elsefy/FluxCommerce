@@ -15,7 +15,7 @@ public class ResetPasswordCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private ResetPasswordCommandHandler CreateHandler() =>
-        new(_tokens, _users, _hasher, _clock, _unitOfWork);
+        new(_tokens, _users, _hasher, _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedUserWithResetToken()
     {

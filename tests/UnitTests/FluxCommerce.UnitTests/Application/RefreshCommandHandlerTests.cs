@@ -16,7 +16,7 @@ public class RefreshCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private RefreshCommandHandler CreateHandler() =>
-        new(_tokens, _users, _jwt, new FakeTokenGenerator(), _clock, _unitOfWork);
+        new(_tokens, _users, _jwt, new FakeTokenGenerator(), _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedUserWithRefreshToken(string tokenValue = "refresh-token-1")
     {

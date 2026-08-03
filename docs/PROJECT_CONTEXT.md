@@ -1209,6 +1209,54 @@ Phase 20
 Production Hardening
 ```
 
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below).
+
+### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
+
+The core MVP roadmap is extended by the Internationalization Foundation (Phase 1.6), completed as subphases 1.6.1–1.6.10.
+
+**Scope.** Shared cross-cutting localization infrastructure used by every module — not multilingual business data (Products, Categories, Brands, etc.). Business data remains single-language; only user-facing strings (validation messages, ProblemDetails, identity/auth errors, transactional emails, API docs) are localized.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 1.6.1 | Localization architecture (culture registry, resolution strategy, resource organization) | Implemented |
+| 1.6.2 | ASP.NET Core localization infrastructure (middleware, options, services) | Implemented |
+| 1.6.3 | Shared resource system (neutral + `fr`/`de`/`es`/`ar` satellites) | Implemented |
+| 1.6.4 | Localization abstractions (`ILocalizer`, `ICurrentCulture`) | Implemented |
+| 1.6.5 | Validation localization | Implemented |
+| 1.6.6 | ProblemDetails localization | Implemented |
+| 1.6.7 | Identity localization | Implemented |
+| 1.6.8 | Email localization | Implemented |
+| 1.6.9 | API documentation localization support | Implemented |
+| 1.6.10 | Final verification & phase closure (this entry) | Implemented |
+
+**Key decisions (localization architecture).**
+
+- Abstractions-only rule: Domain/Application layers depend only on `ILocalizer`/`ICurrentCulture` (BuildingBlocks.Localization), never on ASP.NET Core localization types.
+- Single culture registry `LocalizationConfiguration.SupportedCultures` (`en`, `fr`, `de`, `es`, `ar`, default `en`); no `ResourcesPath` (resources resolved by type namespace).
+- Single shared resource repository (`SharedResources` + satellites, 75 keys each, full parity).
+- Stable `Error.Code` unchanged; `IErrorCodeLocalizer` maps code → resource key only at the presentation boundary (API host); status codes and ProblemDetails shape unchanged.
+
+**Source of truth.** The full i18n subphase breakdown, decisions, deliverables and verification results are recorded in `docs/completed/PHASE_1_COMPLETION_REPORT.md` (§14).
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 12/12, Unit tests 183/183, Integration tests 42/42.
+
+**Deferred.** Storage-backed per-user `PreferredLanguage` provider — future subphase; current culture resolution is request-scoped (query, cookie, `Accept-Language`).
+
+### 14.2 Phase 1.5 — Runtime Preparation & First Startup — Implemented & Verified
+
+The runtime preparation phase (see `docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md` and `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) transformed the solution into a runnable application:
+
+- **Runtime configuration & hosting** — `Program.cs`, per-module connection strings, JWT/Email/Cache/broker settings in `appsettings.Development.json`, `http`/`https` launch profiles.
+- **Swagger / OpenAPI** — Swagger UI + OpenAPI document (`v1`), XML docs, JWT bearer security definition/requirement for in-Swagger authorization.
+- **Database initialization** — design-time DbContext factories for all module persistence projects; Identity migrations `InitialIdentity`, `EnrichUserProfile`, `AdjustDisplayNameLength` (3/3 applied).
+- **Docker environment** — `docker-compose.yml` (SQL Server, Redis, RabbitMQ, smtp4dev) with health checks.
+- **Verification** — first end-to-end runtime verification of Identity (register → verify → login → authorize → refresh → logout), health endpoints operational.
+
+**Deferred per scope** — API versioning, rate limiting, refresh-token hashing, CI/CD, production secret management, OAuth/external login, MFA, passkeys (SMTP email provider was delivered within Phase 1 instead).
+
 ---
 
 # 15. Phase 0 — Detailed Foundation Scope
@@ -1759,15 +1807,23 @@ When asked to implement a new phase, the AI agent should always follow this sequ
 
 ```text
 /docs
-    PROJECT_CONTEXT.md         
-    ARCHITECTURE.md            
-    IMPLEMENTATION_ROADMAP.md   
-    DOMAIN_MODEL.md           
-    MESSAGING.md        
-    RELIABILITY.md            
-    ADR/
+    PROJECT_CONTEXT.md          (this document — master specification)
+    ARCHITECTURE.md             (architecture specification)
+    adr/
         001-modular-monolith.md
         002-database-boundaries.md
-        003-messaging.md
-        004-order-workflow.md
+        003-building-blocks.md
+        004-messaging-reliability.md
+        005-observability.md
+    phases/
+        PHASE_0_ARCHITECTURE_FOUNDATION.md
+        PHASE_1_IDENTITY_ACCESS.md
+        PHASE_1_5_RUNTIME_PREPARATION.md
+    completed/
+        PHASE_0_COMPLETION_REPORT.md
+        PHASE_1_COMPLETION_REPORT.md
+        PHASE_1_5_COMPLETION_REPORT.md
+    current/
+        EF_CORE_COMMANDS.md
+        SMTP_LOCAL_DEVELOPMENT.md
 ```

@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Domain.Errors;
@@ -14,26 +15,29 @@ public sealed class ChangePasswordCommandHandler : ICommandHandler<ChangePasswor
     private readonly ICurrentUser _currentUser;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public ChangePasswordCommandHandler(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         ICurrentUser currentUser,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _currentUser = currentUser;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result> HandleAsync(
         ChangePasswordCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new ChangePasswordCommandValidator().Validate(command);
+        var validation = new ChangePasswordCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure(

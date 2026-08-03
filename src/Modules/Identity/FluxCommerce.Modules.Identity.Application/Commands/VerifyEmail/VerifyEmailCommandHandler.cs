@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Mappings;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
@@ -14,24 +15,27 @@ public sealed class VerifyEmailCommandHandler : ICommandHandler<VerifyEmailComma
     private readonly IUserRepository _userRepository;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public VerifyEmailCommandHandler(
         ITokenRepository tokenRepository,
         IUserRepository userRepository,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _tokenRepository = tokenRepository;
         _userRepository = userRepository;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result<UserResponse>> HandleAsync(
         VerifyEmailCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new VerifyEmailCommandValidator().Validate(command);
+        var validation = new VerifyEmailCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure<UserResponse>(

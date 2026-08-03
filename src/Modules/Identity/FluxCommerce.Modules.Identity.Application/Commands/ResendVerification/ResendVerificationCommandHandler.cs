@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
@@ -17,26 +18,29 @@ public sealed class ResendVerificationCommandHandler : ICommandHandler<ResendVer
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public ResendVerificationCommandHandler(
         IUserRepository userRepository,
         ITokenGenerator tokenGenerator,
         IEmailVerificationService emailVerificationService,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _userRepository = userRepository;
         _tokenGenerator = tokenGenerator;
         _emailVerificationService = emailVerificationService;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result<ResendVerificationResponse>> HandleAsync(
         ResendVerificationCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new ResendVerificationCommandValidator().Validate(command);
+        var validation = new ResendVerificationCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure<ResendVerificationResponse>(

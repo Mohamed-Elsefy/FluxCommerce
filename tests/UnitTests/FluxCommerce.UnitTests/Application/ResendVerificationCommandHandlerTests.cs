@@ -14,7 +14,7 @@ public class ResendVerificationCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private ResendVerificationCommandHandler CreateHandler() =>
-        new(_users, new FakeTokenGenerator("new-verification-token"), _emails, _clock, _unitOfWork);
+        new(_users, new FakeTokenGenerator("new-verification-token"), _emails, _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedUnverifiedUser()
     {

@@ -1,37 +1,29 @@
-using System.Globalization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Localization;
 
 namespace FluxCommerce.Api.Extensions;
 
 public static class LocalizationConfiguration
 {
-    private const string DefaultCulture = "en";
+    public const string DefaultCulture = "en";
 
-    private static readonly string[] SupportedCultures = ["en", "fr", "de", "es", "ar"];
+    public static readonly string[] SupportedCultures = ["en", "fr", "de", "es", "ar"];
 
     public static IServiceCollection AddLocalizationConfiguration(this IServiceCollection services)
     {
         services.AddLocalization();
 
-        services.AddRequestLocalization(options =>
+        services.Configure<RequestLocalizationOptions>(options =>
         {
-            options.DefaultRequestCulture = new RequestCulture(DefaultCulture);
-
-            options.SupportedCultures = SupportedCultures
-                .Select(culture => new CultureInfo(culture))
-                .ToList();
-
-            options.SupportedUICultures = SupportedCultures
-                .Select(culture => new CultureInfo(culture))
-                .ToList();
-
+            options.SetDefaultCulture(DefaultCulture);
+            options.AddSupportedCultures(SupportedCultures);
+            options.AddSupportedUICultures(SupportedCultures);
             options.ApplyCurrentCultureToResponseHeaders = true;
 
-            options.RequestCultureProviders =
-            [
-                new QueryStringRequestCultureProvider(),
-                new AcceptLanguageHeaderRequestCultureProvider()
-            ];
+            options.RequestCultureProviders.Clear();
+            options.RequestCultureProviders.Add(new QueryStringRequestCultureProvider());
+            options.RequestCultureProviders.Add(new CookieRequestCultureProvider());
+            options.RequestCultureProviders.Add(new AcceptLanguageHeaderRequestCultureProvider());
         });
 
         return services;

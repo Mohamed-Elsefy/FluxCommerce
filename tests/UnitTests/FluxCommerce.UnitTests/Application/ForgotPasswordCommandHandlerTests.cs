@@ -14,7 +14,7 @@ public class ForgotPasswordCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private ForgotPasswordCommandHandler CreateHandler() =>
-        new(_users, new FakeTokenGenerator("new-reset-token"), _resetEmails, _clock, _unitOfWork);
+        new(_users, new FakeTokenGenerator("new-reset-token"), _resetEmails, _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedUser()
     {

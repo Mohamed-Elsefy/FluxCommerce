@@ -8,7 +8,7 @@ internal static class ArchitectureRegistry
     private const string ModulesRoot = "FluxCommerce.Modules";
 
     private static readonly string[] BuildingBlockProjects =
-        ["Domain", "Application", "Infrastructure", "Messaging", "Observability", "Persistence", "Web", "Outbox", "Idempotency", "Resilience"];
+        ["Domain", "Application", "Infrastructure", "Messaging", "Observability", "Persistence", "Web", "Outbox", "Idempotency", "Resilience", "Localization"];
 
     private static readonly string[] Modules = ["Catalog", "Cart", "Orders", "Inventory", "Payments", "Identity"];
 

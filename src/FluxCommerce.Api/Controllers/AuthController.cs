@@ -1,6 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
+using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.Modules.Identity.Application.Commands.ChangePassword;
 using FluxCommerce.Modules.Identity.Application.Commands.ForgotPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.GetCurrentUser;
@@ -44,7 +46,10 @@ public sealed class AuthController : ApiControllerBase
         ICommandHandler<ForgotPasswordCommand, Result> forgotPasswordHandler,
         ICommandHandler<ResetPasswordCommand, Result> resetPasswordHandler,
         ICommandHandler<ChangePasswordCommand, Result> changePasswordHandler,
-        ICommandHandler<GetCurrentUserCommand, Result<UserResponse>> getCurrentUserHandler)
+        ICommandHandler<GetCurrentUserCommand, Result<UserResponse>> getCurrentUserHandler,
+        ILocalizer localizer,
+        IErrorCodeLocalizer errorCodeLocalizer)
+        : base(localizer, errorCodeLocalizer)
     {
         _registerCustomerHandler = registerCustomerHandler;
         _loginHandler = loginHandler;

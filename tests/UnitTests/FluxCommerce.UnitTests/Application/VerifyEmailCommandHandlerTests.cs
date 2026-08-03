@@ -17,7 +17,7 @@ public class VerifyEmailCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private VerifyEmailCommandHandler CreateHandler() =>
-        new(_tokens, _users, _clock, _unitOfWork);
+        new(_tokens, _users, _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedUnverifiedUser()
     {

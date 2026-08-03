@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Mappings;
@@ -18,6 +19,7 @@ public sealed class RefreshCommandHandler : ICommandHandler<RefreshCommand, Resu
     private readonly ITokenGenerator _tokenGenerator;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public RefreshCommandHandler(
         ITokenRepository tokenRepository,
@@ -25,7 +27,8 @@ public sealed class RefreshCommandHandler : ICommandHandler<RefreshCommand, Resu
         IJwtProvider jwtProvider,
         ITokenGenerator tokenGenerator,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _tokenRepository = tokenRepository;
         _userRepository = userRepository;
@@ -33,13 +36,14 @@ public sealed class RefreshCommandHandler : ICommandHandler<RefreshCommand, Resu
         _tokenGenerator = tokenGenerator;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result<LoginResponse>> HandleAsync(
         RefreshCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new RefreshCommandValidator().Validate(command);
+        var validation = new RefreshCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure<LoginResponse>(

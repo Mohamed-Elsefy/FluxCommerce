@@ -1,3 +1,5 @@
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
+
 namespace FluxCommerce.Modules.Identity.Application.Validation;
 
 public static class NameRules
@@ -7,15 +9,16 @@ public static class NameRules
         string propertyName,
         string displayName,
         int maxLength,
-        Dictionary<string, string[]> errors)
+        Dictionary<string, string[]> errors,
+        ILocalizer localizer)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            ValidationErrors.Add(errors, propertyName, $"{displayName} is required.");
+            ValidationErrors.Add(errors, propertyName, localizer.Get("Validation.Field.Required", displayName));
             return;
         }
 
         if (name.Trim().Length > maxLength)
-            ValidationErrors.Add(errors, propertyName, $"{displayName} must not exceed {maxLength} characters.");
+            ValidationErrors.Add(errors, propertyName, localizer.Get("Validation.Field.MaxLength", displayName, maxLength));
     }
 }
