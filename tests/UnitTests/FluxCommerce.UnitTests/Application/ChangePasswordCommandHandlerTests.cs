@@ -15,7 +15,7 @@ public class ChangePasswordCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private ChangePasswordCommandHandler CreateHandler() =>
-        new(_users, _hasher, _currentUser, _clock, _unitOfWork);
+        new(_users, _hasher, _currentUser, _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedVerifiedUser()
     {

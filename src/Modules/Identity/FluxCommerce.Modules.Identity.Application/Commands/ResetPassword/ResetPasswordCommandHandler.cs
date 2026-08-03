@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Domain.Errors;
@@ -14,26 +15,29 @@ public sealed class ResetPasswordCommandHandler : ICommandHandler<ResetPasswordC
     private readonly IPasswordHasher _passwordHasher;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public ResetPasswordCommandHandler(
         ITokenRepository tokenRepository,
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _tokenRepository = tokenRepository;
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result> HandleAsync(
         ResetPasswordCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new ResetPasswordCommandValidator().Validate(command);
+        var validation = new ResetPasswordCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure(

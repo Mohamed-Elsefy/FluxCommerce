@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
@@ -16,26 +17,29 @@ public sealed class ForgotPasswordCommandHandler : ICommandHandler<ForgotPasswor
     private readonly IPasswordResetService _passwordResetService;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public ForgotPasswordCommandHandler(
         IUserRepository userRepository,
         ITokenGenerator tokenGenerator,
         IPasswordResetService passwordResetService,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _userRepository = userRepository;
         _tokenGenerator = tokenGenerator;
         _passwordResetService = passwordResetService;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result> HandleAsync(
         ForgotPasswordCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new ForgotPasswordCommandValidator().Validate(command);
+        var validation = new ForgotPasswordCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure(

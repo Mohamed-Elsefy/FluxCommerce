@@ -4,14 +4,16 @@
 
 Phase: 0
 Name: Architecture Foundation
-Status: Ready for Implementation
+Status: Implemented & Verified
+
+Completion report: `docs/completed/PHASE_0_COMPLETION_REPORT.md`
 
 This document defines the complete scope and implementation requirements for Phase 0 of the Enterprise Commerce & Order Management Platform.
 
 The AI coding agent MUST read and understand the following documents before implementing this phase:
 
-1. `docs/current/PROJECT_CONTEXT.md`
-2. `docs/current/ARCHITECTURE.md`
+1. `docs/PROJECT_CONTEXT.md`
+2. `docs/ARCHITECTURE.md`
 3. This document
 
 `PROJECT_CONTEXT.md` is the highest-level project context and takes precedence over this document if there is any conflict.

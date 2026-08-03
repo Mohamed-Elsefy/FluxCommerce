@@ -14,7 +14,7 @@ public class LogoutCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private LogoutCommandHandler CreateHandler() =>
-        new(_tokens, _users, _clock, _unitOfWork);
+        new(_tokens, _users, _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedUserWithRefreshToken(string tokenValue = "refresh-token-1")
     {

@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Mappings;
@@ -20,6 +21,7 @@ public sealed class LoginCommandHandler : ICommandHandler<LoginCommand, Result<L
     private readonly ITokenGenerator _tokenGenerator;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public LoginCommandHandler(
         IUserRepository userRepository,
@@ -27,7 +29,8 @@ public sealed class LoginCommandHandler : ICommandHandler<LoginCommand, Result<L
         IJwtProvider jwtProvider,
         ITokenGenerator tokenGenerator,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
@@ -35,13 +38,14 @@ public sealed class LoginCommandHandler : ICommandHandler<LoginCommand, Result<L
         _tokenGenerator = tokenGenerator;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result<LoginResponse>> HandleAsync(
         LoginCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new LoginCommandValidator().Validate(command);
+        var validation = new LoginCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure<LoginResponse>(

@@ -6,14 +6,16 @@ Phase: 1
 
 Name: Identity & Access
 
-Status: Ready for Implementation
+Status: Implemented & Verified
+
+Completion report: `docs/completed/PHASE_1_COMPLETION_REPORT.md`
 
 This document defines the complete implementation scope for Phase 1 of the Enterprise Commerce & Order Management Platform.
 
 The AI implementation agent MUST read and understand the following documents before implementing this phase:
 
-1. `docs/current/PROJECT_CONTEXT.md`
-2. `docs/current/ARCHITECTURE.md`
+1. `docs/PROJECT_CONTEXT.md`
+2. `docs/ARCHITECTURE.md`
 3. `docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md`
 4. This document
 
@@ -121,9 +123,11 @@ Each subphase builds on the previous one.
 
 The AI implementation agent MUST complete them sequentially.
 
+The implementation steps below (§4–§12) are numbered **Step 1–Step 9**. Note: the "Phase 1.5" and "Phase 1.6" labels are reserved for the standalone companion phases **Runtime Preparation** (`docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md`) and **Internationalization** (`docs/completed/PHASE_1_COMPLETION_REPORT.md` §14); the internal steps of Phase 1 use Step numbering to avoid collision.
+
 ---
 
-# 4. Phase 1.1 — Identity Module Foundation
+# 4. Step 1 — Identity Module Foundation
 
 Objective
 
@@ -159,7 +163,7 @@ The persistence model follows the Module-per-DbContext strategy defined in Phase
 
 ---
 
-# 5. Phase 1.2 — Identity Domain Model
+# 5. Step 2 — Identity Domain Model
 
 The Domain layer contains all business rules related to identity.
 
@@ -217,7 +221,7 @@ No Application layer validation may replace Domain invariants.
 
 ---
 
-# 6. Phase 1.3 — Application Layer
+# 6. Step 3 — Application Layer
 
 The Application layer coordinates identity use cases.
 
@@ -262,7 +266,7 @@ The Application layer depends only on Domain and BuildingBlocks.
 
 ---
 
-# 7. Phase 1.4 — Authentication Infrastructure
+# 7. Step 4 — Authentication Infrastructure
 
 Infrastructure provides implementations for the contracts defined by the Application layer.
 
@@ -294,7 +298,7 @@ Business rules remain inside the Domain.
 
 ---
 
-# 8. Phase 1.5 — Registration & Authentication
+# 8. Step 5 — Registration & Authentication
 
 Implement the following use cases:
 
@@ -332,7 +336,7 @@ Old tokens must become invalid after successful rotation.
 
 ---
 
-# 9. Phase 1.6 — Account Lifecycle
+# 9. Step 6 — Account Lifecycle
 
 Implement:
 
@@ -358,7 +362,7 @@ Tokens must be single-use.
 
 ---
 
-# 10. Phase 1.7 — API & Authorization
+# 10. Step 7 — API & Authorization
 
 Expose the Identity API.
 
@@ -400,7 +404,7 @@ ProblemDetails must be returned for all expected failures.
 
 ---
 
-# 11. Phase 1.8 — Security Hardening
+# 11. Step 8 — Security Hardening
 
 The implementation must include:
 
@@ -430,7 +434,7 @@ Tokens must never be logged.
 
 ---
 
-# 12. Phase 1.9 — Testing & Verification
+# 12. Step 9 — Testing & Verification
 
 Identity must include:
 

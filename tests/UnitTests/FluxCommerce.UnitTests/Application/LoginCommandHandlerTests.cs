@@ -16,7 +16,7 @@ public class LoginCommandHandlerTests
     private readonly PasswordHasher _hasher = new();
 
     private LoginCommandHandler CreateHandler() =>
-        new(_users, _hasher, _jwt, new FakeTokenGenerator(), _clock, _unitOfWork);
+        new(_users, _hasher, _jwt, new FakeTokenGenerator(), _clock, _unitOfWork, new FakeLocalizer());
 
     private async Task SeedVerifiedUser()
     {

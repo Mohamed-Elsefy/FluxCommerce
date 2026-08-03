@@ -100,6 +100,25 @@ public class AuthFlowTests
     }
 
     [Fact]
+    public async Task Registration_SendsLocalizedVerificationEmail_WhenFrenchRequested()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Accept-Language", "fr");
+
+        var email = $"l10nemail-{Guid.NewGuid():N}@example.com";
+
+        var register = await client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+
+        var message = TestDatabase.GetLastEmail(_factory, email);
+
+        Assert.Equal("Vérifiez votre compte FluxCommerce", message.Subject);
+        Assert.Contains("lang=\"fr\"", message.HtmlBody);
+        Assert.Contains("Vérifiez votre adresse e-mail", message.HtmlBody);
+        Assert.Contains("Vérifiez votre compte FluxCommerce", message.TextBody);
+    }
+
+    [Fact]
     public async Task DuplicateRegistration_ReturnsConflict()
     {
         var email = $"duplicate-{Guid.NewGuid():N}@example.com";

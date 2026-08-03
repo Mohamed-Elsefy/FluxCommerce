@@ -20,7 +20,7 @@ public class ProblemDetailsTests
     public async Task Login_WithWrongPassword_ReturnsProblemDetails()
     {
         var email = $"problem-{Guid.NewGuid():N}@example.com";
-        await RegisterAndVerify(email);
+        await RegisterAndVerify(_client, email);
 
         var response = await _client.PostAsJsonAsync("auth/login", new { email, password = "Wrong!Pass1" });
 
@@ -89,7 +89,7 @@ public class ProblemDetailsTests
     public async Task Login_WhenLocked_ReturnsForbidden_ProblemDetails()
     {
         var email = $"lockedpd-{Guid.NewGuid():N}@example.com";
-        await RegisterAndVerify(email);
+        await RegisterAndVerify(_client, email);
 
         for (var i = 0; i < 5; i++)
         {
@@ -116,16 +116,33 @@ public class ProblemDetailsTests
         Assert.Contains("token", problem.Detail, StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task RegisterAndVerify(string email)
+    [Fact]
+    public async Task Login_WithWrongPassword_ReturnsLocalizedProblemDetails_ForFrenchRequest()
     {
-        var register = await _client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Accept-Language", "fr");
+
+        var email = $"l10n-{Guid.NewGuid():N}@example.com";
+        await RegisterAndVerify(client, email);
+
+        var response = await client.PostAsJsonAsync("auth/login", new { email, password = "Wrong!Pass1" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
+        Assert.Equal("Non autorisé", problem.Title);
+        Assert.Equal("Adresse e-mail ou mot de passe incorrect.", problem.Detail);
+    }
+
+    private async Task RegisterAndVerify(HttpClient client, string email)
+    {
+        var register = await client.PostAsJsonAsync("auth/register", new { email, password = "Str0ng!Pass1", firstName = "John", lastName = "Doe" });
         register.EnsureSuccessStatusCode();
 
-        var resend = await _client.PostAsJsonAsync("auth/resend-verification", new { email });
+        var resend = await client.PostAsJsonAsync("auth/resend-verification", new { email });
         resend.EnsureSuccessStatusCode();
 
         var token = TestDatabase.GetVerificationToken(_factory, email);
-        var verify = await _client.PostAsJsonAsync("auth/verify-email", new { token });
+        var verify = await client.PostAsJsonAsync("auth/verify-email", new { token });
         verify.EnsureSuccessStatusCode();
     }
 }

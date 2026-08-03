@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" id="root">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Common.Success" xml:space="preserve">
+    <value>Succès</value>
+  </data>
+  <data name="Common.Error" xml:space="preserve">
+    <value>Erreur</value>
+  </data>
+  <data name="Common.Warning" xml:space="preserve">
+    <value>Avertissement</value>
+  </data>
+  <data name="Common.Save" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="Common.Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="Common.Confirm" xml:space="preserve">
+    <value>Confirmer</value>
+  </data>
+  <data name="Common.Delete" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="Common.Search" xml:space="preserve">
+    <value>Rechercher</value>
+  </data>
+  <data name="Common.Language" xml:space="preserve">
+    <value>Langue</value>
+  </data>
+  <data name="Common.Loading" xml:space="preserve">
+    <value>Chargement...</value>
+  </data>
+  <data name="Common.NoResults" xml:space="preserve">
+    <value>Aucun résultat trouvé.</value>
+  </data>
+  <data name="Common.Unknown" xml:space="preserve">
+    <value>Inconnu</value>
+  </data>
+  <data name="Validation.Field.Required" xml:space="preserve">
+    <value>{0} est obligatoire.</value>
+  </data>
+  <data name="Validation.Field.Invalid" xml:space="preserve">
+    <value>{0} est invalide.</value>
+  </data>
+  <data name="Validation.Field.MinLength" xml:space="preserve">
+    <value>{0} doit contenir au moins {1} caractères.</value>
+  </data>
+  <data name="Validation.Field.MaxLength" xml:space="preserve">
+    <value>{0} ne doit pas dépasser {1} caractères.</value>
+  </data>
+  <data name="Validation.Field.Range" xml:space="preserve">
+    <value>{0} doit être compris entre {1} et {2}.</value>
+  </data>
+  <data name="Validation.Email.Required" xml:space="preserve">
+    <value>L'adresse e-mail est obligatoire.</value>
+  </data>
+  <data name="Validation.Email.Invalid" xml:space="preserve">
+    <value>Saisissez une adresse e-mail valide.</value>
+  </data>
+  <data name="Validation.Email.MaxLength" xml:space="preserve">
+    <value>L'adresse e-mail ne doit pas dépasser {0} caractères.</value>
+  </data>
+  <data name="Validation.Password.Required" xml:space="preserve">
+    <value>Le mot de passe est obligatoire.</value>
+  </data>
+  <data name="Validation.Password.MinLength" xml:space="preserve">
+    <value>Le mot de passe doit contenir au moins {0} caractères.</value>
+  </data>
+  <data name="Validation.Password.MaxLength" xml:space="preserve">
+    <value>Le mot de passe ne doit pas dépasser {0} caractères.</value>
+  </data>
+  <data name="Validation.Password.Uppercase" xml:space="preserve">
+    <value>Le mot de passe doit contenir au moins une lettre majuscule.</value>
+  </data>
+  <data name="Validation.Password.Lowercase" xml:space="preserve">
+    <value>Le mot de passe doit contenir au moins une lettre minuscule.</value>
+  </data>
+  <data name="Validation.Password.Digit" xml:space="preserve">
+    <value>Le mot de passe doit contenir au moins un chiffre.</value>
+  </data>
+  <data name="Validation.Password.Special" xml:space="preserve">
+    <value>Le mot de passe doit contenir au moins un caractère spécial.</value>
+  </data>
+  <data name="Validation.Password.TooWeak" xml:space="preserve">
+    <value>Le mot de passe ne respecte pas les exigences de sécurité.</value>
+  </data>
+  <data name="Validation.Password.Mismatch" xml:space="preserve">
+    <value>Les mots de passe ne correspondent pas.</value>
+  </data>
+  <data name="Validation.Fields.FirstName" xml:space="preserve">
+    <value>Prénom</value>
+  </data>
+  <data name="Validation.Fields.LastName" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Validation.Fields.Token" xml:space="preserve">
+    <value>Jeton</value>
+  </data>
+  <data name="Validation.Fields.RefreshToken" xml:space="preserve">
+    <value>Jeton d'actualisation</value>
+  </data>
+  <data name="Validation.Fields.CurrentPassword" xml:space="preserve">
+    <value>Mot de passe actuel</value>
+  </data>
+  <data name="Authentication.Login.InvalidCredentials" xml:space="preserve">
+    <value>Adresse e-mail ou mot de passe incorrect.</value>
+  </data>
+  <data name="Authentication.Login.LockedOut" xml:space="preserve">
+    <value>Votre compte est temporairement verrouillé. Veuillez réessayer plus tard.</value>
+  </data>
+  <data name="Authentication.Login.EmailNotConfirmed" xml:space="preserve">
+    <value>Vous devez vérifier votre adresse e-mail avant de vous connecter.</value>
+  </data>
+  <data name="Authentication.Register.EmailAlreadyExists" xml:space="preserve">
+    <value>Un compte avec cette adresse e-mail existe déjà.</value>
+  </data>
+  <data name="Authentication.VerifyEmail.InvalidToken" xml:space="preserve">
+    <value>Le lien de vérification de l'adresse e-mail est invalide ou a expiré.</value>
+  </data>
+  <data name="Authentication.VerifyEmail.Success" xml:space="preserve">
+    <value>Votre adresse e-mail a été vérifiée.</value>
+  </data>
+  <data name="Authentication.PasswordReset.InvalidToken" xml:space="preserve">
+    <value>Le lien de réinitialisation du mot de passe est invalide ou a expiré.</value>
+  </data>
+  <data name="Authentication.PasswordReset.Success" xml:space="preserve">
+    <value>Votre mot de passe a été réinitialisé avec succès.</value>
+  </data>
+  <data name="Authorization.Unauthorized" xml:space="preserve">
+    <value>Vous devez être connecté pour accéder à cette ressource.</value>
+  </data>
+  <data name="Authorization.Forbidden" xml:space="preserve">
+    <value>Vous n'avez pas la permission d'effectuer cette action.</value>
+  </data>
+  <data name="Authorization.RoleRequired" xml:space="preserve">
+    <value>Vous devez disposer du rôle '{0}' pour effectuer cette action.</value>
+  </data>
+  <data name="Authorization.ResourceOwner" xml:space="preserve">
+    <value>Vous ne pouvez accéder qu'à vos propres ressources.</value>
+  </data>
+  <data name="Errors.UnhandledException" xml:space="preserve">
+    <value>Une erreur inattendue s'est produite lors du traitement de votre demande.</value>
+  </data>
+  <data name="Errors.RequestValidation" xml:space="preserve">
+    <value>Une ou plusieurs erreurs de validation se sont produites.</value>
+  </data>
+  <data name="Errors.NotFound" xml:space="preserve">
+    <value>La ressource demandée est introuvable.</value>
+  </data>
+  <data name="Errors.Conflict" xml:space="preserve">
+    <value>La demande entre en conflit avec l'état actuel de la ressource.</value>
+  </data>
+  <data name="Errors.Cancelled" xml:space="preserve">
+    <value>L'opération a été annulée.</value>
+  </data>
+  <data name="Errors.OperationFailed" xml:space="preserve">
+    <value>L'opération n'a pas pu être effectuée.</value>
+  </data>
+  <data name="Errors.InvalidToken" xml:space="preserve">
+    <value>Le jeton est invalide, a expiré ou a déjà été utilisé.</value>
+  </data>
+  <data name="Errors.EmailSendFailed" xml:space="preserve">
+    <value>Le compte a été créé, mais l'e-mail de vérification n'a pas pu être envoyé. Veuillez demander un nouvel e-mail de vérification.</value>
+  </data>
+  <data name="Errors.RoleAlreadyAssigned" xml:space="preserve">
+    <value>Ce rôle est déjà attribué à cet utilisateur.</value>
+  </data>
+  <data name="Errors.Title.ValidationFailed" xml:space="preserve">
+    <value>Échec de la validation</value>
+  </data>
+  <data name="Errors.Title.NotFound" xml:space="preserve">
+    <value>Introuvable</value>
+  </data>
+  <data name="Errors.Title.Conflict" xml:space="preserve">
+    <value>Conflit</value>
+  </data>
+  <data name="Errors.Title.Unauthorized" xml:space="preserve">
+    <value>Non autorisé</value>
+  </data>
+  <data name="Errors.Title.Forbidden" xml:space="preserve">
+    <value>Accès refusé</value>
+  </data>
+  <data name="Errors.Title.BadRequest" xml:space="preserve">
+    <value>Requête incorrecte</value>
+  </data>
+  <data name="Errors.Title.InternalServerError" xml:space="preserve">
+    <value>Erreur interne du serveur</value>
+  </data>
+  <data name="Email.Verification.Subject" xml:space="preserve">
+    <value>Vérifiez votre compte FluxCommerce</value>
+  </data>
+  <data name="Email.Verification.Heading" xml:space="preserve">
+    <value>Vérifiez votre adresse e-mail</value>
+  </data>
+  <data name="Email.Verification.Body" xml:space="preserve">
+    <value>Merci d'avoir créé un compte sur FluxCommerce. Veuillez confirmer votre adresse e-mail en cliquant sur le bouton ci-dessous.</value>
+  </data>
+  <data name="Email.Verification.TextIntro" xml:space="preserve">
+    <value>Merci d'avoir créé un compte sur FluxCommerce. Veuillez confirmer votre adresse e-mail en ouvrant le lien ci-dessous :</value>
+  </data>
+  <data name="Email.Verification.ButtonText" xml:space="preserve">
+    <value>Vérifier l'e-mail</value>
+  </data>
+  <data name="Email.Verification.ValidityNote" xml:space="preserve">
+    <value>Ce lien est valable 24 heures. Si vous n'avez pas créé ce compte, vous pouvez ignorer cet e-mail en toute sécurité.</value>
+  </data>
+  <data name="Email.PasswordReset.Subject" xml:space="preserve">
+    <value>Réinitialisez votre mot de passe FluxCommerce</value>
+  </data>
+  <data name="Email.PasswordReset.Heading" xml:space="preserve">
+    <value>Réinitialisez votre mot de passe</value>
+  </data>
+  <data name="Email.PasswordReset.Body" xml:space="preserve">
+    <value>Nous avons reçu une demande de réinitialisation du mot de passe de votre compte FluxCommerce. Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.</value>
+  </data>
+  <data name="Email.PasswordReset.TextIntro" xml:space="preserve">
+    <value>Nous avons reçu une demande de réinitialisation du mot de passe de votre compte FluxCommerce. Ouvrez le lien ci-dessous pour choisir un nouveau mot de passe :</value>
+  </data>
+  <data name="Email.PasswordReset.ButtonText" xml:space="preserve">
+    <value>Réinitialiser le mot de passe</value>
+  </data>
+  <data name="Email.PasswordReset.ValidityNote" xml:space="preserve">
+    <value>Ce lien est valable 1 heure. Si vous n'avez pas demandé de réinitialisation du mot de passe, vous pouvez ignorer cet e-mail en toute sécurité.</value>
+  </data>
+  <data name="Email.CopyLinkInstruction" xml:space="preserve">
+    <value>Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :</value>
+  </data>
+</root>

@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Common.Success" xml:space="preserve">
+    <value>نجاح</value>
+  </data>
+  <data name="Common.Error" xml:space="preserve">
+    <value>خطأ</value>
+  </data>
+  <data name="Common.Warning" xml:space="preserve">
+    <value>تحذير</value>
+  </data>
+  <data name="Common.Save" xml:space="preserve">
+    <value>حفظ</value>
+  </data>
+  <data name="Common.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="Common.Confirm" xml:space="preserve">
+    <value>تأكيد</value>
+  </data>
+  <data name="Common.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Common.Search" xml:space="preserve">
+    <value>بحث</value>
+  </data>
+  <data name="Common.Language" xml:space="preserve">
+    <value>اللغة</value>
+  </data>
+  <data name="Common.Loading" xml:space="preserve">
+    <value>جارٍ التحميل...</value>
+  </data>
+  <data name="Common.NoResults" xml:space="preserve">
+    <value>لا توجد نتائج.</value>
+  </data>
+  <data name="Common.Unknown" xml:space="preserve">
+    <value>غير معروف</value>
+  </data>
+  <data name="Validation.Field.Required" xml:space="preserve">
+    <value>{0} مطلوب.</value>
+  </data>
+  <data name="Validation.Field.Invalid" xml:space="preserve">
+    <value>{0} غير صالح.</value>
+  </data>
+  <data name="Validation.Field.MinLength" xml:space="preserve">
+    <value>يجب ألا يقل {0} عن {1} أحرف.</value>
+  </data>
+  <data name="Validation.Field.MaxLength" xml:space="preserve">
+    <value>يجب ألا يتجاوز {0} {1} أحرف.</value>
+  </data>
+  <data name="Validation.Field.Range" xml:space="preserve">
+    <value>يجب أن يكون {0} بين {1} و{2}.</value>
+  </data>
+  <data name="Validation.Email.Required" xml:space="preserve">
+    <value>عنوان البريد الإلكتروني مطلوب.</value>
+  </data>
+  <data name="Validation.Email.Invalid" xml:space="preserve">
+    <value>أدخل عنوان بريد إلكتروني صالح.</value>
+  </data>
+  <data name="Validation.Email.MaxLength" xml:space="preserve">
+    <value>يجب ألا يتجاوز عنوان البريد الإلكتروني {0} أحرف.</value>
+  </data>
+  <data name="Validation.Password.Required" xml:space="preserve">
+    <value>كلمة المرور مطلوبة.</value>
+  </data>
+  <data name="Validation.Password.MinLength" xml:space="preserve">
+    <value>يجب أن تتكون كلمة المرور من {0} أحرف على الأقل.</value>
+  </data>
+  <data name="Validation.Password.MaxLength" xml:space="preserve">
+    <value>يجب ألا تتجاوز كلمة المرور {0} حرفًا.</value>
+  </data>
+  <data name="Validation.Password.Uppercase" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.Lowercase" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على حرف صغير واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.Digit" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على رقم واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.Special" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.TooWeak" xml:space="preserve">
+    <value>كلمة المرور لا تستوفي متطلبات الأمان.</value>
+  </data>
+  <data name="Validation.Password.Mismatch" xml:space="preserve">
+    <value>كلمتا المرور غير متطابقتين.</value>
+  </data>
+  <data name="Validation.Fields.FirstName" xml:space="preserve">
+    <value>الاسم الأول</value>
+  </data>
+  <data name="Validation.Fields.LastName" xml:space="preserve">
+    <value>اسم العائلة</value>
+  </data>
+  <data name="Validation.Fields.Token" xml:space="preserve">
+    <value>الرمز</value>
+  </data>
+  <data name="Validation.Fields.RefreshToken" xml:space="preserve">
+    <value>رمز التحديث</value>
+  </data>
+  <data name="Validation.Fields.CurrentPassword" xml:space="preserve">
+    <value>كلمة المرور الحالية</value>
+  </data>
+  <data name="Authentication.Login.InvalidCredentials" xml:space="preserve">
+    <value>البريد الإلكتروني أو كلمة المرور غير صحيحة.</value>
+  </data>
+  <data name="Authentication.Login.LockedOut" xml:space="preserve">
+    <value>تم قفل حسابك مؤقتًا. يرجى المحاولة لاحقًا.</value>
+  </data>
+  <data name="Authentication.Login.EmailNotConfirmed" xml:space="preserve">
+    <value>يجب التحقق من عنوان بريدك الإلكتروني قبل تسجيل الدخول.</value>
+  </data>
+  <data name="Authentication.Register.EmailAlreadyExists" xml:space="preserve">
+    <value>يوجد حساب بالفعل بعنوان البريد الإلكتروني هذا.</value>
+  </data>
+  <data name="Authentication.VerifyEmail.InvalidToken" xml:space="preserve">
+    <value>رابط التحقق من البريد الإلكتروني غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="Authentication.VerifyEmail.Success" xml:space="preserve">
+    <value>تم التحقق من عنوان بريدك الإلكتروني.</value>
+  </data>
+  <data name="Authentication.PasswordReset.InvalidToken" xml:space="preserve">
+    <value>رابط إعادة تعيين كلمة المرور غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="Authentication.PasswordReset.Success" xml:space="preserve">
+    <value>تمت إعادة تعيين كلمة المرور بنجاح.</value>
+  </data>
+  <data name="Authorization.Unauthorized" xml:space="preserve">
+    <value>يجب تسجيل الدخول للوصول إلى هذا المورد.</value>
+  </data>
+  <data name="Authorization.Forbidden" xml:space="preserve">
+    <value>ليس لديك إذن لتنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="Authorization.RoleRequired" xml:space="preserve">
+    <value>تحتاج إلى دور '{0}' لتنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="Authorization.ResourceOwner" xml:space="preserve">
+    <value>يمكنك الوصول إلى مواردك الخاصة فقط.</value>
+  </data>
+  <data name="Errors.UnhandledException" xml:space="preserve">
+    <value>حدث خطأ غير متوقع أثناء معالجة طلبك.</value>
+  </data>
+  <data name="Errors.RequestValidation" xml:space="preserve">
+    <value>حدث خطأ تحقق واحد أو أكثر.</value>
+  </data>
+  <data name="Errors.NotFound" xml:space="preserve">
+    <value>لم يتم العثور على المورد المطلوب.</value>
+  </data>
+  <data name="Errors.Conflict" xml:space="preserve">
+    <value>يتعارض الطلب مع الحالة الحالية للمورد.</value>
+  </data>
+  <data name="Errors.Cancelled" xml:space="preserve">
+    <value>تم إلغاء العملية.</value>
+  </data>
+  <data name="Errors.OperationFailed" xml:space="preserve">
+    <value>تعذر إكمال العملية.</value>
+  </data>
+  <data name="Errors.InvalidToken" xml:space="preserve">
+    <value>الرمز غير صالح أو منتهي الصلاحية أو تم استخدامه بالفعل.</value>
+  </data>
+  <data name="Errors.EmailSendFailed" xml:space="preserve">
+    <value>تم إنشاء الحساب، لكن تعذر إرسال بريد التحقق الإلكتروني. يرجى طلب بريد تحقق جديد.</value>
+  </data>
+  <data name="Errors.RoleAlreadyAssigned" xml:space="preserve">
+    <value>الدور مُعيّن بالفعل لهذا المستخدم.</value>
+  </data>
+  <data name="Errors.Title.ValidationFailed" xml:space="preserve">
+    <value>فشل التحقق</value>
+  </data>
+  <data name="Errors.Title.NotFound" xml:space="preserve">
+    <value>غير موجود</value>
+  </data>
+  <data name="Errors.Title.Conflict" xml:space="preserve">
+    <value>تعارض</value>
+  </data>
+  <data name="Errors.Title.Unauthorized" xml:space="preserve">
+    <value>غير مصرح</value>
+  </data>
+  <data name="Errors.Title.Forbidden" xml:space="preserve">
+    <value>ممنوع</value>
+  </data>
+  <data name="Errors.Title.BadRequest" xml:space="preserve">
+    <value>طلب غير صالح</value>
+  </data>
+  <data name="Errors.Title.InternalServerError" xml:space="preserve">
+    <value>خطأ داخلي في الخادم</value>
+  </data>
+  <data name="Email.Verification.Subject" xml:space="preserve">
+    <value>تحقق من حسابك في FluxCommerce</value>
+  </data>
+  <data name="Email.Verification.Heading" xml:space="preserve">
+    <value>تحقق من عنوان بريدك الإلكتروني</value>
+  </data>
+  <data name="Email.Verification.Body" xml:space="preserve">
+    <value>شكرًا لإنشائك حسابًا في FluxCommerce. يرجى تأكيد عنوان بريدك الإلكتروني بالنقر على الزر أدناه.</value>
+  </data>
+  <data name="Email.Verification.TextIntro" xml:space="preserve">
+    <value>شكرًا لإنشائك حسابًا في FluxCommerce. يرجى تأكيد عنوان بريدك الإلكتروني بفتح الرابط أدناه:</value>
+  </data>
+  <data name="Email.Verification.ButtonText" xml:space="preserve">
+    <value>تحقق من البريد الإلكتروني</value>
+  </data>
+  <data name="Email.Verification.ValidityNote" xml:space="preserve">
+    <value>هذا الرابط صالح لمدة 24 ساعة. إذا لم تنشئ هذا الحساب، يمكنك تجاهل هذا البريد بأمان.</value>
+  </data>
+  <data name="Email.PasswordReset.Subject" xml:space="preserve">
+    <value>أعد تعيين كلمة مرور FluxCommerce</value>
+  </data>
+  <data name="Email.PasswordReset.Heading" xml:space="preserve">
+    <value>أعد تعيين كلمة المرور</value>
+  </data>
+  <data name="Email.PasswordReset.Body" xml:space="preserve">
+    <value>لقد تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في FluxCommerce. انقر على الزر أدناه لاختيار كلمة مرور جديدة.</value>
+  </data>
+  <data name="Email.PasswordReset.TextIntro" xml:space="preserve">
+    <value>لقد تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في FluxCommerce. افتح الرابط أدناه لاختيار كلمة مرور جديدة:</value>
+  </data>
+  <data name="Email.PasswordReset.ButtonText" xml:space="preserve">
+    <value>إعادة تعيين كلمة المرور</value>
+  </data>
+  <data name="Email.PasswordReset.ValidityNote" xml:space="preserve">
+    <value>هذا الرابط صالح لمدة ساعة واحدة. إذا لم تطلب إعادة تعيين كلمة المرور، يمكنك تجاهل هذا البريد بأمان.</value>
+  </data>
+  <data name="Email.CopyLinkInstruction" xml:space="preserve">
+    <value>إذا لم يعمل الزر، انسخ هذا الرابط والصقه في متصفحك:</value>
+  </data>
+</root>

@@ -19,7 +19,7 @@ public class RegisterCustomerCommandHandlerTests
     private readonly FakeEmailVerificationService _emails = new();
 
     private RegisterCustomerCommandHandler CreateHandler() =>
-        new(_users, _hasher, _tokenGenerator, _emails, _clock, _unitOfWork);
+        new(_users, _hasher, _tokenGenerator, _emails, _clock, _unitOfWork, new FakeLocalizer());
 
     [Fact]
     public async Task Register_Succeeds_AndCreatesCustomer()

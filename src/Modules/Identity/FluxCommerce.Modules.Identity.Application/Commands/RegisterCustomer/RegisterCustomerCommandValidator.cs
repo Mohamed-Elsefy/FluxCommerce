@@ -1,18 +1,19 @@
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Validation;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
 
 namespace FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 
-public sealed class RegisterCustomerCommandValidator
+public sealed class RegisterCustomerCommandValidator(ILocalizer localizer)
 {
     public ValidationResult Validate(RegisterCustomerCommand command)
     {
         var errors = new Dictionary<string, string[]>();
 
-        EmailRules.Validate(command.Email, errors);
-        PasswordPolicy.Validate(command.Password, errors);
-        NameRules.Validate(command.FirstName, "FirstName", "First name", User.FirstNameMaxLength, errors);
-        NameRules.Validate(command.LastName, "LastName", "Last name", User.LastNameMaxLength, errors);
+        EmailRules.Validate(command.Email, errors, localizer);
+        PasswordPolicy.Validate(command.Password, errors, localizer);
+        NameRules.Validate(command.FirstName, "FirstName", localizer["Validation.Fields.FirstName"], User.FirstNameMaxLength, errors, localizer);
+        NameRules.Validate(command.LastName, "LastName", localizer["Validation.Fields.LastName"], User.LastNameMaxLength, errors, localizer);
 
         return errors.Count == 0
             ? ValidationResult.Success()

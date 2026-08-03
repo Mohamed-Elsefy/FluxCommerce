@@ -9,6 +9,7 @@ public static class PipelineConfiguration
     public static WebApplication ConfigurePipeline(this WebApplication app)
     {
         app.UseExceptionHandler();
+        app.UseRequestLocalization();
 
         if (app.Environment.IsDevelopment())
         {

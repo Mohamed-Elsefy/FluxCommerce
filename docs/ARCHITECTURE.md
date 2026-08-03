@@ -1,7 +1,7 @@
 # Enterprise Commerce & Order Management Platform
 # Architecture Specification
 
-## 1. Architectural Style
+# 1. Architectural Style
 
 The system follows a Modular Monolith architecture based on:
 
@@ -187,6 +187,7 @@ Possible areas:
     +-- Messaging
     +-- Persistence
     +-- Web
+    +-- Localization
 
 Only concepts that are truly shared across multiple modules should be placed here.
 
@@ -608,6 +609,8 @@ Examples:
 
 These should be represented consistently using Result / Error abstractions where appropriate.
 
+`Error.Code` is the stable machine-readable key of an error; the human-readable display text is localized at the presentation boundary (see §26). Status codes, `type` URIs and the ProblemDetails shape do not change with the language.
+
 ## Unexpected Technical Failures
 
 Examples:
@@ -804,3 +807,58 @@ The most important architectural principle is:
     The system starts as a Modular Monolith and evolves toward distributed deployment only when justified.
 
 The architecture must optimize for correctness, maintainability, reliability, and future evolution rather than premature distribution.
+
+---
+
+# 26. Localization (Internationalization) Architecture
+
+Implemented in **Phase 1.6** (Internationalization Foundation; see `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14 for the full subphase breakdown and verification results).
+
+## 26.1 Scope
+
+Localization covers **user-facing strings only**: validation messages, ProblemDetails (titles/details), Identity/auth error texts, transactional email copy, and API documentation (Swagger). Multilingual **business data** (Product/Category/Brand translations, SEO, translation management) is intentionally out of scope and remains single-language.
+
+## 26.2 BuildingBlock
+
+`FluxCommerce.BuildingBlocks.Localization` hosts the framework-independent localization abstractions and the shared resource repository:
+
+- `ILocalizer` (indexer + `Get(key, args)`) and `ICurrentCulture` — the only localization types modules may depend on.
+- `SharedLocalizer` / `CurrentCulture` — the ASP.NET Core-backed implementations (`IStringLocalizer<SharedResources>`, `CultureInfo.CurrentUICulture`). `Microsoft.Extensions.Localization` is referenced **only inside this block**; no module layer references ASP.NET Core localization types directly.
+- `SharedResources` — the shared resource set (neutral `SharedResources.resx` + `fr`/`de`/`es`/`ar` satellites, 75 keys each, full satellite parity).
+
+## 26.3 Culture Registry & Resolution
+
+- Single compile-time culture registry: `LocalizationConfiguration.SupportedCultures` (`en`, `fr`, `de`, `es`, `ar`) and `DefaultCulture` (`en`) in the API host — the one source of truth used by both the middleware and Swagger.
+- Request culture is resolved by `RequestLocalizationMiddleware` (registered immediately after the exception handler) using providers in order: **query string** (`?culture=`), **cookie**, then **`Accept-Language`**; the default culture applies when no provider yields a supported culture.
+- `Content-Language` response header is emitted on every response (`ApplyCurrentCultureToResponseHeaders`).
+- A storage-backed per-user override (`User.PreferredLanguage` as a higher-priority provider) is a documented future evolution, deliberately not yet implemented.
+
+## 26.4 Resource Organization
+
+- One shared resource tier serves cross-cutting keys (Validation, Errors, Auth, Common, Success, Email). Per-module resource sets are a documented convention for the future, not yet created.
+- Resource sets resolve purely by type namespace (`FluxCommerce.BuildingBlocks.Localization.Resources.SharedResources`); `ResourcesPath` is not set (a `ResourcesPath` would double-prefix the resolved name and break lookups).
+- Missing translations fall back to the neutral (English) resource; a missing key returns the key itself (visible in development).
+
+## 26.5 Error Localization Boundary
+
+- `Error.Code` is the stable machine-readable key and never changes with language; `Error.Description` remains the English fallback.
+- `IErrorCodeLocalizer` (BuildingBlocks.Web abstraction) maps a code to a resource key at the **presentation boundary**; the API host implements it (`ErrorCodeLocalizer`) with the English description as fallback.
+- `ApiControllerBase` and the global `ExceptionHandler` localize ProblemDetails `Title`/`Detail` via `ILocalizer`; status codes, `type` URIs and the ProblemDetails shape are unchanged.
+
+## 26.6 Localized Surfaces
+
+| Surface | Mechanism |
+|---------|-----------|
+| Validation messages | All Identity command validators and rules resolve messages through `ILocalizer` |
+| ProblemDetails | `Title`/`Detail` via `ILocalizer` + `IErrorCodeLocalizer` |
+| Identity/auth errors | `Authentication.*` / `Errors.*` keys via the code → key mapping |
+| Transactional emails | Verification + Password Reset templates composed from `Email.*` keys; HTML `lang` = resolved UI culture |
+| API documentation | Swagger `Accept-Language` header on every operation (enum of supported cultures, default `en`) |
+
+## 26.7 Adding a Culture
+
+1. Add the culture to `LocalizationConfiguration.SupportedCultures`.
+2. Add the satellite resource file (`SharedResources.<culture>.resx`) with the full key set.
+3. Update the supported-culture documentation.
+
+The abstractions-only rule keeps this mechanical: module code never changes.

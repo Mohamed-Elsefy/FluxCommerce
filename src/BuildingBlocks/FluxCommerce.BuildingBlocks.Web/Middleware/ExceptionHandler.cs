@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.ProblemDetails;
 
 namespace FluxCommerce.BuildingBlocks.Web.Middleware;
 
-public sealed class ExceptionHandler : IExceptionHandler
+public sealed class ExceptionHandler(ILocalizer localizer) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
@@ -20,14 +21,14 @@ public sealed class ExceptionHandler : IExceptionHandler
         return true;
     }
 
-    private static ProblemDetail MapException(Exception exception)
+    private ProblemDetail MapException(Exception exception)
     {
         return exception switch
         {
             KeyNotFoundException => new ProblemDetail
             {
                 Type = "https://tools.ietf.org/html/rfc7231#section-6.5.4",
-                Title = "Not Found",
+                Title = localizer["Errors.Title.NotFound"],
                 Status = StatusCodes.Status404NotFound,
                 Detail = exception.Message
             },
@@ -35,7 +36,7 @@ public sealed class ExceptionHandler : IExceptionHandler
             UnauthorizedAccessException => new ProblemDetail
             {
                 Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                Title = "Unauthorized",
+                Title = localizer["Errors.Title.Unauthorized"],
                 Status = StatusCodes.Status401Unauthorized,
                 Detail = exception.Message
             },
@@ -43,7 +44,7 @@ public sealed class ExceptionHandler : IExceptionHandler
             InvalidOperationException => new ProblemDetail
             {
                 Type = "https://tools.ietf.org/html/rfc7231#section-6.5.8",
-                Title = "Conflict",
+                Title = localizer["Errors.Title.Conflict"],
                 Status = StatusCodes.Status409Conflict,
                 Detail = exception.Message
             },
@@ -51,7 +52,7 @@ public sealed class ExceptionHandler : IExceptionHandler
             ArgumentException => new ProblemDetail
             {
                 Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
-                Title = "Bad Request",
+                Title = localizer["Errors.Title.BadRequest"],
                 Status = StatusCodes.Status400BadRequest,
                 Detail = exception.Message
             },
@@ -59,9 +60,9 @@ public sealed class ExceptionHandler : IExceptionHandler
             _ => new ProblemDetail
             {
                 Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1",
-                Title = "Internal Server Error",
+                Title = localizer["Errors.Title.InternalServerError"],
                 Status = StatusCodes.Status500InternalServerError,
-                Detail = "An unexpected error occurred. Please try again later."
+                Detail = localizer["Errors.UnhandledException"]
             }
         };
     }

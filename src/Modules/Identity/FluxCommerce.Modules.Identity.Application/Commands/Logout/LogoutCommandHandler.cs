@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 
 namespace FluxCommerce.Modules.Identity.Application.Commands.Logout;
@@ -11,24 +12,27 @@ public sealed class LogoutCommandHandler : ICommandHandler<LogoutCommand, Result
     private readonly IUserRepository _userRepository;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILocalizer _localizer;
 
     public LogoutCommandHandler(
         ITokenRepository tokenRepository,
         IUserRepository userRepository,
         IDateTimeProvider dateTimeProvider,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILocalizer localizer)
     {
         _tokenRepository = tokenRepository;
         _userRepository = userRepository;
         _dateTimeProvider = dateTimeProvider;
         _unitOfWork = unitOfWork;
+        _localizer = localizer;
     }
 
     public async Task<Result> HandleAsync(
         LogoutCommand command,
         CancellationToken cancellationToken = default)
     {
-        var validation = new LogoutCommandValidator().Validate(command);
+        var validation = new LogoutCommandValidator(_localizer).Validate(command);
 
         if (!validation.IsValid)
             return Result.Failure(
