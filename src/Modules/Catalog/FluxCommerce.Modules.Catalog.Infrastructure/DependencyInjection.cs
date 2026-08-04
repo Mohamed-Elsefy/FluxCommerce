@@ -1,4 +1,6 @@
+using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Catalog.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +18,12 @@ public static class DependencyInjection
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Catalog");
                 sqlOptions.MigrationsAssembly(typeof(CatalogDbContext).Assembly.GetName().Name);
             }));
+
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+
+        services.AddScoped<IProductRepository, ProductRepository>();
+
+        services.AddScoped<IVariantRepository, VariantRepository>();
 
         return services;
     }
