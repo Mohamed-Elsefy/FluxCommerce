@@ -1,15 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Domain\FluxCommerce.Modules.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Localization\FluxCommerce.BuildingBlocks.Localization.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Commands\" />
+    <Folder Include="Commands\ActivateCategory\" />
+    <Folder Include="Commands\CreateCategory\" />
+    <Folder Include="Commands\DeactivateCategory\" />
+    <Folder Include="Commands\RestoreCategory\" />
+    <Folder Include="Commands\SoftDeleteCategory\" />
+    <Folder Include="Commands\UpdateCategory\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappings\" />
-    <Folder Include="Queries\" />
+    <Folder Include="Queries\GetCategory\" />
+    <Folder Include="Queries\ListCategories\" />
     <Folder Include="Validation\" />
   </ItemGroup>
 </Project>

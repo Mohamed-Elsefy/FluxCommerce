@@ -255,4 +255,37 @@
   <data name="Email.CopyLinkInstruction" xml:space="preserve">
     <value>Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :</value>
   </data>
+  <data name="Validation.Fields.CategoryName" xml:space="preserve">
+    <value>Nom de la catégorie</value>
+  </data>
+  <data name="Validation.Fields.CategoryId" xml:space="preserve">
+    <value>Identifiant de la catégorie</value>
+  </data>
+  <data name="Validation.Fields.Slug" xml:space="preserve">
+    <value>Slug</value>
+  </data>
+  <data name="Validation.Fields.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
+    <value>Une catégorie avec ce nom existe déjà.</value>
+  </data>
+  <data name="Catalog.DuplicateCategorySlug" xml:space="preserve">
+    <value>Une catégorie avec ce slug existe déjà.</value>
+  </data>
+  <data name="Catalog.ParentCategoryDeleted" xml:space="preserve">
+    <value>La catégorie parente est supprimée et ne peut pas être utilisée.</value>
+  </data>
+  <data name="Catalog.ParentCategoryNotFound" xml:space="preserve">
+    <value>La catégorie parente est introuvable.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeModified" xml:space="preserve">
+    <value>Une catégorie supprimée ne peut pas être modifiée.</value>
+  </data>
+  <data name="Catalog.CannotBeOwnParent" xml:space="preserve">
+    <value>Une catégorie ne peut pas être son propre parent.</value>
+  </data>
+  <data name="Catalog.InvalidSlug" xml:space="preserve">
+    <value>Le slug est invalide.</value>
+  </data>
 </root>

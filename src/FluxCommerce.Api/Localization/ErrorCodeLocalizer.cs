@@ -18,6 +18,15 @@ public sealed class ErrorCodeLocalizer(ILocalizer localizer) : IErrorCodeLocaliz
         ["Identity.UserNotFound"] = "Errors.NotFound",
         ["Identity.EmailSendFailed"] = "Errors.EmailSendFailed",
         ["Identity.RoleAlreadyAssigned"] = "Errors.RoleAlreadyAssigned",
+        ["Catalog.ValidationFailed"] = "Errors.RequestValidation",
+        ["Catalog.DuplicateCategoryName"] = "Catalog.DuplicateCategoryName",
+        ["Catalog.DuplicateCategorySlug"] = "Catalog.DuplicateCategorySlug",
+        ["Catalog.CategoryNotFound"] = "Errors.NotFound",
+        ["Catalog.ParentCategoryNotFound"] = "Catalog.ParentCategoryNotFound",
+        ["Catalog.ParentCategoryDeleted"] = "Catalog.ParentCategoryDeleted",
+        ["Catalog.DeletedCategoryCannotBeModified"] = "Catalog.DeletedCategoryCannotBeModified",
+        ["Catalog.CannotBeOwnParent"] = "Catalog.CannotBeOwnParent",
+        ["Catalog.InvalidSlug"] = "Catalog.InvalidSlug",
     };
 
     public string Localize(string code, string fallback)

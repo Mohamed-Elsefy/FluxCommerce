@@ -237,4 +237,37 @@
   <data name="Email.CopyLinkInstruction" xml:space="preserve">
     <value>Falls die Schaltfläche nicht funktioniert, kopieren Sie diesen Link und fügen Sie ihn in Ihren Browser ein:</value>
   </data>
+  <data name="Validation.Fields.CategoryName" xml:space="preserve">
+    <value>Kategoriename</value>
+  </data>
+  <data name="Validation.Fields.CategoryId" xml:space="preserve">
+    <value>Kategorie-ID</value>
+  </data>
+  <data name="Validation.Fields.Slug" xml:space="preserve">
+    <value>Slug</value>
+  </data>
+  <data name="Validation.Fields.Description" xml:space="preserve">
+    <value>Beschreibung</value>
+  </data>
+  <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
+    <value>Eine Kategorie mit diesem Namen existiert bereits.</value>
+  </data>
+  <data name="Catalog.DuplicateCategorySlug" xml:space="preserve">
+    <value>Eine Kategorie mit diesem Slug existiert bereits.</value>
+  </data>
+  <data name="Catalog.ParentCategoryDeleted" xml:space="preserve">
+    <value>Die übergeordnete Kategorie ist gelöscht und kann nicht verwendet werden.</value>
+  </data>
+  <data name="Catalog.ParentCategoryNotFound" xml:space="preserve">
+    <value>Die übergeordnete Kategorie wurde nicht gefunden.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeModified" xml:space="preserve">
+    <value>Eine gelöschte Kategorie kann nicht geändert werden.</value>
+  </data>
+  <data name="Catalog.CannotBeOwnParent" xml:space="preserve">
+    <value>Eine Kategorie kann nicht ihr eigener übergeordneter Eintrag sein.</value>
+  </data>
+  <data name="Catalog.InvalidSlug" xml:space="preserve">
+    <value>Der Slug ist ungültig.</value>
+  </data>
 </root>

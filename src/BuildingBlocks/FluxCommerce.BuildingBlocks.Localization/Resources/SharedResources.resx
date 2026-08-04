@@ -237,4 +237,37 @@
   <data name="Email.CopyLinkInstruction" xml:space="preserve">
     <value>If the button does not work, copy and paste this link into your browser:</value>
   </data>
+  <data name="Validation.Fields.CategoryName" xml:space="preserve">
+    <value>Category name</value>
+  </data>
+  <data name="Validation.Fields.CategoryId" xml:space="preserve">
+    <value>Category id</value>
+  </data>
+  <data name="Validation.Fields.Slug" xml:space="preserve">
+    <value>Slug</value>
+  </data>
+  <data name="Validation.Fields.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
+    <value>A category with this name already exists.</value>
+  </data>
+  <data name="Catalog.DuplicateCategorySlug" xml:space="preserve">
+    <value>A category with this slug already exists.</value>
+  </data>
+  <data name="Catalog.ParentCategoryDeleted" xml:space="preserve">
+    <value>The parent category is deleted and cannot be used.</value>
+  </data>
+  <data name="Catalog.ParentCategoryNotFound" xml:space="preserve">
+    <value>The parent category was not found.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeModified" xml:space="preserve">
+    <value>A deleted category cannot be modified.</value>
+  </data>
+  <data name="Catalog.CannotBeOwnParent" xml:space="preserve">
+    <value>A category cannot be its own parent.</value>
+  </data>
+  <data name="Catalog.InvalidSlug" xml:space="preserve">
+    <value>The slug is invalid.</value>
+  </data>
 </root>

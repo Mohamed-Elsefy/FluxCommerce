@@ -20,6 +20,12 @@ public sealed class CategoryRepository : ICategoryRepository
     public Task<Category?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Categories.FirstOrDefaultAsync(category => category.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyCollection<Category>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        await Categories
+            .Where(category => !category.IsDeleted)
+            .OrderBy(category => category.Name)
+            .ToListAsync(cancellationToken);
+
     public Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Categories.AnyAsync(category => category.Id == id, cancellationToken);
 
