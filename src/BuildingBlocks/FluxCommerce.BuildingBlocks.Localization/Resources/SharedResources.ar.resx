@@ -256,7 +256,16 @@
     <value>معرّف المنتج</value>
   </data>
   <data name="Validation.Fields.Visibility" xml:space="preserve">
-    <value>الظهور</value>
+    <value>الرؤية</value>
+  </data>
+  <data name="Validation.Fields.Sku" xml:space="preserve">
+    <value>رمز SKU</value>
+  </data>
+  <data name="Validation.Fields.VariantId" xml:space="preserve">
+    <value>معرف النوع البديل</value>
+  </data>
+  <data name="Validation.Fields.VariantName" xml:space="preserve">
+    <value>اسم النوع البديل</value>
   </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>توجد فئة بهذا الاسم بالفعل.</value>
@@ -296,5 +305,17 @@
   </data>
   <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
     <value>بيانات تحسين محركات البحث غير صالحة.</value>
+  </data>
+  <data name="Catalog.VariantNotFound" xml:space="preserve">
+    <value>لم يتم العثور على النوع البديل.</value>
+  </data>
+  <data name="Catalog.DuplicateVariantSku" xml:space="preserve">
+    <value>يوجد نوع بديل بهذا الرمز SKU بالفعل.</value>
+  </data>
+  <data name="Catalog.InvalidSku" xml:space="preserve">
+    <value>رمز SKU غير صالح.</value>
+  </data>
+  <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل نوع بديل محذوف.</value>
   </data>
 </root>

@@ -13,20 +13,26 @@
     <Folder Include="Commands\ArchiveProduct\" />
     <Folder Include="Commands\CreateCategory\" />
     <Folder Include="Commands\CreateProduct\" />
+    <Folder Include="Commands\CreateProductVariant\" />
+    <Folder Include="Commands\CreateProductVariants\" />
     <Folder Include="Commands\DeactivateCategory\" />
     <Folder Include="Commands\DeactivateProduct\" />
+    <Folder Include="Commands\DeleteProductVariant\" />
     <Folder Include="Commands\RestoreCategory\" />
     <Folder Include="Commands\RestoreProduct\" />
     <Folder Include="Commands\SoftDeleteCategory\" />
     <Folder Include="Commands\SoftDeleteProduct\" />
     <Folder Include="Commands\UpdateCategory\" />
     <Folder Include="Commands\UpdateProduct\" />
+    <Folder Include="Commands\UpdateProductVariant\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappings\" />
     <Folder Include="Queries\GetCategory\" />
     <Folder Include="Queries\GetProduct\" />
+    <Folder Include="Queries\GetProductVariant\" />
     <Folder Include="Queries\ListCategories\" />
     <Folder Include="Queries\ListProducts\" />
+    <Folder Include="Queries\ListProductVariants\" />
     <Folder Include="Validation\" />
   </ItemGroup>
 </Project>

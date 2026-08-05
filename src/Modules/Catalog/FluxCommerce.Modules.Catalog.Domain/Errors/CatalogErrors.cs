@@ -6,6 +6,10 @@ public static class CatalogErrors
         "Catalog.InvalidSlug",
         "The slug is invalid.");
 
+    public static readonly DomainError InvalidSku = DomainError.Create(
+        "Catalog.InvalidSku",
+        "The SKU is invalid.");
+
     public static readonly DomainError InvalidSeoMetadata = DomainError.Create(
         "Catalog.InvalidSeoMetadata",
         "The SEO metadata is invalid.");

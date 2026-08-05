@@ -276,6 +276,15 @@
   <data name="Validation.Fields.Visibility" xml:space="preserve">
     <value>Visibilité</value>
   </data>
+  <data name="Validation.Fields.Sku" xml:space="preserve">
+    <value>SKU</value>
+  </data>
+  <data name="Validation.Fields.VariantId" xml:space="preserve">
+    <value>Identifiant de la variante</value>
+  </data>
+  <data name="Validation.Fields.VariantName" xml:space="preserve">
+    <value>Nom de la variante</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>Une catégorie avec ce nom existe déjà.</value>
   </data>
@@ -314,5 +323,17 @@
   </data>
   <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
     <value>Les métadonnées SEO sont invalides.</value>
+  </data>
+  <data name="Catalog.VariantNotFound" xml:space="preserve">
+    <value>La variante est introuvable.</value>
+  </data>
+  <data name="Catalog.DuplicateVariantSku" xml:space="preserve">
+    <value>Une variante avec ce SKU existe déjà.</value>
+  </data>
+  <data name="Catalog.InvalidSku" xml:space="preserve">
+    <value>Le SKU est invalide.</value>
+  </data>
+  <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
+    <value>Une variante supprimée ne peut pas être modifiée.</value>
   </data>
 </root>

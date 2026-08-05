@@ -20,6 +20,12 @@ public sealed class VariantRepository : IVariantRepository
     public Task<Variant?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Variants.FirstOrDefaultAsync(variant => variant.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyCollection<Variant>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        await Variants
+            .Where(variant => !variant.IsDeleted)
+            .OrderBy(variant => variant.Name)
+            .ToListAsync(cancellationToken);
+
     public Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Variants.AnyAsync(variant => variant.Id == id, cancellationToken);
 

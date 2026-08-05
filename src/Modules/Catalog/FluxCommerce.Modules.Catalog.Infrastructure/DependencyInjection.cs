@@ -5,19 +5,25 @@ using FluxCommerce.Modules.Catalog.Application.Commands.ActivateProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.ArchiveProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateCategory;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateProduct;
+using FluxCommerce.Modules.Catalog.Application.Commands.CreateProductVariant;
+using FluxCommerce.Modules.Catalog.Application.Commands.CreateProductVariants;
 using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateCategory;
 using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateProduct;
+using FluxCommerce.Modules.Catalog.Application.Commands.DeleteProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Commands.RestoreCategory;
 using FluxCommerce.Modules.Catalog.Application.Commands.RestoreProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteCategory;
 using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateCategory;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProduct;
+using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Interfaces;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProduct;
+using FluxCommerce.Modules.Catalog.Application.Queries.GetProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
+using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Infrastructure.DbContexts;
@@ -56,6 +62,14 @@ public static class DependencyInjection
 
         services.AddScoped<ICommandHandler<UpdateProductCommand, Result>, UpdateProductCommandHandler>();
 
+        services.AddScoped<ICommandHandler<CreateProductVariantCommand, Result<Guid>>, CreateProductVariantCommandHandler>();
+
+        services.AddScoped<ICommandHandler<CreateProductVariantsCommand, Result<IReadOnlyCollection<Guid>>>, CreateProductVariantsCommandHandler>();
+
+        services.AddScoped<ICommandHandler<UpdateProductVariantCommand, Result>, UpdateProductVariantCommandHandler>();
+
+        services.AddScoped<ICommandHandler<DeleteProductVariantCommand, Result>, DeleteProductVariantCommandHandler>();
+
         services.AddScoped<ICommandHandler<ActivateCategoryCommand, Result>, ActivateCategoryCommandHandler>();
 
         services.AddScoped<ICommandHandler<DeactivateCategoryCommand, Result>, DeactivateCategoryCommandHandler>();
@@ -81,6 +95,10 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetProductQuery, Result<ProductResponse>>, GetProductQueryHandler>();
 
         services.AddScoped<IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>>, ListProductsQueryHandler>();
+
+        services.AddScoped<IQueryHandler<GetProductVariantQuery, Result<VariantResponse>>, GetProductVariantQueryHandler>();
+
+        services.AddScoped<IQueryHandler<ListProductVariantsQuery, Result<IReadOnlyCollection<VariantResponse>>>, ListProductVariantsQueryHandler>();
 
         return services;
     }

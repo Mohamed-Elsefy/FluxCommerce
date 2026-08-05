@@ -86,6 +86,13 @@ public class SharedResourcesTests
         "Email.PasswordReset.ButtonText",
         "Email.PasswordReset.ValidityNote",
         "Email.CopyLinkInstruction",
+        "Validation.Fields.Sku",
+        "Validation.Fields.VariantId",
+        "Validation.Fields.VariantName",
+        "Catalog.VariantNotFound",
+        "Catalog.DuplicateVariantSku",
+        "Catalog.InvalidSku",
+        "Catalog.DeletedVariantCannotBeModified",
     ];
 
     private static readonly string[] SatelliteCultures = ["fr", "de", "es", "ar"];

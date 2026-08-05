@@ -32,6 +32,10 @@ public sealed class ErrorCodeLocalizer(ILocalizer localizer) : IErrorCodeLocaliz
         ["Catalog.ParentCategoryNotFound"] = "Catalog.ParentCategoryNotFound",
         ["Catalog.ParentCategoryDeleted"] = "Catalog.ParentCategoryDeleted",
         ["Catalog.DeletedCategoryCannotBeModified"] = "Catalog.DeletedCategoryCannotBeModified",
+        ["Catalog.DeletedVariantCannotBeModified"] = "Catalog.DeletedVariantCannotBeModified",
+        ["Catalog.VariantNotFound"] = "Catalog.VariantNotFound",
+        ["Catalog.DuplicateVariantSku"] = "Catalog.DuplicateVariantSku",
+        ["Catalog.InvalidSku"] = "Catalog.InvalidSku",
         ["Catalog.CannotBeOwnParent"] = "Catalog.CannotBeOwnParent",
         ["Catalog.InvalidSlug"] = "Catalog.InvalidSlug",
     };
