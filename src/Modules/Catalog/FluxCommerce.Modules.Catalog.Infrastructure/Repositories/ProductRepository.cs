@@ -20,6 +20,12 @@ public sealed class ProductRepository : IProductRepository
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Products.FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        await Products
+            .Where(product => !product.IsDeleted)
+            .OrderBy(product => product.Name)
+            .ToListAsync(cancellationToken);
+
     public Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Products.AnyAsync(product => product.Id == id, cancellationToken);
 

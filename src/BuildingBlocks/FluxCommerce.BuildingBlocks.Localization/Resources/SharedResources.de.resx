@@ -249,6 +249,15 @@
   <data name="Validation.Fields.Description" xml:space="preserve">
     <value>Beschreibung</value>
   </data>
+  <data name="Validation.Fields.ProductName" xml:space="preserve">
+    <value>Produktname</value>
+  </data>
+  <data name="Validation.Fields.ProductId" xml:space="preserve">
+    <value>Produkt-ID</value>
+  </data>
+  <data name="Validation.Fields.Visibility" xml:space="preserve">
+    <value>Sichtbarkeit</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>Eine Kategorie mit diesem Namen existiert bereits.</value>
   </data>
@@ -269,5 +278,23 @@
   </data>
   <data name="Catalog.InvalidSlug" xml:space="preserve">
     <value>Der Slug ist ungültig.</value>
+  </data>
+  <data name="Catalog.DuplicateProductName" xml:space="preserve">
+    <value>Ein Produkt mit diesem Namen ist bereits vorhanden.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSlug" xml:space="preserve">
+    <value>Ein Produkt mit diesem Slug ist bereits vorhanden.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeUsed" xml:space="preserve">
+    <value>Die Kategorie ist gelöscht und kann nicht verwendet werden.</value>
+  </data>
+  <data name="Catalog.DeletedProductCannotBeModified" xml:space="preserve">
+    <value>Ein gelöschtes Produkt kann nicht geändert werden.</value>
+  </data>
+  <data name="Catalog.InvalidProductTransition" xml:space="preserve">
+    <value>Der angeforderte Statusübergang ist vom aktuellen Status aus nicht zulässig.</value>
+  </data>
+  <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
+    <value>Die SEO-Metadaten sind ungültig.</value>
   </data>
 </root>

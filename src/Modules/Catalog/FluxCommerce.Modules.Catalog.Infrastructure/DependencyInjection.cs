@@ -1,14 +1,23 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Catalog.Application.Commands.ActivateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.ActivateProduct;
+using FluxCommerce.Modules.Catalog.Application.Commands.ArchiveProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.CreateProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.RestoreCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.RestoreProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProduct;
 using FluxCommerce.Modules.Catalog.Application.Interfaces;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
+using FluxCommerce.Modules.Catalog.Application.Queries.GetProduct;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
+using FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Infrastructure.DbContexts;
@@ -43,6 +52,10 @@ public static class DependencyInjection
 
         services.AddScoped<ICommandHandler<UpdateCategoryCommand, Result>, UpdateCategoryCommandHandler>();
 
+        services.AddScoped<ICommandHandler<CreateProductCommand, Result<Guid>>, CreateProductCommandHandler>();
+
+        services.AddScoped<ICommandHandler<UpdateProductCommand, Result>, UpdateProductCommandHandler>();
+
         services.AddScoped<ICommandHandler<ActivateCategoryCommand, Result>, ActivateCategoryCommandHandler>();
 
         services.AddScoped<ICommandHandler<DeactivateCategoryCommand, Result>, DeactivateCategoryCommandHandler>();
@@ -51,9 +64,23 @@ public static class DependencyInjection
 
         services.AddScoped<ICommandHandler<RestoreCategoryCommand, Result>, RestoreCategoryCommandHandler>();
 
+        services.AddScoped<ICommandHandler<ActivateProductCommand, Result>, ActivateProductCommandHandler>();
+
+        services.AddScoped<ICommandHandler<DeactivateProductCommand, Result>, DeactivateProductCommandHandler>();
+
+        services.AddScoped<ICommandHandler<ArchiveProductCommand, Result>, ArchiveProductCommandHandler>();
+
+        services.AddScoped<ICommandHandler<SoftDeleteProductCommand, Result>, SoftDeleteProductCommandHandler>();
+
+        services.AddScoped<ICommandHandler<RestoreProductCommand, Result>, RestoreProductCommandHandler>();
+
         services.AddScoped<IQueryHandler<GetCategoryQuery, Result<CategoryResponse>>, GetCategoryQueryHandler>();
 
         services.AddScoped<IQueryHandler<ListCategoriesQuery, Result<IReadOnlyCollection<CategoryResponse>>>, ListCategoriesQueryHandler>();
+
+        services.AddScoped<IQueryHandler<GetProductQuery, Result<ProductResponse>>, GetProductQueryHandler>();
+
+        services.AddScoped<IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>>, ListProductsQueryHandler>();
 
         return services;
     }

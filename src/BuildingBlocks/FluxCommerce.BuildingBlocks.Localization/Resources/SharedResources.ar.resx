@@ -249,6 +249,15 @@
   <data name="Validation.Fields.Description" xml:space="preserve">
     <value>الوصف</value>
   </data>
+  <data name="Validation.Fields.ProductName" xml:space="preserve">
+    <value>اسم المنتج</value>
+  </data>
+  <data name="Validation.Fields.ProductId" xml:space="preserve">
+    <value>معرّف المنتج</value>
+  </data>
+  <data name="Validation.Fields.Visibility" xml:space="preserve">
+    <value>الظهور</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>توجد فئة بهذا الاسم بالفعل.</value>
   </data>
@@ -269,5 +278,23 @@
   </data>
   <data name="Catalog.InvalidSlug" xml:space="preserve">
     <value>الرابط المختصر غير صالح.</value>
+  </data>
+  <data name="Catalog.DuplicateProductName" xml:space="preserve">
+    <value>يوجد منتج بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSlug" xml:space="preserve">
+    <value>يوجد منتج بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeUsed" xml:space="preserve">
+    <value>الفئة محذوفة ولا يمكن استخدامها.</value>
+  </data>
+  <data name="Catalog.DeletedProductCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل منتج محذوف.</value>
+  </data>
+  <data name="Catalog.InvalidProductTransition" xml:space="preserve">
+    <value>انتقال الحالة المطلوب غير مسموح به من الحالة الحالية.</value>
+  </data>
+  <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
+    <value>بيانات تحسين محركات البحث غير صالحة.</value>
   </data>
 </root>

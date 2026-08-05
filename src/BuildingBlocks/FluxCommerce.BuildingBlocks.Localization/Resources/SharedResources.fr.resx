@@ -267,6 +267,15 @@
   <data name="Validation.Fields.Description" xml:space="preserve">
     <value>Description</value>
   </data>
+  <data name="Validation.Fields.ProductName" xml:space="preserve">
+    <value>Nom du produit</value>
+  </data>
+  <data name="Validation.Fields.ProductId" xml:space="preserve">
+    <value>ID du produit</value>
+  </data>
+  <data name="Validation.Fields.Visibility" xml:space="preserve">
+    <value>Visibilité</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>Une catégorie avec ce nom existe déjà.</value>
   </data>
@@ -287,5 +296,23 @@
   </data>
   <data name="Catalog.InvalidSlug" xml:space="preserve">
     <value>Le slug est invalide.</value>
+  </data>
+  <data name="Catalog.DuplicateProductName" xml:space="preserve">
+    <value>Un produit avec ce nom existe déjà.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSlug" xml:space="preserve">
+    <value>Un produit avec ce slug existe déjà.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeUsed" xml:space="preserve">
+    <value>La catégorie est supprimée et ne peut pas être utilisée.</value>
+  </data>
+  <data name="Catalog.DeletedProductCannotBeModified" xml:space="preserve">
+    <value>Un produit supprimé ne peut pas être modifié.</value>
+  </data>
+  <data name="Catalog.InvalidProductTransition" xml:space="preserve">
+    <value>La transition d'état demandée n'est pas autorisée à partir de l'état actuel du produit.</value>
+  </data>
+  <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
+    <value>Les métadonnées SEO sont invalides.</value>
   </data>
 </root>
