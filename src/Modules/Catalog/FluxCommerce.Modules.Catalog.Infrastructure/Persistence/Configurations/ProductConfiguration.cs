@@ -60,6 +60,14 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
             .HasForeignKey(product => product.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasMany(product => product.AttributeValues)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(product => product.AttributeValues)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasIndex(product => product.CategoryId);
 
         builder.HasIndex(product => product.Name);

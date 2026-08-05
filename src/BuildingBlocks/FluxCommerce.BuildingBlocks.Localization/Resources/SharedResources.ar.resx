@@ -267,6 +267,18 @@
   <data name="Validation.Fields.VariantName" xml:space="preserve">
     <value>اسم النوع البديل</value>
   </data>
+  <data name="Validation.Fields.AttributeName" xml:space="preserve">
+    <value>اسم السمة</value>
+  </data>
+  <data name="Validation.Fields.AttributeId" xml:space="preserve">
+    <value>معرف السمة</value>
+  </data>
+  <data name="Validation.Fields.DataType" xml:space="preserve">
+    <value>نوع البيانات</value>
+  </data>
+  <data name="Validation.Fields.AttributeValue" xml:space="preserve">
+    <value>قيمة السمة</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>توجد فئة بهذا الاسم بالفعل.</value>
   </data>
@@ -317,5 +329,41 @@
   </data>
   <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
     <value>لا يمكن تعديل نوع بديل محذوف.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotFound" xml:space="preserve">
+    <value>لم يتم العثور على تعريف السمة.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeName" xml:space="preserve">
+    <value>يوجد تعريف سمة بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeSlug" xml:space="preserve">
+    <value>يوجد تعريف سمة بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل تعريف سمة محذوف.</value>
+  </data>
+  <data name="Catalog.AttributeValueRequired" xml:space="preserve">
+    <value>قيمة السمة مطلوبة.</value>
+  </data>
+  <data name="Catalog.AttributeValueTooLong" xml:space="preserve">
+    <value>تتجاوز قيمة السمة الحد الأقصى المسموح به.</value>
+  </data>
+  <data name="Catalog.InvalidAttributeValue" xml:space="preserve">
+    <value>قيمة السمة غير صالحة لنوع بيانات السمة.</value>
+  </data>
+  <data name="Catalog.DuplicateProductAttributeValue" xml:space="preserve">
+    <value>يوجد للمنتج قيمة لهذه السمة بالفعل.</value>
+  </data>
+  <data name="Catalog.ProductAttributeValueNotFound" xml:space="preserve">
+    <value>لا يوجد للمنتج قيمة لهذه السمة.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeUsed" xml:space="preserve">
+    <value>تعريف السمة محذوف ولا يمكن استخدامه.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotActive" xml:space="preserve">
+    <value>تعريف السمة غير نشط ولا يمكن استخدامه.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
+    <value>تعريف السمة لا ينتمي إلى فئة المنتج.</value>
   </data>
 </root>

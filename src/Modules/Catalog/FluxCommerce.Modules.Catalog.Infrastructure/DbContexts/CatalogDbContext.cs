@@ -23,4 +23,6 @@ public sealed class CatalogDbContext : BaseDbContext
     public DbSet<Product> Products { get; set; } = null!;
 
     public DbSet<Variant> Variants { get; set; } = null!;
+
+    public DbSet<AttributeDefinition> AttributeDefinitions { get; set; } = null!;
 }

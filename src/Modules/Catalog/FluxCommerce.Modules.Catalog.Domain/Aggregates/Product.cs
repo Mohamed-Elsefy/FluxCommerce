@@ -33,6 +33,10 @@ public sealed class Product : AggregateRoot<Guid>
 
     public DateTime? DeletedAtUtc { get; private set; }
 
+    private readonly List<ProductAttributeValue> _attributeValues = [];
+
+    public IReadOnlyCollection<ProductAttributeValue> AttributeValues => _attributeValues;
+
     private Product(
         Guid id,
         string name,
@@ -183,6 +187,115 @@ public sealed class Product : AggregateRoot<Guid>
         Visibility = visibility;
 
         return DomainResult.Success();
+    }
+
+    public DomainResult AssignAttributeValue(AttributeDefinition attributeDefinition, string value, DateTime utcNow)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var definitionResult = ValidateAttributeDefinition(attributeDefinition);
+
+        if (definitionResult.IsFailure)
+            return definitionResult;
+
+        if (_attributeValues.Any(attributeValue => attributeValue.AttributeDefinitionId == attributeDefinition.Id))
+            return DomainResult.Failure(ProductErrors.DuplicateAttributeValue);
+
+        var valueResult = ValidateValue(attributeDefinition.DataType, value);
+
+        if (valueResult.IsFailure)
+            return valueResult;
+
+        _attributeValues.Add(new ProductAttributeValue(Guid.NewGuid(), attributeDefinition.Id, value.Trim(), utcNow));
+
+        AddDomainEvent(new ProductAttributeValueAssigned(Id, attributeDefinition.Id, value.Trim()));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult UpdateAttributeValue(Guid attributeDefinitionId, AttributeDefinition attributeDefinition, string value)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var definitionResult = ValidateAttributeDefinition(attributeDefinition);
+
+        if (definitionResult.IsFailure)
+            return definitionResult;
+
+        var attributeValue = _attributeValues.FirstOrDefault(attributeValue => attributeValue.AttributeDefinitionId == attributeDefinitionId);
+
+        if (attributeValue is null)
+            return DomainResult.Failure(ProductErrors.AttributeValueNotFound);
+
+        var valueResult = ValidateValue(attributeDefinition.DataType, value);
+
+        if (valueResult.IsFailure)
+            return valueResult;
+
+        attributeValue.ChangeValue(value.Trim());
+
+        AddDomainEvent(new ProductAttributeValueUpdated(Id, attributeDefinitionId, value.Trim()));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult RemoveAttributeValue(Guid attributeDefinitionId)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var attributeValue = _attributeValues.FirstOrDefault(attributeValue => attributeValue.AttributeDefinitionId == attributeDefinitionId);
+
+        if (attributeValue is null)
+            return DomainResult.Failure(ProductErrors.AttributeValueNotFound);
+
+        _attributeValues.Remove(attributeValue);
+
+        AddDomainEvent(new ProductAttributeValueRemoved(Id, attributeDefinitionId));
+
+        return DomainResult.Success();
+    }
+
+    private DomainResult ValidateAttributeDefinition(AttributeDefinition attributeDefinition)
+    {
+        if (attributeDefinition.IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedAttributeDefinitionCannotBeUsed);
+
+        if (attributeDefinition.Status != AttributeStatus.Active)
+            return DomainResult.Failure(ProductErrors.InactiveAttributeDefinitionCannotBeUsed);
+
+        if (attributeDefinition.CategoryId is { } categoryId && categoryId != CategoryId)
+            return DomainResult.Failure(ProductErrors.AttributeDefinitionCategoryMismatch);
+
+        return DomainResult.Success();
+    }
+
+    private static DomainResult ValidateValue(AttributeDataType dataType, string? value)
+    {
+        var normalizedValue = value?.Trim();
+
+        if (string.IsNullOrEmpty(normalizedValue))
+            return DomainResult.Failure(ProductErrors.AttributeValueRequired);
+
+        if (normalizedValue.Length > ProductAttributeValue.ValueMaxLength)
+            return DomainResult.Failure(ProductErrors.AttributeValueTooLong);
+
+        var isValid = dataType switch
+        {
+            AttributeDataType.Text => true,
+            AttributeDataType.Number => long.TryParse(normalizedValue, out _),
+            AttributeDataType.Decimal => decimal.TryParse(normalizedValue, out _),
+            AttributeDataType.Boolean => bool.TryParse(normalizedValue, out _),
+            AttributeDataType.Date => DateTime.TryParse(normalizedValue, out _),
+            AttributeDataType.DateTime => DateTime.TryParse(normalizedValue, out _),
+            _ => false
+        };
+
+        return isValid
+            ? DomainResult.Success()
+            : DomainResult.Failure(ProductErrors.InvalidAttributeValue);
     }
 
     public DomainResult Activate()

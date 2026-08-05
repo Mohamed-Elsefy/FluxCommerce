@@ -267,6 +267,18 @@
   <data name="Validation.Fields.VariantName" xml:space="preserve">
     <value>Variantenname</value>
   </data>
+  <data name="Validation.Fields.AttributeName" xml:space="preserve">
+    <value>Attributname</value>
+  </data>
+  <data name="Validation.Fields.AttributeId" xml:space="preserve">
+    <value>Attribut-ID</value>
+  </data>
+  <data name="Validation.Fields.DataType" xml:space="preserve">
+    <value>Datentyp</value>
+  </data>
+  <data name="Validation.Fields.AttributeValue" xml:space="preserve">
+    <value>Attributwert</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>Eine Kategorie mit diesem Namen existiert bereits.</value>
   </data>
@@ -317,5 +329,41 @@
   </data>
   <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
     <value>Eine gelöschte Variante kann nicht geändert werden.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotFound" xml:space="preserve">
+    <value>Die Attributdefinition wurde nicht gefunden.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeName" xml:space="preserve">
+    <value>Eine Attributdefinition mit diesem Namen existiert bereits.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeSlug" xml:space="preserve">
+    <value>Eine Attributdefinition mit diesem Slug existiert bereits.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeModified" xml:space="preserve">
+    <value>Eine gelöschte Attributdefinition kann nicht geändert werden.</value>
+  </data>
+  <data name="Catalog.AttributeValueRequired" xml:space="preserve">
+    <value>Ein Attributwert ist erforderlich.</value>
+  </data>
+  <data name="Catalog.AttributeValueTooLong" xml:space="preserve">
+    <value>Der Attributwert überschreitet die maximal zulässige Länge.</value>
+  </data>
+  <data name="Catalog.InvalidAttributeValue" xml:space="preserve">
+    <value>Der Attributwert ist für den Datentyp des Attributs nicht gültig.</value>
+  </data>
+  <data name="Catalog.DuplicateProductAttributeValue" xml:space="preserve">
+    <value>Das Produkt hat bereits einen Wert für das angegebene Attribut.</value>
+  </data>
+  <data name="Catalog.ProductAttributeValueNotFound" xml:space="preserve">
+    <value>Das Produkt hat keinen Wert für das angegebene Attribut.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeUsed" xml:space="preserve">
+    <value>Die Attributdefinition ist gelöscht und kann nicht verwendet werden.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotActive" xml:space="preserve">
+    <value>Die Attributdefinition ist nicht aktiv und kann nicht verwendet werden.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
+    <value>Die Attributdefinition gehört nicht zur Kategorie des Produkts.</value>
   </data>
 </root>

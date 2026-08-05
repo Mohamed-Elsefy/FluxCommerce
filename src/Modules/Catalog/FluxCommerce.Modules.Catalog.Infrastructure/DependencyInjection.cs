@@ -1,26 +1,37 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Catalog.Application.Commands.ActivateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.ActivateAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Commands.ActivateProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.ArchiveProduct;
+using FluxCommerce.Modules.Catalog.Application.Commands.AssignProductAttributeValue;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.CreateAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Commands.CreateProductVariants;
 using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Commands.DeactivateProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.DeleteProductVariant;
+using FluxCommerce.Modules.Catalog.Application.Commands.RemoveProductAttributeValue;
 using FluxCommerce.Modules.Catalog.Application.Commands.RestoreCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.RestoreAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Commands.RestoreProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateCategory;
+using FluxCommerce.Modules.Catalog.Application.Commands.UpdateAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProduct;
+using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductAttributeValue;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Interfaces;
+using FluxCommerce.Modules.Catalog.Application.Queries.GetAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProduct;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProductVariant;
+using FluxCommerce.Modules.Catalog.Application.Queries.ListAttributeDefinitions;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
@@ -52,6 +63,8 @@ public static class DependencyInjection
 
         services.AddScoped<IVariantRepository, VariantRepository>();
 
+        services.AddScoped<IAttributeDefinitionRepository, AttributeDefinitionRepository>();
+
         services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
 
         services.AddScoped<ICommandHandler<CreateCategoryCommand, Result<Guid>>, CreateCategoryCommandHandler>();
@@ -69,6 +82,18 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<UpdateProductVariantCommand, Result>, UpdateProductVariantCommandHandler>();
 
         services.AddScoped<ICommandHandler<DeleteProductVariantCommand, Result>, DeleteProductVariantCommandHandler>();
+
+        services.AddScoped<ICommandHandler<CreateAttributeDefinitionCommand, Result<Guid>>, CreateAttributeDefinitionCommandHandler>();
+
+        services.AddScoped<ICommandHandler<UpdateAttributeDefinitionCommand, Result>, UpdateAttributeDefinitionCommandHandler>();
+
+        services.AddScoped<ICommandHandler<ActivateAttributeDefinitionCommand, Result>, ActivateAttributeDefinitionCommandHandler>();
+
+        services.AddScoped<ICommandHandler<DeactivateAttributeDefinitionCommand, Result>, DeactivateAttributeDefinitionCommandHandler>();
+
+        services.AddScoped<ICommandHandler<SoftDeleteAttributeDefinitionCommand, Result>, SoftDeleteAttributeDefinitionCommandHandler>();
+
+        services.AddScoped<ICommandHandler<RestoreAttributeDefinitionCommand, Result>, RestoreAttributeDefinitionCommandHandler>();
 
         services.AddScoped<ICommandHandler<ActivateCategoryCommand, Result>, ActivateCategoryCommandHandler>();
 
@@ -88,6 +113,12 @@ public static class DependencyInjection
 
         services.AddScoped<ICommandHandler<RestoreProductCommand, Result>, RestoreProductCommandHandler>();
 
+        services.AddScoped<ICommandHandler<AssignProductAttributeValueCommand, Result>, AssignProductAttributeValueCommandHandler>();
+
+        services.AddScoped<ICommandHandler<UpdateProductAttributeValueCommand, Result>, UpdateProductAttributeValueCommandHandler>();
+
+        services.AddScoped<ICommandHandler<RemoveProductAttributeValueCommand, Result>, RemoveProductAttributeValueCommandHandler>();
+
         services.AddScoped<IQueryHandler<GetCategoryQuery, Result<CategoryResponse>>, GetCategoryQueryHandler>();
 
         services.AddScoped<IQueryHandler<ListCategoriesQuery, Result<IReadOnlyCollection<CategoryResponse>>>, ListCategoriesQueryHandler>();
@@ -99,6 +130,10 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetProductVariantQuery, Result<VariantResponse>>, GetProductVariantQueryHandler>();
 
         services.AddScoped<IQueryHandler<ListProductVariantsQuery, Result<IReadOnlyCollection<VariantResponse>>>, ListProductVariantsQueryHandler>();
+
+        services.AddScoped<IQueryHandler<GetAttributeDefinitionQuery, Result<AttributeDefinitionResponse>>, GetAttributeDefinitionQueryHandler>();
+
+        services.AddScoped<IQueryHandler<ListAttributeDefinitionsQuery, Result<IReadOnlyCollection<AttributeDefinitionResponse>>>, ListAttributeDefinitionsQueryHandler>();
 
         return services;
     }

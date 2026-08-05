@@ -22,6 +22,72 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.AttributeDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CategoryId");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<int>("DataType")
+                        .HasColumnType("int")
+                        .HasColumnName("DataType");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletedAtUtc");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Description");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsFilterable")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsFilterable");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsRequired");
+
+                    b.Property<bool>("IsSearchable")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsSearchable");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("SortOrder");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("AttributeDefinitions", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -159,6 +225,39 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("Variants", (string)null);
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.AttributeDefinition", b =>
+                {
+                    b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.OwnsOne("FluxCommerce.Modules.Catalog.Domain.ValueObjects.Slug", "Slug", b1 =>
+                        {
+                            b1.Property<Guid>("AttributeDefinitionId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)")
+                                .HasColumnName("Slug");
+
+                            b1.HasKey("AttributeDefinitionId");
+
+                            b1.HasIndex("Value")
+                                .IsUnique();
+
+                            b1.ToTable("AttributeDefinitions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AttributeDefinitionId");
+                        });
+
+                    b.Navigation("Slug")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Category", b =>

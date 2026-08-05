@@ -89,10 +89,17 @@ public class SharedResourcesTests
         "Validation.Fields.Sku",
         "Validation.Fields.VariantId",
         "Validation.Fields.VariantName",
+        "Validation.Fields.AttributeName",
+        "Validation.Fields.AttributeId",
+        "Validation.Fields.DataType",
         "Catalog.VariantNotFound",
         "Catalog.DuplicateVariantSku",
         "Catalog.InvalidSku",
         "Catalog.DeletedVariantCannotBeModified",
+        "Catalog.AttributeDefinitionNotFound",
+        "Catalog.DuplicateAttributeName",
+        "Catalog.DuplicateAttributeSlug",
+        "Catalog.DeletedAttributeDefinitionCannotBeModified",
     ];
 
     private static readonly string[] SatelliteCultures = ["fr", "de", "es", "ar"];

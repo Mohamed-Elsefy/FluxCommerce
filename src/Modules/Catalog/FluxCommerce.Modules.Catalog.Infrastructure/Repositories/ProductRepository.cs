@@ -18,7 +18,9 @@ public sealed class ProductRepository : IProductRepository
     private DbSet<Product> Products => _dbContext.Set<Product>();
 
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        Products.FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
+        Products
+            .Include(product => product.AttributeValues)
+            .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await Products

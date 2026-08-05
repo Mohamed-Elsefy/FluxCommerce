@@ -38,6 +38,10 @@ public sealed class ErrorCodeLocalizer(ILocalizer localizer) : IErrorCodeLocaliz
         ["Catalog.InvalidSku"] = "Catalog.InvalidSku",
         ["Catalog.CannotBeOwnParent"] = "Catalog.CannotBeOwnParent",
         ["Catalog.InvalidSlug"] = "Catalog.InvalidSlug",
+        ["Catalog.AttributeDefinitionNotFound"] = "Catalog.AttributeDefinitionNotFound",
+        ["Catalog.DuplicateAttributeName"] = "Catalog.DuplicateAttributeName",
+        ["Catalog.DuplicateAttributeSlug"] = "Catalog.DuplicateAttributeSlug",
+        ["Catalog.DeletedAttributeDefinitionCannotBeModified"] = "Catalog.DeletedAttributeDefinitionCannotBeModified",
     };
 
     public string Localize(string code, string fallback)
