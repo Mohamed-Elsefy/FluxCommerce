@@ -39,9 +39,11 @@
     <Folder Include="Queries\GetAttributeDefinition\" />
     <Folder Include="Queries\GetCategory\" />
     <Folder Include="Queries\GetProduct\" />
+    <Folder Include="Queries\GetProductAttributeValue\" />
     <Folder Include="Queries\GetProductVariant\" />
     <Folder Include="Queries\ListAttributeDefinitions\" />
     <Folder Include="Queries\ListCategories\" />
+    <Folder Include="Queries\ListProductAttributeValues\" />
     <Folder Include="Queries\ListProducts\" />
     <Folder Include="Queries\ListProductVariants\" />
     <Folder Include="Validation\" />

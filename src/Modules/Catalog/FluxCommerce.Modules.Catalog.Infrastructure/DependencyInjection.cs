@@ -30,9 +30,11 @@ using FluxCommerce.Modules.Catalog.Application.Interfaces;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProduct;
+using FluxCommerce.Modules.Catalog.Application.Queries.GetProductAttributeValue;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListAttributeDefinitions;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
+using FluxCommerce.Modules.Catalog.Application.Queries.ListProductAttributeValues;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
@@ -134,6 +136,10 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetAttributeDefinitionQuery, Result<AttributeDefinitionResponse>>, GetAttributeDefinitionQueryHandler>();
 
         services.AddScoped<IQueryHandler<ListAttributeDefinitionsQuery, Result<IReadOnlyCollection<AttributeDefinitionResponse>>>, ListAttributeDefinitionsQueryHandler>();
+
+        services.AddScoped<IQueryHandler<GetProductAttributeValueQuery, Result<ProductAttributeValueResponse>>, GetProductAttributeValueQueryHandler>();
+
+        services.AddScoped<IQueryHandler<ListProductAttributeValuesQuery, Result<IReadOnlyCollection<ProductAttributeValueResponse>>>, ListProductAttributeValuesQueryHandler>();
 
         return services;
     }
