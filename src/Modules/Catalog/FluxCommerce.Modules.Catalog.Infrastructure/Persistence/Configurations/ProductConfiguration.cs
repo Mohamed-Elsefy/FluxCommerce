@@ -63,6 +63,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasMany(product => product.AttributeValues)
             .WithOne()
             .HasForeignKey("ProductId")
+            .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Navigation(product => product.AttributeValues)

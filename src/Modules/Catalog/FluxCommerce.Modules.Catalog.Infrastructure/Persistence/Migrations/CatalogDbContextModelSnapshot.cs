@@ -188,6 +188,38 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                     b.ToTable("Products", (string)null);
                 });
 
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductAttributeValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AttributeDefinitionId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AttributeDefinitionId");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttributeDefinitionId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductAttributeValues", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Variant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -327,6 +359,21 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductAttributeValue", b =>
+                {
+                    b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.AttributeDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("AttributeDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", null)
+                        .WithMany("AttributeValues")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Variant", b =>
                 {
                     b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", null)
@@ -359,6 +406,11 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Sku")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", b =>
+                {
+                    b.Navigation("AttributeValues");
                 });
 #pragma warning restore 612, 618
         }
