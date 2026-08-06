@@ -14,9 +14,15 @@ using FluxCommerce.Modules.Catalog.Application.Commands.SoftDeleteProduct;
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProduct;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProduct;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
+using FluxCommerce.Modules.Catalog.Application.Queries.SearchCatalogProducts;
+using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+using ContractsProductStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductStatus;
 using ContractsProductVisibility = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductVisibility;
+using DomainCatalogProductSortBy = FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortBy;
+using DomainCatalogProductSortDirection = FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortDirection;
+using DomainProductStatus = FluxCommerce.Modules.Catalog.Domain.Enums.ProductStatus;
 using DomainProductVisibility = FluxCommerce.Modules.Catalog.Domain.Enums.ProductVisibility;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +44,7 @@ public sealed class ProductsController : ApiControllerBase
     private readonly ICommandHandler<RestoreProductCommand, Result> _restoreProductHandler;
     private readonly IQueryHandler<GetProductQuery, Result<ProductResponse>> _getProductHandler;
     private readonly IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>> _listProductsHandler;
+    private readonly IQueryHandler<SearchCatalogProductsQuery, Result<PagedResult<CatalogProductListItem>>> _searchCatalogProductsHandler;
 
     public ProductsController(
         ICommandHandler<CreateProductCommand, Result<Guid>> createProductHandler,
@@ -49,6 +56,7 @@ public sealed class ProductsController : ApiControllerBase
         ICommandHandler<RestoreProductCommand, Result> restoreProductHandler,
         IQueryHandler<GetProductQuery, Result<ProductResponse>> getProductHandler,
         IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>> listProductsHandler,
+        IQueryHandler<SearchCatalogProductsQuery, Result<PagedResult<CatalogProductListItem>>> searchCatalogProductsHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
         : base(localizer, errorCodeLocalizer)
@@ -62,6 +70,7 @@ public sealed class ProductsController : ApiControllerBase
         _restoreProductHandler = restoreProductHandler;
         _getProductHandler = getProductHandler;
         _listProductsHandler = listProductsHandler;
+        _searchCatalogProductsHandler = searchCatalogProductsHandler;
     }
 
     /// <summary>Creates a new product.</summary>
@@ -155,12 +164,70 @@ public sealed class ProductsController : ApiControllerBase
         return Success(await _listProductsHandler.HandleAsync(query, cancellationToken));
     }
 
+    /// <summary>
+    /// Searches the public catalog combining search, filtering, sorting and pagination.
+    /// </summary>
+    [HttpGet("~/catalog")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Search(
+        [FromQuery] string? searchTerm,
+        [FromQuery] Guid? categoryId,
+        [FromQuery] ContractsProductStatus? status,
+        [FromQuery] ContractsProductVisibility? visibility,
+        [FromQuery] DomainCatalogProductSortBy? sortBy,
+        [FromQuery] DomainCatalogProductSortDirection? sortDirection,
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        var query = new SearchCatalogProductsQuery(
+            searchTerm ?? string.Empty,
+            BuildFilter(categoryId, status, visibility),
+            sortBy,
+            sortDirection,
+            pageNumber,
+            pageSize);
+
+        return Success(await _searchCatalogProductsHandler.HandleAsync(query, cancellationToken));
+    }
+
+    private static CatalogProductFilter? BuildFilter(
+        Guid? categoryId,
+        ContractsProductStatus? status,
+        ContractsProductVisibility? visibility)
+    {
+        if (categoryId is null && status is null && visibility is null)
+            return null;
+
+        return new CatalogProductFilter(categoryId, ToDomainStatus(status), ToDomainVisibility(visibility));
+    }
+
     private static DomainProductVisibility ToDomainVisibility(ContractsProductVisibility visibility) =>
         visibility switch
         {
             ContractsProductVisibility.Visible => DomainProductVisibility.Visible,
             ContractsProductVisibility.Hidden => DomainProductVisibility.Hidden,
             _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null)
+        };
+
+    private static DomainProductVisibility? ToDomainVisibility(ContractsProductVisibility? visibility) =>
+        visibility switch
+        {
+            null => null,
+            ContractsProductVisibility.Visible => DomainProductVisibility.Visible,
+            ContractsProductVisibility.Hidden => DomainProductVisibility.Hidden,
+            _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null)
+        };
+
+    private static DomainProductStatus? ToDomainStatus(ContractsProductStatus? status) =>
+        status switch
+        {
+            null => null,
+            ContractsProductStatus.Draft => DomainProductStatus.Draft,
+            ContractsProductStatus.Active => DomainProductStatus.Active,
+            ContractsProductStatus.Inactive => DomainProductStatus.Inactive,
+            ContractsProductStatus.Archived => DomainProductStatus.Archived,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
         };
 
     private static SeoMetadataCommand? ToSeoCommand(SeoRequest? seo) =>

@@ -303,6 +303,12 @@
   <data name="Validation.Fields.Images" xml:space="preserve">
     <value>الصور</value>
   </data>
+  <data name="Validation.Fields.PageNumber" xml:space="preserve">
+    <value>رقم الصفحة</value>
+  </data>
+  <data name="Validation.Fields.PageSize" xml:space="preserve">
+    <value>حجم الصفحة</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>توجد فئة بهذا الاسم بالفعل.</value>
   </data>

@@ -303,6 +303,12 @@
   <data name="Validation.Fields.Images" xml:space="preserve">
     <value>Images</value>
   </data>
+  <data name="Validation.Fields.PageNumber" xml:space="preserve">
+    <value>Page number</value>
+  </data>
+  <data name="Validation.Fields.PageSize" xml:space="preserve">
+    <value>Page size</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>A category with this name already exists.</value>
   </data>

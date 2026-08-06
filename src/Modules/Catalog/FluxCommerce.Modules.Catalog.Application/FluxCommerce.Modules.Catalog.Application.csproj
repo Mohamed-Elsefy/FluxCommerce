@@ -58,6 +58,7 @@
     <Folder Include="Queries\ListProductSpecifications\" />
     <Folder Include="Queries\ListProducts\" />
     <Folder Include="Queries\ListProductVariants\" />
+    <Folder Include="Queries\SearchCatalogProducts\" />
     <Folder Include="Validation\" />
   </ItemGroup>
 </Project>

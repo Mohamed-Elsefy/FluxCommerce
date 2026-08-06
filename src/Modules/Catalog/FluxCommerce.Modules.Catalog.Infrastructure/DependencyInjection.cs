@@ -49,6 +49,8 @@ using FluxCommerce.Modules.Catalog.Application.Queries.ListProductImages;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductSpecifications;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
+using FluxCommerce.Modules.Catalog.Application.Queries.SearchCatalogProducts;
+using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Infrastructure.DbContexts;
@@ -156,6 +158,8 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetProductQuery, Result<ProductResponse>>, GetProductQueryHandler>();
 
         services.AddScoped<IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>>, ListProductsQueryHandler>();
+
+        services.AddScoped<IQueryHandler<SearchCatalogProductsQuery, Result<PagedResult<CatalogProductListItem>>>, SearchCatalogProductsQueryHandler>();
 
         services.AddScoped<IQueryHandler<GetProductVariantQuery, Result<VariantResponse>>, GetProductVariantQueryHandler>();
 
