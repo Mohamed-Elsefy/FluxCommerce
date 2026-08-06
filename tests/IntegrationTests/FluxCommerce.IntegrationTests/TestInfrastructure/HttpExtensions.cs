@@ -13,6 +13,9 @@ public static class HttpExtensions
     public static Task<HttpResponseMessage> PostAsJsonAsync(this HttpClient client, string uri, object value) =>
         client.PostAsync(uri, value.ToJsonContent());
 
+    public static Task<HttpResponseMessage> PutAsJsonAsync(this HttpClient client, string uri, object value) =>
+        client.PutAsync(uri, value.ToJsonContent());
+
     public static async Task<T> ReadJsonAsync<T>(this HttpResponseMessage response)
     {
         var json = await response.Content.ReadAsStringAsync();

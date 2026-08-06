@@ -1,4 +1,5 @@
 using FluxCommerce.Api.HealthChecks;
+using FluxCommerce.Api.Json;
 using FluxCommerce.Api.Options;
 using FluxCommerce.Api.Localization;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
@@ -63,7 +64,10 @@ public static class DependencyInjection
 
         services.AddSingleton<IErrorCodeLocalizer, ErrorCodeLocalizer>();
 
-        services.AddControllers();
+        services.AddControllers().AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(new NullableGuidJsonConverter());
+        });
 
         return services;
     }

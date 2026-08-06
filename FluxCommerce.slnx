@@ -14,16 +14,18 @@
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_1_COMPLETION.md" />
+    <File Path="docs/completed/PHASE_1_5_COMPLETION_REPORT.md" />
+    <File Path="docs/completed/PHASE_1_COMPLETION_REPORT.md" />
   </Folder>
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
-    <File Path="docs/current/SMTP_LOCAL_DEVELOPMENT.md" />
+    <File Path="docs/current/LOCAL_DEVELOPMENT.md" />
   </Folder>
   <Folder Name="/docs/phases/">
     <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
     <File Path="docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md" />
     <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
+    <File Path="docs/phases/PHASE_2_CATALOG_MODULE.md" />
   </Folder>
 
   <!-- Solution Items -->

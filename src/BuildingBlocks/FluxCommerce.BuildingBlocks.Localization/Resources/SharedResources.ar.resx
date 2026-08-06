@@ -237,4 +237,199 @@
   <data name="Email.CopyLinkInstruction" xml:space="preserve">
     <value>إذا لم يعمل الزر، انسخ هذا الرابط والصقه في متصفحك:</value>
   </data>
+  <data name="Validation.Fields.CategoryName" xml:space="preserve">
+    <value>اسم الفئة</value>
+  </data>
+  <data name="Validation.Fields.CategoryId" xml:space="preserve">
+    <value>معرّف الفئة</value>
+  </data>
+  <data name="Validation.Fields.Slug" xml:space="preserve">
+    <value>الرابط المختصر</value>
+  </data>
+  <data name="Validation.Fields.Description" xml:space="preserve">
+    <value>الوصف</value>
+  </data>
+  <data name="Validation.Fields.ProductName" xml:space="preserve">
+    <value>اسم المنتج</value>
+  </data>
+  <data name="Validation.Fields.ProductId" xml:space="preserve">
+    <value>معرّف المنتج</value>
+  </data>
+  <data name="Validation.Fields.Visibility" xml:space="preserve">
+    <value>الرؤية</value>
+  </data>
+  <data name="Validation.Fields.Sku" xml:space="preserve">
+    <value>رمز SKU</value>
+  </data>
+  <data name="Validation.Fields.VariantId" xml:space="preserve">
+    <value>معرف النوع البديل</value>
+  </data>
+  <data name="Validation.Fields.VariantName" xml:space="preserve">
+    <value>اسم النوع البديل</value>
+  </data>
+  <data name="Validation.Fields.AttributeName" xml:space="preserve">
+    <value>اسم السمة</value>
+  </data>
+  <data name="Validation.Fields.AttributeId" xml:space="preserve">
+    <value>معرف السمة</value>
+  </data>
+  <data name="Validation.Fields.DataType" xml:space="preserve">
+    <value>نوع البيانات</value>
+  </data>
+  <data name="Validation.Fields.AttributeValue" xml:space="preserve">
+    <value>قيمة السمة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationName" xml:space="preserve">
+    <value>اسم المواصفة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationValue" xml:space="preserve">
+    <value>قيمة المواصفة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationId" xml:space="preserve">
+    <value>معرف المواصفة</value>
+  </data>
+  <data name="Validation.Fields.ImageId" xml:space="preserve">
+    <value>معرّف الصورة</value>
+  </data>
+  <data name="Validation.Fields.ImageUrl" xml:space="preserve">
+    <value>عنوان الصورة</value>
+  </data>
+  <data name="Validation.Fields.AltText" xml:space="preserve">
+    <value>النص البديل</value>
+  </data>
+  <data name="Validation.Fields.DisplayOrder" xml:space="preserve">
+    <value>ترتيب العرض</value>
+  </data>
+  <data name="Validation.Fields.SortOrder" xml:space="preserve">
+    <value>ترتيب الفرز</value>
+  </data>
+  <data name="Validation.Fields.Images" xml:space="preserve">
+    <value>الصور</value>
+  </data>
+  <data name="Validation.Fields.PageNumber" xml:space="preserve">
+    <value>رقم الصفحة</value>
+  </data>
+  <data name="Validation.Fields.PageSize" xml:space="preserve">
+    <value>حجم الصفحة</value>
+  </data>
+  <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
+    <value>توجد فئة بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateCategorySlug" xml:space="preserve">
+    <value>توجد فئة بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.ParentCategoryDeleted" xml:space="preserve">
+    <value>الفئة الأصلية محذوفة ولا يمكن استخدامها.</value>
+  </data>
+  <data name="Catalog.ParentCategoryNotFound" xml:space="preserve">
+    <value>الفئة الأصلية غير موجودة.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل فئة محذوفة.</value>
+  </data>
+  <data name="Catalog.CannotBeOwnParent" xml:space="preserve">
+    <value>لا يمكن أن تكون الفئة أصلًا لنفسها.</value>
+  </data>
+  <data name="Catalog.InvalidSlug" xml:space="preserve">
+    <value>الرابط المختصر غير صالح.</value>
+  </data>
+  <data name="Catalog.DuplicateProductName" xml:space="preserve">
+    <value>يوجد منتج بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSlug" xml:space="preserve">
+    <value>يوجد منتج بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeUsed" xml:space="preserve">
+    <value>الفئة محذوفة ولا يمكن استخدامها.</value>
+  </data>
+  <data name="Catalog.DeletedProductCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل منتج محذوف.</value>
+  </data>
+  <data name="Catalog.InvalidProductTransition" xml:space="preserve">
+    <value>انتقال الحالة المطلوب غير مسموح به من الحالة الحالية.</value>
+  </data>
+  <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
+    <value>بيانات تحسين محركات البحث غير صالحة.</value>
+  </data>
+  <data name="Catalog.VariantNotFound" xml:space="preserve">
+    <value>لم يتم العثور على النوع البديل.</value>
+  </data>
+  <data name="Catalog.DuplicateVariantSku" xml:space="preserve">
+    <value>يوجد نوع بديل بهذا الرمز SKU بالفعل.</value>
+  </data>
+  <data name="Catalog.InvalidSku" xml:space="preserve">
+    <value>رمز SKU غير صالح.</value>
+  </data>
+  <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل نوع بديل محذوف.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotFound" xml:space="preserve">
+    <value>لم يتم العثور على تعريف السمة.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeName" xml:space="preserve">
+    <value>يوجد تعريف سمة بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeSlug" xml:space="preserve">
+    <value>يوجد تعريف سمة بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل تعريف سمة محذوف.</value>
+  </data>
+  <data name="Catalog.AttributeValueRequired" xml:space="preserve">
+    <value>قيمة السمة مطلوبة.</value>
+  </data>
+  <data name="Catalog.AttributeValueTooLong" xml:space="preserve">
+    <value>تتجاوز قيمة السمة الحد الأقصى المسموح به.</value>
+  </data>
+  <data name="Catalog.InvalidAttributeValue" xml:space="preserve">
+    <value>قيمة السمة غير صالحة لنوع بيانات السمة.</value>
+  </data>
+  <data name="Catalog.DuplicateProductAttributeValue" xml:space="preserve">
+    <value>يوجد للمنتج قيمة لهذه السمة بالفعل.</value>
+  </data>
+  <data name="Catalog.ProductAttributeValueNotFound" xml:space="preserve">
+    <value>لا يوجد للمنتج قيمة لهذه السمة.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeUsed" xml:space="preserve">
+    <value>تعريف السمة محذوف ولا يمكن استخدامه.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotActive" xml:space="preserve">
+    <value>تعريف السمة غير نشط ولا يمكن استخدامه.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
+    <value>تعريف السمة لا ينتمي إلى فئة المنتج.</value>
+  </data>
+  <data name="Catalog.SpecificationNameRequired" xml:space="preserve">
+    <value>اسم المواصفة مطلوب.</value>
+  </data>
+  <data name="Catalog.SpecificationNameTooLong" xml:space="preserve">
+    <value>يتجاوز اسم المواصفة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.SpecificationValueRequired" xml:space="preserve">
+    <value>قيمة المواصفة مطلوبة.</value>
+  </data>
+  <data name="Catalog.SpecificationValueTooLong" xml:space="preserve">
+    <value>تتجاوز قيمة المواصفة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSpecification" xml:space="preserve">
+    <value>يحتوي المنتج بالفعل على مواصفة بهذا الاسم.</value>
+  </data>
+  <data name="Catalog.ProductSpecificationNotFound" xml:space="preserve">
+    <value>لا يحتوي المنتج على المواصفة المحددة.</value>
+  </data>
+  <data name="Catalog.ImageUrlRequired" xml:space="preserve">
+    <value>عنوان صورة مطلوب.</value>
+  </data>
+  <data name="Catalog.ImageUrlTooLong" xml:space="preserve">
+    <value>يتجاوز عنوان الصورة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.AltTextTooLong" xml:space="preserve">
+    <value>يتجاوز النص البديل للصورة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.ProductImageNotFound" xml:space="preserve">
+    <value>لا يحتوي المنتج على الصورة المحددة.</value>
+  </data>
+  <data name="Catalog.InvalidImageOrder" xml:space="preserve">
+    <value>ترتيب الصور المطلوب غير صالح.</value>
+  </data>
 </root>

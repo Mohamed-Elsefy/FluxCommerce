@@ -237,4 +237,199 @@
   <data name="Email.CopyLinkInstruction" xml:space="preserve">
     <value>If the button does not work, copy and paste this link into your browser:</value>
   </data>
+  <data name="Validation.Fields.CategoryName" xml:space="preserve">
+    <value>Category name</value>
+  </data>
+  <data name="Validation.Fields.CategoryId" xml:space="preserve">
+    <value>Category id</value>
+  </data>
+  <data name="Validation.Fields.Slug" xml:space="preserve">
+    <value>Slug</value>
+  </data>
+  <data name="Validation.Fields.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Validation.Fields.ProductName" xml:space="preserve">
+    <value>Product name</value>
+  </data>
+  <data name="Validation.Fields.ProductId" xml:space="preserve">
+    <value>Product id</value>
+  </data>
+  <data name="Validation.Fields.Visibility" xml:space="preserve">
+    <value>Visibility</value>
+  </data>
+  <data name="Validation.Fields.Sku" xml:space="preserve">
+    <value>SKU</value>
+  </data>
+  <data name="Validation.Fields.VariantId" xml:space="preserve">
+    <value>Variant id</value>
+  </data>
+  <data name="Validation.Fields.VariantName" xml:space="preserve">
+    <value>Variant name</value>
+  </data>
+  <data name="Validation.Fields.AttributeName" xml:space="preserve">
+    <value>Attribute name</value>
+  </data>
+  <data name="Validation.Fields.AttributeId" xml:space="preserve">
+    <value>Attribute id</value>
+  </data>
+  <data name="Validation.Fields.DataType" xml:space="preserve">
+    <value>Data type</value>
+  </data>
+  <data name="Validation.Fields.AttributeValue" xml:space="preserve">
+    <value>Attribute value</value>
+  </data>
+  <data name="Validation.Fields.SpecificationName" xml:space="preserve">
+    <value>Specification name</value>
+  </data>
+  <data name="Validation.Fields.SpecificationValue" xml:space="preserve">
+    <value>Specification value</value>
+  </data>
+  <data name="Validation.Fields.SpecificationId" xml:space="preserve">
+    <value>Specification id</value>
+  </data>
+  <data name="Validation.Fields.ImageId" xml:space="preserve">
+    <value>Image id</value>
+  </data>
+  <data name="Validation.Fields.ImageUrl" xml:space="preserve">
+    <value>Image URL</value>
+  </data>
+  <data name="Validation.Fields.AltText" xml:space="preserve">
+    <value>Alt text</value>
+  </data>
+  <data name="Validation.Fields.DisplayOrder" xml:space="preserve">
+    <value>Display order</value>
+  </data>
+  <data name="Validation.Fields.SortOrder" xml:space="preserve">
+    <value>Sort order</value>
+  </data>
+  <data name="Validation.Fields.Images" xml:space="preserve">
+    <value>Images</value>
+  </data>
+  <data name="Validation.Fields.PageNumber" xml:space="preserve">
+    <value>Page number</value>
+  </data>
+  <data name="Validation.Fields.PageSize" xml:space="preserve">
+    <value>Page size</value>
+  </data>
+  <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
+    <value>A category with this name already exists.</value>
+  </data>
+  <data name="Catalog.DuplicateCategorySlug" xml:space="preserve">
+    <value>A category with this slug already exists.</value>
+  </data>
+  <data name="Catalog.ParentCategoryDeleted" xml:space="preserve">
+    <value>The parent category is deleted and cannot be used.</value>
+  </data>
+  <data name="Catalog.ParentCategoryNotFound" xml:space="preserve">
+    <value>The parent category was not found.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeModified" xml:space="preserve">
+    <value>A deleted category cannot be modified.</value>
+  </data>
+  <data name="Catalog.CannotBeOwnParent" xml:space="preserve">
+    <value>A category cannot be its own parent.</value>
+  </data>
+  <data name="Catalog.InvalidSlug" xml:space="preserve">
+    <value>The slug is invalid.</value>
+  </data>
+  <data name="Catalog.DuplicateProductName" xml:space="preserve">
+    <value>A product with this name already exists.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSlug" xml:space="preserve">
+    <value>A product with this slug already exists.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeUsed" xml:space="preserve">
+    <value>The category is deleted and cannot be used.</value>
+  </data>
+  <data name="Catalog.DeletedProductCannotBeModified" xml:space="preserve">
+    <value>A deleted product cannot be modified.</value>
+  </data>
+  <data name="Catalog.InvalidProductTransition" xml:space="preserve">
+    <value>The requested product status transition is not allowed from the current status.</value>
+  </data>
+  <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
+    <value>The SEO metadata is invalid.</value>
+  </data>
+  <data name="Catalog.VariantNotFound" xml:space="preserve">
+    <value>The variant was not found.</value>
+  </data>
+  <data name="Catalog.DuplicateVariantSku" xml:space="preserve">
+    <value>A variant with this SKU already exists.</value>
+  </data>
+  <data name="Catalog.InvalidSku" xml:space="preserve">
+    <value>The SKU is invalid.</value>
+  </data>
+  <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
+    <value>A deleted variant cannot be modified.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotFound" xml:space="preserve">
+    <value>The attribute definition was not found.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeName" xml:space="preserve">
+    <value>An attribute definition with this name already exists.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeSlug" xml:space="preserve">
+    <value>An attribute definition with this slug already exists.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeModified" xml:space="preserve">
+    <value>A deleted attribute definition cannot be modified.</value>
+  </data>
+  <data name="Catalog.AttributeValueRequired" xml:space="preserve">
+    <value>An attribute value is required.</value>
+  </data>
+  <data name="Catalog.AttributeValueTooLong" xml:space="preserve">
+    <value>The attribute value exceeds the maximum allowed length.</value>
+  </data>
+  <data name="Catalog.InvalidAttributeValue" xml:space="preserve">
+    <value>The attribute value is not valid for the attribute's data type.</value>
+  </data>
+  <data name="Catalog.DuplicateProductAttributeValue" xml:space="preserve">
+    <value>The product already has a value for the specified attribute.</value>
+  </data>
+  <data name="Catalog.ProductAttributeValueNotFound" xml:space="preserve">
+    <value>The product does not have a value for the specified attribute.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeUsed" xml:space="preserve">
+    <value>The attribute definition is deleted and cannot be used.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotActive" xml:space="preserve">
+    <value>The attribute definition is not active and cannot be used.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
+    <value>The attribute definition does not belong to the product's category.</value>
+  </data>
+  <data name="Catalog.SpecificationNameRequired" xml:space="preserve">
+    <value>A specification name is required.</value>
+  </data>
+  <data name="Catalog.SpecificationNameTooLong" xml:space="preserve">
+    <value>The specification name exceeds the maximum allowed length.</value>
+  </data>
+  <data name="Catalog.SpecificationValueRequired" xml:space="preserve">
+    <value>A specification value is required.</value>
+  </data>
+  <data name="Catalog.SpecificationValueTooLong" xml:space="preserve">
+    <value>The specification value exceeds the maximum allowed length.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSpecification" xml:space="preserve">
+    <value>The product already has a specification with this name.</value>
+  </data>
+  <data name="Catalog.ProductSpecificationNotFound" xml:space="preserve">
+    <value>The product does not have the specified specification.</value>
+  </data>
+  <data name="Catalog.ImageUrlRequired" xml:space="preserve">
+    <value>An image URL is required.</value>
+  </data>
+  <data name="Catalog.ImageUrlTooLong" xml:space="preserve">
+    <value>The image URL exceeds the maximum allowed length.</value>
+  </data>
+  <data name="Catalog.AltTextTooLong" xml:space="preserve">
+    <value>The image alt text exceeds the maximum allowed length.</value>
+  </data>
+  <data name="Catalog.ProductImageNotFound" xml:space="preserve">
+    <value>The product does not have the specified image.</value>
+  </data>
+  <data name="Catalog.InvalidImageOrder" xml:space="preserve">
+    <value>The requested image order is invalid.</value>
+  </data>
 </root>

@@ -29,6 +29,8 @@ public static class SwaggerConfiguration
 
             options.OperationFilter<AcceptLanguageFilter>();
 
+            options.OperationFilter<SecurityRequirementFilter>();
+
             var xmlFile = $"{typeof(SwaggerConfiguration).Assembly.GetName().Name}.xml";
             var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
 

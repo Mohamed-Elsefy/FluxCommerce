@@ -1,7 +1,64 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Domain\FluxCommerce.Modules.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Localization\FluxCommerce.BuildingBlocks.Localization.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Commands\ActivateCategory\" />
+    <Folder Include="Commands\ActivateAttributeDefinition\" />
+    <Folder Include="Commands\ActivateProduct\" />
+    <Folder Include="Commands\AddProductImage\" />
+    <Folder Include="Commands\ArchiveProduct\" />
+    <Folder Include="Commands\AssignProductAttributeValue\" />
+    <Folder Include="Commands\CreateCategory\" />
+    <Folder Include="Commands\CreateProduct\" />
+    <Folder Include="Commands\CreateProductSpecification\" />
+    <Folder Include="Commands\CreateProductVariant\" />
+    <Folder Include="Commands\CreateProductVariants\" />
+    <Folder Include="Commands\CreateAttributeDefinition\" />
+    <Folder Include="Commands\DeactivateCategory\" />
+    <Folder Include="Commands\DeactivateAttributeDefinition\" />
+    <Folder Include="Commands\DeactivateProduct\" />
+    <Folder Include="Commands\DeleteProductImage\" />
+    <Folder Include="Commands\DeleteProductSpecification\" />
+    <Folder Include="Commands\DeleteProductVariant\" />
+    <Folder Include="Commands\RemoveProductAttributeValue\" />
+    <Folder Include="Commands\RestoreCategory\" />
+    <Folder Include="Commands\RestoreAttributeDefinition\" />
+    <Folder Include="Commands\RestoreProduct\" />
+    <Folder Include="Commands\ReorderProductImages\" />
+    <Folder Include="Commands\SetPrimaryProductImage\" />
+    <Folder Include="Commands\SoftDeleteCategory\" />
+    <Folder Include="Commands\SoftDeleteAttributeDefinition\" />
+    <Folder Include="Commands\SoftDeleteProduct\" />
+    <Folder Include="Commands\UpdateCategory\" />
+    <Folder Include="Commands\UpdateProduct\" />
+    <Folder Include="Commands\UpdateProductAttributeValue\" />
+    <Folder Include="Commands\UpdateProductImage\" />
+    <Folder Include="Commands\UpdateProductSpecification\" />
+    <Folder Include="Commands\UpdateProductVariant\" />
+    <Folder Include="Commands\UpdateAttributeDefinition\" />
+    <Folder Include="Interfaces\" />
+    <Folder Include="Mappings\" />
+    <Folder Include="Queries\GetAttributeDefinition\" />
+    <Folder Include="Queries\GetCategory\" />
+    <Folder Include="Queries\GetProduct\" />
+    <Folder Include="Queries\GetProductAttributeValue\" />
+    <Folder Include="Queries\GetProductImage\" />
+    <Folder Include="Queries\GetProductSpecification\" />
+    <Folder Include="Queries\GetProductVariant\" />
+    <Folder Include="Queries\ListAttributeDefinitions\" />
+    <Folder Include="Queries\ListCategories\" />
+    <Folder Include="Queries\ListProductAttributeValues\" />
+    <Folder Include="Queries\ListProductImages\" />
+    <Folder Include="Queries\ListProductSpecifications\" />
+    <Folder Include="Queries\ListProducts\" />
+    <Folder Include="Queries\ListProductVariants\" />
+    <Folder Include="Queries\SearchCatalogProducts\" />
+    <Folder Include="Validation\" />
   </ItemGroup>
 </Project>

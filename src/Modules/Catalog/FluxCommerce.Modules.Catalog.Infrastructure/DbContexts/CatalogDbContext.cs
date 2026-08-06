@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+using FluxCommerce.Modules.Catalog.Domain.Aggregates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -16,4 +17,12 @@ public sealed class CatalogDbContext : BaseDbContext
         : base(options, dateTimeProvider, currentUser, saveChangesInterceptor)
     {
     }
+
+    public DbSet<Category> Categories { get; set; } = null!;
+
+    public DbSet<Product> Products { get; set; } = null!;
+
+    public DbSet<Variant> Variants { get; set; } = null!;
+
+    public DbSet<AttributeDefinition> AttributeDefinitions { get; set; } = null!;
 }
