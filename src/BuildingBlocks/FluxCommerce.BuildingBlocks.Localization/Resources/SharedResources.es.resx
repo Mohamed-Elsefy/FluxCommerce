@@ -279,6 +279,30 @@
   <data name="Validation.Fields.AttributeValue" xml:space="preserve">
     <value>Valor del atributo</value>
   </data>
+  <data name="Validation.Fields.SpecificationName" xml:space="preserve">
+    <value>Nombre de la especificación</value>
+  </data>
+  <data name="Validation.Fields.SpecificationValue" xml:space="preserve">
+    <value>Valor de la especificación</value>
+  </data>
+  <data name="Validation.Fields.SpecificationId" xml:space="preserve">
+    <value>Identificador de la especificación</value>
+  </data>
+  <data name="Validation.Fields.ImageId" xml:space="preserve">
+    <value>Id. de imagen</value>
+  </data>
+  <data name="Validation.Fields.ImageUrl" xml:space="preserve">
+    <value>URL de la imagen</value>
+  </data>
+  <data name="Validation.Fields.AltText" xml:space="preserve">
+    <value>Texto alternativo</value>
+  </data>
+  <data name="Validation.Fields.DisplayOrder" xml:space="preserve">
+    <value>Orden de visualización</value>
+  </data>
+  <data name="Validation.Fields.Images" xml:space="preserve">
+    <value>Imágenes</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>Ya existe una categoría con este nombre.</value>
   </data>
@@ -365,5 +389,38 @@
   </data>
   <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
     <value>La definición del atributo no pertenece a la categoría del producto.</value>
+  </data>
+  <data name="Catalog.SpecificationNameRequired" xml:space="preserve">
+    <value>Se requiere un nombre de especificación.</value>
+  </data>
+  <data name="Catalog.SpecificationNameTooLong" xml:space="preserve">
+    <value>El nombre de la especificación supera la longitud máxima permitida.</value>
+  </data>
+  <data name="Catalog.SpecificationValueRequired" xml:space="preserve">
+    <value>Se requiere un valor de especificación.</value>
+  </data>
+  <data name="Catalog.SpecificationValueTooLong" xml:space="preserve">
+    <value>El valor de la especificación supera la longitud máxima permitida.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSpecification" xml:space="preserve">
+    <value>El producto ya tiene una especificación con este nombre.</value>
+  </data>
+  <data name="Catalog.ProductSpecificationNotFound" xml:space="preserve">
+    <value>El producto no tiene la especificación especificada.</value>
+  </data>
+  <data name="Catalog.ImageUrlRequired" xml:space="preserve">
+    <value>Se requiere una URL de imagen.</value>
+  </data>
+  <data name="Catalog.ImageUrlTooLong" xml:space="preserve">
+    <value>La URL de la imagen supera la longitud máxima permitida.</value>
+  </data>
+  <data name="Catalog.AltTextTooLong" xml:space="preserve">
+    <value>El texto alternativo de la imagen supera la longitud máxima permitida.</value>
+  </data>
+  <data name="Catalog.ProductImageNotFound" xml:space="preserve">
+    <value>El producto no tiene la imagen especificada.</value>
+  </data>
+  <data name="Catalog.InvalidImageOrder" xml:space="preserve">
+    <value>El orden de imágenes solicitado no es válido.</value>
   </data>
 </root>

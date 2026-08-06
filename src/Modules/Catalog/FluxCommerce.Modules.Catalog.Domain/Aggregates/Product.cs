@@ -37,6 +37,14 @@ public sealed class Product : AggregateRoot<Guid>
 
     public IReadOnlyCollection<ProductAttributeValue> AttributeValues => _attributeValues;
 
+    private readonly List<ProductSpecification> _specifications = [];
+
+    public IReadOnlyCollection<ProductSpecification> Specifications => _specifications;
+
+    private readonly List<ProductImage> _images = [];
+
+    public IReadOnlyCollection<ProductImage> Images => _images;
+
     private Product(
         Guid id,
         string name,
@@ -296,6 +304,285 @@ public sealed class Product : AggregateRoot<Guid>
         return isValid
             ? DomainResult.Success()
             : DomainResult.Failure(ProductErrors.InvalidAttributeValue);
+    }
+
+    public DomainResult AddSpecification(string name, string value, DateTime utcNow)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var nameResult = ValidateSpecificationName(name);
+
+        if (nameResult.IsFailure)
+            return nameResult;
+
+        var valueResult = ValidateSpecificationValue(value);
+
+        if (valueResult.IsFailure)
+            return valueResult;
+
+        var normalizedName = name.Trim();
+        var normalizedValue = value.Trim();
+
+        if (_specifications.Any(specification => specification.Name.Equals(normalizedName, StringComparison.OrdinalIgnoreCase)))
+            return DomainResult.Failure(ProductErrors.DuplicateSpecification);
+
+        var specification = new ProductSpecification(Guid.NewGuid(), normalizedName, normalizedValue, utcNow);
+
+        _specifications.Add(specification);
+
+        AddDomainEvent(new ProductSpecificationCreated(Id, specification.Id, normalizedName, normalizedValue));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult UpdateSpecification(Guid specificationId, string name, string value)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var nameResult = ValidateSpecificationName(name);
+
+        if (nameResult.IsFailure)
+            return nameResult;
+
+        var valueResult = ValidateSpecificationValue(value);
+
+        if (valueResult.IsFailure)
+            return valueResult;
+
+        var specification = _specifications.FirstOrDefault(specification => specification.Id == specificationId);
+
+        if (specification is null)
+            return DomainResult.Failure(ProductErrors.SpecificationNotFound);
+
+        var normalizedName = name.Trim();
+        var normalizedValue = value.Trim();
+
+        if (_specifications.Any(specification => specification.Id != specificationId && specification.Name.Equals(normalizedName, StringComparison.OrdinalIgnoreCase)))
+            return DomainResult.Failure(ProductErrors.DuplicateSpecification);
+
+        specification.ChangeValue(normalizedName, normalizedValue);
+
+        AddDomainEvent(new ProductSpecificationUpdated(Id, specificationId, normalizedName, normalizedValue));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult RemoveSpecification(Guid specificationId)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var specification = _specifications.FirstOrDefault(specification => specification.Id == specificationId);
+
+        if (specification is null)
+            return DomainResult.Failure(ProductErrors.SpecificationNotFound);
+
+        _specifications.Remove(specification);
+
+        AddDomainEvent(new ProductSpecificationRemoved(Id, specificationId));
+
+        return DomainResult.Success();
+    }
+
+    private static DomainResult ValidateSpecificationName(string? name)
+    {
+        var normalizedName = name?.Trim();
+
+        if (string.IsNullOrEmpty(normalizedName))
+            return DomainResult.Failure(ProductErrors.SpecificationNameRequired);
+
+        if (normalizedName.Length > ProductSpecification.NameMaxLength)
+            return DomainResult.Failure(ProductErrors.SpecificationNameTooLong);
+
+        return DomainResult.Success();
+    }
+
+    private static DomainResult ValidateSpecificationValue(string? value)
+    {
+        var normalizedValue = value?.Trim();
+
+        if (string.IsNullOrEmpty(normalizedValue))
+            return DomainResult.Failure(ProductErrors.SpecificationValueRequired);
+
+        if (normalizedValue.Length > ProductSpecification.ValueMaxLength)
+            return DomainResult.Failure(ProductErrors.SpecificationValueTooLong);
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult AddImage(
+        string imageUrl,
+        string? altText,
+        bool isPrimary,
+        int displayOrder,
+        Dictionary<string, string>? metadata,
+        DateTime utcNow)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var imageUrlResult = ValidateImageUrl(imageUrl);
+
+        if (imageUrlResult.IsFailure)
+            return imageUrlResult;
+
+        var altTextResult = ValidateAltText(altText);
+
+        if (altTextResult.IsFailure)
+            return altTextResult;
+
+        if (displayOrder < 0)
+            throw new ArgumentOutOfRangeException(nameof(displayOrder), "A display order cannot be negative.");
+
+        if (isPrimary)
+        {
+            foreach (var existingImage in _images.Where(image => image.IsPrimary))
+                existingImage.ClearPrimary();
+        }
+
+        var image = new ProductImage(Guid.NewGuid(), imageUrl.Trim(), NormalizeAltText(altText), displayOrder, isPrimary, metadata, utcNow);
+
+        _images.Add(image);
+
+        AddDomainEvent(new ProductImageAdded(Id, image.Id, image.ImageUrl, image.IsPrimary));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult UpdateImage(
+        Guid imageId,
+        string imageUrl,
+        string? altText,
+        int displayOrder,
+        Dictionary<string, string>? metadata)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var imageUrlResult = ValidateImageUrl(imageUrl);
+
+        if (imageUrlResult.IsFailure)
+            return imageUrlResult;
+
+        var altTextResult = ValidateAltText(altText);
+
+        if (altTextResult.IsFailure)
+            return altTextResult;
+
+        if (displayOrder < 0)
+            throw new ArgumentOutOfRangeException(nameof(displayOrder), "A display order cannot be negative.");
+
+        var image = _images.FirstOrDefault(image => image.Id == imageId);
+
+        if (image is null)
+            return DomainResult.Failure(ProductErrors.ProductImageNotFound);
+
+        image.ChangeDetails(imageUrl.Trim(), NormalizeAltText(altText), displayOrder, metadata);
+
+        AddDomainEvent(new ProductImageUpdated(Id, imageId, image.ImageUrl, image.AltText, image.DisplayOrder));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult RemoveImage(Guid imageId)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var image = _images.FirstOrDefault(image => image.Id == imageId);
+
+        if (image is null)
+            return DomainResult.Failure(ProductErrors.ProductImageNotFound);
+
+        _images.Remove(image);
+
+        AddDomainEvent(new ProductImageRemoved(Id, imageId));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult SetPrimaryImage(Guid imageId)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        var image = _images.FirstOrDefault(image => image.Id == imageId);
+
+        if (image is null)
+            return DomainResult.Failure(ProductErrors.ProductImageNotFound);
+
+        foreach (var existingImage in _images.Where(existingImage => existingImage.IsPrimary && existingImage.Id != imageId))
+            existingImage.ClearPrimary();
+
+        image.SetAsPrimary();
+
+        AddDomainEvent(new ProductPrimaryImageChanged(Id, imageId));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult ReorderImages(IReadOnlyCollection<Guid> orderedImageIds)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(ProductErrors.DeletedProductCannotBeModified);
+
+        if (orderedImageIds is null)
+            throw new ArgumentNullException(nameof(orderedImageIds));
+
+        var requestedIds = orderedImageIds.Distinct().ToHashSet();
+
+        if (requestedIds.Count != orderedImageIds.Count)
+            return DomainResult.Failure(ProductErrors.InvalidImageOrder);
+
+        if (_images.Count != requestedIds.Count)
+            return DomainResult.Failure(ProductErrors.InvalidImageOrder);
+
+        var imageLookup = _images.ToDictionary(image => image.Id);
+
+        if (requestedIds.Any(imageId => !imageLookup.ContainsKey(imageId)))
+            return DomainResult.Failure(ProductErrors.InvalidImageOrder);
+
+        var displayOrder = 0;
+
+        foreach (var imageId in orderedImageIds)
+            imageLookup[imageId].ChangeDisplayOrder(displayOrder++);
+
+        AddDomainEvent(new ProductImagesReordered(Id));
+
+        return DomainResult.Success();
+    }
+
+    private static DomainResult ValidateImageUrl(string? imageUrl)
+    {
+        var normalizedImageUrl = imageUrl?.Trim();
+
+        if (string.IsNullOrEmpty(normalizedImageUrl))
+            return DomainResult.Failure(ProductErrors.ImageUrlRequired);
+
+        if (normalizedImageUrl.Length > ProductImage.ImageUrlMaxLength)
+            return DomainResult.Failure(ProductErrors.ImageUrlTooLong);
+
+        return DomainResult.Success();
+    }
+
+    private static DomainResult ValidateAltText(string? altText)
+    {
+        var normalizedAltText = altText?.Trim();
+
+        if (normalizedAltText is not null && normalizedAltText.Length > ProductImage.AltTextMaxLength)
+            return DomainResult.Failure(ProductErrors.AltTextTooLong);
+
+        return DomainResult.Success();
+    }
+
+    private static string? NormalizeAltText(string? altText)
+    {
+        if (string.IsNullOrWhiteSpace(altText))
+            return null;
+
+        return altText.Trim();
     }
 
     public DomainResult Activate()

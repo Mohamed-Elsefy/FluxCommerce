@@ -69,6 +69,24 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Navigation(product => product.AttributeValues)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.HasMany(product => product.Specifications)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(product => product.Specifications)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(product => product.Images)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(product => product.Images)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasIndex(product => product.CategoryId);
 
         builder.HasIndex(product => product.Name);

@@ -279,6 +279,30 @@
   <data name="Validation.Fields.AttributeValue" xml:space="preserve">
     <value>قيمة السمة</value>
   </data>
+  <data name="Validation.Fields.SpecificationName" xml:space="preserve">
+    <value>اسم المواصفة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationValue" xml:space="preserve">
+    <value>قيمة المواصفة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationId" xml:space="preserve">
+    <value>معرف المواصفة</value>
+  </data>
+  <data name="Validation.Fields.ImageId" xml:space="preserve">
+    <value>معرّف الصورة</value>
+  </data>
+  <data name="Validation.Fields.ImageUrl" xml:space="preserve">
+    <value>عنوان الصورة</value>
+  </data>
+  <data name="Validation.Fields.AltText" xml:space="preserve">
+    <value>النص البديل</value>
+  </data>
+  <data name="Validation.Fields.DisplayOrder" xml:space="preserve">
+    <value>ترتيب العرض</value>
+  </data>
+  <data name="Validation.Fields.Images" xml:space="preserve">
+    <value>الصور</value>
+  </data>
   <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
     <value>توجد فئة بهذا الاسم بالفعل.</value>
   </data>
@@ -365,5 +389,38 @@
   </data>
   <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
     <value>تعريف السمة لا ينتمي إلى فئة المنتج.</value>
+  </data>
+  <data name="Catalog.SpecificationNameRequired" xml:space="preserve">
+    <value>اسم المواصفة مطلوب.</value>
+  </data>
+  <data name="Catalog.SpecificationNameTooLong" xml:space="preserve">
+    <value>يتجاوز اسم المواصفة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.SpecificationValueRequired" xml:space="preserve">
+    <value>قيمة المواصفة مطلوبة.</value>
+  </data>
+  <data name="Catalog.SpecificationValueTooLong" xml:space="preserve">
+    <value>تتجاوز قيمة المواصفة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSpecification" xml:space="preserve">
+    <value>يحتوي المنتج بالفعل على مواصفة بهذا الاسم.</value>
+  </data>
+  <data name="Catalog.ProductSpecificationNotFound" xml:space="preserve">
+    <value>لا يحتوي المنتج على المواصفة المحددة.</value>
+  </data>
+  <data name="Catalog.ImageUrlRequired" xml:space="preserve">
+    <value>عنوان صورة مطلوب.</value>
+  </data>
+  <data name="Catalog.ImageUrlTooLong" xml:space="preserve">
+    <value>يتجاوز عنوان الصورة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.AltTextTooLong" xml:space="preserve">
+    <value>يتجاوز النص البديل للصورة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.ProductImageNotFound" xml:space="preserve">
+    <value>لا يحتوي المنتج على الصورة المحددة.</value>
+  </data>
+  <data name="Catalog.InvalidImageOrder" xml:space="preserve">
+    <value>ترتيب الصور المطلوب غير صالح.</value>
   </data>
 </root>

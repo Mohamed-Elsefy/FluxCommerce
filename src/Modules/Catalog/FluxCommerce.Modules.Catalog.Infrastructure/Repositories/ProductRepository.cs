@@ -20,6 +20,8 @@ public sealed class ProductRepository : IProductRepository
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Products
             .Include(product => product.AttributeValues)
+            .Include(product => product.Specifications)
+            .Include(product => product.Images)
             .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>

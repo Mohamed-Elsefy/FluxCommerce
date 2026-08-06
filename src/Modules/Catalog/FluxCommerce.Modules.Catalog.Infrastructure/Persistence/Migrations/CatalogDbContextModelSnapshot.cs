@@ -220,6 +220,85 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                     b.ToTable("ProductAttributeValues", (string)null);
                 });
 
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AltText")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("AltText");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("DisplayOrder");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)")
+                        .HasColumnName("ImageUrl");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsPrimary");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Metadata");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisplayOrder");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductImages", (string)null);
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductSpecification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Name");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("Value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductSpecifications", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Variant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -374,6 +453,24 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductImage", b =>
+                {
+                    b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", null)
+                        .WithMany("Images")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductSpecification", b =>
+                {
+                    b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", null)
+                        .WithMany("Specifications")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Variant", b =>
                 {
                     b.HasOne("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", null)
@@ -411,6 +508,10 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.Product", b =>
                 {
                     b.Navigation("AttributeValues");
+
+                    b.Navigation("Images");
+
+                    b.Navigation("Specifications");
                 });
 #pragma warning restore 612, 618
         }

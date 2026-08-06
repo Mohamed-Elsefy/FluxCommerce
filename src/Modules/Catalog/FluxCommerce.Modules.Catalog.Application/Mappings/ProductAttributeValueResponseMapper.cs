@@ -28,7 +28,7 @@ public static class ProductAttributeValueResponseMapper
             .Select(attributeValue => ToResponse(attributeValue, attributeDefinitions[attributeValue.AttributeDefinitionId], productId))
             .ToList();
 
-    private static AttributeDataType ToDataType(Domain.Enums.AttributeDataType dataType) =>
+    internal static AttributeDataType ToDataType(Domain.Enums.AttributeDataType dataType) =>
         dataType switch
         {
             Domain.Enums.AttributeDataType.Text => AttributeDataType.Text,

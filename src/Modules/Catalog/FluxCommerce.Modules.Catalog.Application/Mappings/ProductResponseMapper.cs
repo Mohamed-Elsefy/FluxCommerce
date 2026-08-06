@@ -25,7 +25,7 @@ public static class ProductResponseMapper
         IEnumerable<Product> products) =>
         products.Select(ToResponse).ToList();
 
-    private static SeoResponse ToSeoResponse(SeoMetadata seo) =>
+    internal static SeoResponse ToSeoResponse(SeoMetadata seo) =>
         new(seo.Title, seo.Description, seo.Keywords);
 
     private static ProductStatus ToStatus(Domain.Enums.ProductStatus status) =>

@@ -50,6 +50,17 @@ public sealed class ErrorCodeLocalizer(ILocalizer localizer) : IErrorCodeLocaliz
         ["Catalog.DeletedAttributeDefinitionCannotBeUsed"] = "Catalog.DeletedAttributeDefinitionCannotBeUsed",
         ["Catalog.AttributeDefinitionNotActive"] = "Catalog.AttributeDefinitionNotActive",
         ["Catalog.AttributeDefinitionCategoryMismatch"] = "Catalog.AttributeDefinitionCategoryMismatch",
+        ["Catalog.SpecificationNameRequired"] = "Catalog.SpecificationNameRequired",
+        ["Catalog.SpecificationNameTooLong"] = "Catalog.SpecificationNameTooLong",
+        ["Catalog.SpecificationValueRequired"] = "Catalog.SpecificationValueRequired",
+        ["Catalog.SpecificationValueTooLong"] = "Catalog.SpecificationValueTooLong",
+        ["Catalog.DuplicateProductSpecification"] = "Catalog.DuplicateProductSpecification",
+        ["Catalog.ProductSpecificationNotFound"] = "Catalog.ProductSpecificationNotFound",
+        ["Catalog.ImageUrlRequired"] = "Catalog.ImageUrlRequired",
+        ["Catalog.ImageUrlTooLong"] = "Catalog.ImageUrlTooLong",
+        ["Catalog.AltTextTooLong"] = "Catalog.AltTextTooLong",
+        ["Catalog.ProductImageNotFound"] = "Catalog.ProductImageNotFound",
+        ["Catalog.InvalidImageOrder"] = "Catalog.InvalidImageOrder",
     };
 
     public string Localize(string code, string fallback)
