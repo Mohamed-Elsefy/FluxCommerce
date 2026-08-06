@@ -25,8 +25,12 @@ public sealed class ProductRepository : IProductRepository
             .Include(product => product.Images)
             .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
+    public Task<Product?> GetByIdForReadAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Products.AsNoTracking()
+            .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
+
     public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        await Products
+        await Products.AsNoTracking()
             .Where(product => !product.IsDeleted)
             .OrderBy(product => product.Name)
             .ToListAsync(cancellationToken);
@@ -43,13 +47,13 @@ public sealed class ProductRepository : IProductRepository
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        IQueryable<Product> query = Products.AsQueryable();
+        IQueryable<Product> query = Products.AsNoTracking();
 
         query = isDeleted == true
             ? query.Where(product => product.IsDeleted)
             : query.Where(product => !product.IsDeleted);
 
-        query = query.Include(product => product.Images);
+        query = query.Include(product => product.Images.Where(image => image.IsPrimary));
 
         if (categoryId is not null)
             query = query.Where(product => product.CategoryId == categoryId.Value);

@@ -300,6 +300,9 @@
   <data name="Validation.Fields.DisplayOrder" xml:space="preserve">
     <value>Anzeigereihenfolge</value>
   </data>
+  <data name="Validation.Fields.SortOrder" xml:space="preserve">
+    <value>Sortierreihenfolge</value>
+  </data>
   <data name="Validation.Fields.Images" xml:space="preserve">
     <value>Bilder</value>
   </data>

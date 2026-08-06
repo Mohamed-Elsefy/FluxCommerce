@@ -8,6 +8,8 @@ public interface IProductRepository
 {
     Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<Product?> GetByIdForReadAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(

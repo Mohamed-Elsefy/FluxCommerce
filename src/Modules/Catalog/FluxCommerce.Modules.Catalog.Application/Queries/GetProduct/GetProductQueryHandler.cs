@@ -20,7 +20,7 @@ public sealed class GetProductQueryHandler : IQueryHandler<GetProductQuery, Resu
         GetProductQuery query,
         CancellationToken cancellationToken = default)
     {
-        var product = await _productRepository.GetByIdAsync(query.Id, cancellationToken);
+        var product = await _productRepository.GetByIdForReadAsync(query.Id, cancellationToken);
 
         if (product is null)
             return Result.Failure<ProductResponse>(

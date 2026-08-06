@@ -12,6 +12,8 @@ public sealed class ProductSpecificationConfiguration : IEntityTypeConfiguration
 
         builder.HasKey(specification => specification.Id);
 
+        builder.Property(specification => specification.Id).ValueGeneratedNever();
+
         builder.Property(specification => specification.Name)
             .HasColumnName("Name")
             .HasMaxLength(ProductSpecification.NameMaxLength);

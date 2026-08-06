@@ -106,7 +106,7 @@ public sealed class ProductVariantsController : ApiControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> List(Guid productId, CancellationToken cancellationToken)
     {
-        var query = new ListProductVariantsQuery();
+        var query = new ListProductVariantsQuery(productId);
         return Success(await _listProductVariantsHandler.HandleAsync(query, cancellationToken));
     }
 }

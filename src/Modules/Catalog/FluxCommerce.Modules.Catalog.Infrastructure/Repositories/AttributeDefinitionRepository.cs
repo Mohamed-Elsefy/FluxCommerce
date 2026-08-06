@@ -21,7 +21,7 @@ public sealed class AttributeDefinitionRepository : IAttributeDefinitionReposito
         AttributeDefinitions.FirstOrDefaultAsync(attributeDefinition => attributeDefinition.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<AttributeDefinition>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        await AttributeDefinitions
+        await AttributeDefinitions.AsNoTracking()
             .Where(attributeDefinition => !attributeDefinition.IsDeleted)
             .OrderBy(attributeDefinition => attributeDefinition.Name)
             .ToListAsync(cancellationToken);

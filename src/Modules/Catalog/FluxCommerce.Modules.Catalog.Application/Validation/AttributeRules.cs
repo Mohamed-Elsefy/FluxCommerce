@@ -74,6 +74,17 @@ public static class AttributeRules
             ValidationErrors.Add(errors, propertyName, localizer.Get("Validation.Field.Invalid", displayName));
     }
 
+    public static void ValidateSortOrder(
+        int sortOrder,
+        string propertyName,
+        string displayName,
+        Dictionary<string, string[]> errors,
+        ILocalizer localizer)
+    {
+        if (sortOrder < 0)
+            ValidationErrors.Add(errors, propertyName, localizer.Get("Validation.Field.Invalid", displayName));
+    }
+
     public static void ValidateValue(
         string? value,
         string propertyName,

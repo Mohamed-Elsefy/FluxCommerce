@@ -14,6 +14,8 @@ public sealed class ProductImageConfiguration : IEntityTypeConfiguration<Product
 
         builder.HasKey(image => image.Id);
 
+        builder.Property(image => image.Id).ValueGeneratedNever();
+
         builder.Property(image => image.ImageUrl)
             .HasColumnName("ImageUrl")
             .HasMaxLength(ProductImage.ImageUrlMaxLength);

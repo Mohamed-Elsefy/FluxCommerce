@@ -13,6 +13,7 @@ public sealed class CreateAttributeDefinitionCommandValidator(ILocalizer localiz
         AttributeRules.ValidateSlug(command.Slug, errors, localizer);
         AttributeRules.ValidateDescription(command.Description, "Description", localizer["Validation.Fields.Description"], errors, localizer);
         AttributeRules.ValidateDataType(command.DataType, "DataType", localizer["Validation.Fields.DataType"], errors, localizer);
+        AttributeRules.ValidateSortOrder(command.SortOrder, "SortOrder", localizer["Validation.Fields.SortOrder"], errors, localizer);
 
         return errors.Count == 0
             ? ValidationResult.Success()

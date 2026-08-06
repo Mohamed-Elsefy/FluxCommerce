@@ -21,7 +21,7 @@ public sealed class CategoryRepository : ICategoryRepository
         Categories.FirstOrDefaultAsync(category => category.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<Category>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        await Categories
+        await Categories.AsNoTracking()
             .Where(category => !category.IsDeleted)
             .OrderBy(category => category.Name)
             .ToListAsync(cancellationToken);

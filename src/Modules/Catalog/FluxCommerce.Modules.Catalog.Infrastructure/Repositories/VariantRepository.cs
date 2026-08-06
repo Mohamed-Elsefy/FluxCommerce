@@ -34,8 +34,8 @@ public sealed class VariantRepository : IVariantRepository
 
     public async Task<IReadOnlyCollection<Variant>> GetByProductIdAsync(Guid productId, CancellationToken cancellationToken = default)
     {
-        var variants = await Variants
-            .Where(variant => variant.ProductId == productId)
+        var variants = await Variants.AsNoTracking()
+            .Where(variant => variant.ProductId == productId && !variant.IsDeleted)
             .ToListAsync(cancellationToken);
 
         return variants;

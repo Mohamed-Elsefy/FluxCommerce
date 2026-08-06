@@ -20,7 +20,7 @@ public sealed class ListProductVariantsQueryHandler
         ListProductVariantsQuery query,
         CancellationToken cancellationToken = default)
     {
-        var variants = await _variantRepository.GetAllAsync(cancellationToken);
+        var variants = await _variantRepository.GetByProductIdAsync(query.ProductId, cancellationToken);
 
         return Result.Success(VariantResponseMapper.ToResponses(variants));
     }

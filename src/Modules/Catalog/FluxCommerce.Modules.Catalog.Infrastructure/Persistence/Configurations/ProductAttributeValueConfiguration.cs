@@ -12,6 +12,8 @@ public sealed class ProductAttributeValueConfiguration : IEntityTypeConfiguratio
 
         builder.HasKey(attributeValue => attributeValue.Id);
 
+        builder.Property(attributeValue => attributeValue.Id).ValueGeneratedNever();
+
         builder.Property(attributeValue => attributeValue.AttributeDefinitionId)
             .HasColumnName("AttributeDefinitionId");
 
