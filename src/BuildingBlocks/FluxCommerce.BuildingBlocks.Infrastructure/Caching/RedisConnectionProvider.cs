@@ -8,10 +8,19 @@ public sealed class RedisConnectionProvider : IRedisConnectionProvider
 
     public RedisConnectionProvider(string connectionString)
     {
-        _connection = new Lazy<IConnectionMultiplexer>(() => ConnectionMultiplexer.Connect(connectionString));
+        _connection = new Lazy<IConnectionMultiplexer>(
+            () => ConnectionMultiplexer.Connect(CreateConfigurationOptions(connectionString)));
     }
 
     public IConnectionMultiplexer GetConnection() => _connection.Value;
+
+    internal static ConfigurationOptions CreateConfigurationOptions(string connectionString)
+    {
+        var options = ConfigurationOptions.Parse(connectionString);
+        options.AbortOnConnectFail = false;
+
+        return options;
+    }
 
     public void Dispose()
     {

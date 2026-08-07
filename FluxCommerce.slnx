@@ -27,6 +27,7 @@
     <File Path="docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md" />
     <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
     <File Path="docs/phases/PHASE_2_CATALOG_MODULE.md" />
+    <File Path="docs/phases/PHASE_3_CART_MODULE.md" />
   </Folder>
 
   <!-- Solution Items -->

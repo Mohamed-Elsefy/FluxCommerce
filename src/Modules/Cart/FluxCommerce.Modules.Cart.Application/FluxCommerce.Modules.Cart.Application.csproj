@@ -1,7 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Cart.Domain\FluxCommerce.Modules.Cart.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Localization\FluxCommerce.BuildingBlocks.Localization.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Commands\" />
+    <Folder Include="Interfaces\" />
+    <Folder Include="Mappings\" />
+    <Folder Include="Queries\" />
+    <Folder Include="Validation\" />
   </ItemGroup>
 </Project>

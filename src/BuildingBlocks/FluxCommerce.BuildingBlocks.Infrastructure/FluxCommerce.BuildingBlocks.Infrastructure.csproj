@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="DependencyInjection\" />
     <Folder Include="Configuration\" />
     <Folder Include="Persistence\" />
