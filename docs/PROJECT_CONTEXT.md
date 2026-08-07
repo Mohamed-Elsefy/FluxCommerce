@@ -1820,6 +1820,7 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_1_IDENTITY_ACCESS.md
         PHASE_1_5_RUNTIME_PREPARATION.md
         PHASE_2_CATALOG_MODULE.md
+        PHASE_3_CART_MODULE.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md

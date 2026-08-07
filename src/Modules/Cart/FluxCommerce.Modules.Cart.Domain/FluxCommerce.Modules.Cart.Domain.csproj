@@ -4,6 +4,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Aggregates\" />
     <Folder Include="Entities\" />
     <Folder Include="Enums\" />

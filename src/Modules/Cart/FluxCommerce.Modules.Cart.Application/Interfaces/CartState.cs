@@ -7,4 +7,5 @@ public sealed record CartState(
     Guid? UserId,
     long Version,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    IReadOnlyList<CartItemState> Items);
