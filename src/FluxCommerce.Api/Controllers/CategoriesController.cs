@@ -32,7 +32,7 @@ public sealed class CategoriesController : ApiControllerBase
     private readonly ICommandHandler<SoftDeleteCategoryCommand, Result> _softDeleteCategoryHandler;
     private readonly ICommandHandler<RestoreCategoryCommand, Result> _restoreCategoryHandler;
     private readonly IQueryHandler<GetCategoryQuery, Result<CategoryResponse>> _getCategoryHandler;
-    private readonly IQueryHandler<ListCategoriesQuery, Result<IReadOnlyCollection<CategoryResponse>>> _listCategoriesHandler;
+    private readonly IQueryHandler<ListCategoriesQuery, Result<PagedResult<CategoryResponse>>> _listCategoriesHandler;
 
     public CategoriesController(
         ICommandHandler<CreateCategoryCommand, Result<Guid>> createCategoryHandler,
@@ -42,7 +42,7 @@ public sealed class CategoriesController : ApiControllerBase
         ICommandHandler<SoftDeleteCategoryCommand, Result> softDeleteCategoryHandler,
         ICommandHandler<RestoreCategoryCommand, Result> restoreCategoryHandler,
         IQueryHandler<GetCategoryQuery, Result<CategoryResponse>> getCategoryHandler,
-        IQueryHandler<ListCategoriesQuery, Result<IReadOnlyCollection<CategoryResponse>>> listCategoriesHandler,
+        IQueryHandler<ListCategoriesQuery, Result<PagedResult<CategoryResponse>>> listCategoriesHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
         : base(localizer, errorCodeLocalizer)
@@ -118,12 +118,15 @@ public sealed class CategoriesController : ApiControllerBase
         return Success(await _getCategoryHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists all non-deleted categories.</summary>
+    /// <summary>Lists non-deleted categories with pagination.</summary>
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> List(CancellationToken cancellationToken)
+    public async Task<IActionResult> List(
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
     {
-        var query = new ListCategoriesQuery();
+        var query = new ListCategoriesQuery(pageNumber, pageSize);
         return Success(await _listCategoriesHandler.HandleAsync(query, cancellationToken));
     }
 }

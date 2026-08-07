@@ -1,5 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Catalog.Application.Mappings;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
@@ -7,21 +9,37 @@ using FluxCommerce.Modules.Catalog.Domain.Repositories;
 namespace FluxCommerce.Modules.Catalog.Application.Queries.ListProducts;
 
 public sealed class ListProductsQueryHandler
-    : IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>>
+    : IQueryHandler<ListProductsQuery, Result<PagedResult<ProductResponse>>>
 {
-    private readonly IProductRepository _productRepository;
+    private const int DefaultPageNumber = 1;
+    private const int DefaultPageSize = 20;
 
-    public ListProductsQueryHandler(IProductRepository productRepository)
+    private readonly IProductRepository _productRepository;
+    private readonly ILocalizer _localizer;
+
+    public ListProductsQueryHandler(IProductRepository productRepository, ILocalizer localizer)
     {
         _productRepository = productRepository;
+        _localizer = localizer;
     }
 
-    public async Task<Result<IReadOnlyCollection<ProductResponse>>> HandleAsync(
+    public async Task<Result<PagedResult<ProductResponse>>> HandleAsync(
         ListProductsQuery query,
         CancellationToken cancellationToken = default)
     {
-        var products = await _productRepository.GetAllAsync(cancellationToken);
+        var validation = new ListProductsQueryValidator(_localizer).Validate(query);
 
-        return Result.Success(ProductResponseMapper.ToResponses(products));
+        if (!validation.IsValid)
+            return Result.Failure<PagedResult<ProductResponse>>(
+                Error.Validation("Catalog.ValidationFailed", "One or more fields are invalid."));
+
+        var pageNumber = query.PageNumber ?? DefaultPageNumber;
+        var pageSize = query.PageSize ?? DefaultPageSize;
+
+        var result = await _productRepository.GetPagedAsync(pageNumber, pageSize, cancellationToken);
+
+        var items = ProductResponseMapper.ToResponses(result.Items);
+
+        return Result.Success(new PagedResult<ProductResponse>(items, result.TotalCount, pageNumber, pageSize));
     }
 }

@@ -4,4 +4,7 @@ using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
 namespace FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 
-public sealed record ListCategoriesQuery() : IQuery<Result<IReadOnlyCollection<CategoryResponse>>>;
+public sealed record ListCategoriesQuery(
+    int? PageNumber = null,
+    int? PageSize = null)
+    : IQuery<Result<PagedResult<CategoryResponse>>>;

@@ -27,25 +27,25 @@ public class ListAndSearchQueryHandlerTests
     {
         await _categories.AddAsync(TestCategories.Create(name: "Electronics", slug: "electronics"));
         await _categories.AddAsync(TestCategories.Create(name: "Books", slug: "books"));
-        var handler = new ListCategoriesQueryHandler(_categories);
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
 
         var result = await handler.HandleAsync(new ListCategoriesQuery());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value.Count);
-        Assert.Contains(result.Value, category => category.Name == "Electronics");
-        Assert.Contains(result.Value, category => category.Name == "Books");
+        Assert.Equal(2, result.Value.TotalCount);
+        Assert.Contains(result.Value.Items, category => category.Name == "Electronics");
+        Assert.Contains(result.Value.Items, category => category.Name == "Books");
     }
 
     [Fact]
     public async Task ListCategories_Empty_ReturnsEmptyCollection()
     {
-        var handler = new ListCategoriesQueryHandler(_categories);
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
 
         var result = await handler.HandleAsync(new ListCategoriesQuery());
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
     }
 
     // ---- ListProducts ----
@@ -55,12 +55,92 @@ public class ListAndSearchQueryHandlerTests
     {
         await _products.AddAsync(TestProducts.Create(name: "Phone", slug: "phone"));
         await _products.AddAsync(TestProducts.Create(name: "Tablet", slug: "tablet"));
-        var handler = new ListProductsQueryHandler(_products);
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
 
         var result = await handler.HandleAsync(new ListProductsQuery());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value.Count);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.Equal(2, result.Value.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListProducts_Paginates_ReturnsPageAndTotalCount()
+    {
+        for (var i = 1; i <= 5; i++)
+            await _products.AddAsync(TestProducts.Create(name: $"Product {i}", slug: $"product-{i}"));
+
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(PageNumber: 2, PageSize: 2));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.Equal(5, result.Value.TotalCount);
+        Assert.Equal(2, result.Value.PageNumber);
+        Assert.Equal(2, result.Value.PageSize);
+    }
+
+    [Fact]
+    public async Task ListProducts_InvalidPageNumber_ReturnsValidation()
+    {
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(PageNumber: 0));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Catalog.ValidationFailed", result.Error.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+    }
+
+    [Fact]
+    public async Task ListProducts_InvalidPageSize_ReturnsValidation()
+    {
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(PageSize: 101));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Catalog.ValidationFailed", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ListCategories_Paginates_ReturnsPageAndTotalCount()
+    {
+        for (var i = 1; i <= 5; i++)
+            await _categories.AddAsync(TestCategories.Create(name: $"Category {i}", slug: $"category-{i}"));
+
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListCategoriesQuery(PageNumber: 2, PageSize: 2));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.Equal(5, result.Value.TotalCount);
+        Assert.Equal(2, result.Value.PageNumber);
+        Assert.Equal(2, result.Value.PageSize);
+    }
+
+    [Fact]
+    public async Task ListCategories_InvalidPageNumber_ReturnsValidation()
+    {
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListCategoriesQuery(PageNumber: 0));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Catalog.ValidationFailed", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ListCategories_InvalidPageSize_ReturnsValidation()
+    {
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListCategoriesQuery(PageSize: 101));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Catalog.ValidationFailed", result.Error.Code);
     }
 
     // ---- ListAttributeDefinitions ----

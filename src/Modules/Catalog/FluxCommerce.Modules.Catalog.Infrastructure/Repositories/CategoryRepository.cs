@@ -26,6 +26,25 @@ public sealed class CategoryRepository : ICategoryRepository
             .OrderBy(category => category.Name)
             .ToListAsync(cancellationToken);
 
+    public async Task<(IReadOnlyCollection<Category> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Category> query = Categories.AsNoTracking()
+            .Where(category => !category.IsDeleted);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderBy(category => category.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     public Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Categories.AnyAsync(category => category.Id == id, cancellationToken);
 

@@ -12,6 +12,11 @@ public interface IProductRepository
 
     Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyCollection<Product> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(
         string searchTerm,
         Guid? categoryId = null,

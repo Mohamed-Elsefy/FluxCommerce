@@ -1,5 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Catalog.Application.Mappings;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
@@ -7,21 +9,37 @@ using FluxCommerce.Modules.Catalog.Domain.Repositories;
 namespace FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 
 public sealed class ListCategoriesQueryHandler
-    : IQueryHandler<ListCategoriesQuery, Result<IReadOnlyCollection<CategoryResponse>>>
+    : IQueryHandler<ListCategoriesQuery, Result<PagedResult<CategoryResponse>>>
 {
-    private readonly ICategoryRepository _categoryRepository;
+    private const int DefaultPageNumber = 1;
+    private const int DefaultPageSize = 20;
 
-    public ListCategoriesQueryHandler(ICategoryRepository categoryRepository)
+    private readonly ICategoryRepository _categoryRepository;
+    private readonly ILocalizer _localizer;
+
+    public ListCategoriesQueryHandler(ICategoryRepository categoryRepository, ILocalizer localizer)
     {
         _categoryRepository = categoryRepository;
+        _localizer = localizer;
     }
 
-    public async Task<Result<IReadOnlyCollection<CategoryResponse>>> HandleAsync(
+    public async Task<Result<PagedResult<CategoryResponse>>> HandleAsync(
         ListCategoriesQuery query,
         CancellationToken cancellationToken = default)
     {
-        var categories = await _categoryRepository.GetAllAsync(cancellationToken);
+        var validation = new ListCategoriesQueryValidator(_localizer).Validate(query);
 
-        return Result.Success(CategoryResponseMapper.ToResponses(categories));
+        if (!validation.IsValid)
+            return Result.Failure<PagedResult<CategoryResponse>>(
+                Error.Validation("Catalog.ValidationFailed", "One or more fields are invalid."));
+
+        var pageNumber = query.PageNumber ?? DefaultPageNumber;
+        var pageSize = query.PageSize ?? DefaultPageSize;
+
+        var result = await _categoryRepository.GetPagedAsync(pageNumber, pageSize, cancellationToken);
+
+        var items = CategoryResponseMapper.ToResponses(result.Items);
+
+        return Result.Success(new PagedResult<CategoryResponse>(items, result.TotalCount, pageNumber, pageSize));
     }
 }

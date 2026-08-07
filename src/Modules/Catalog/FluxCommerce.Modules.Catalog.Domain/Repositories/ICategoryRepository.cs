@@ -9,6 +9,11 @@ public interface ICategoryRepository
 
     Task<IReadOnlyCollection<Category>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyCollection<Category> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default);

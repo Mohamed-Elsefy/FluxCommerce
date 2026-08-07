@@ -153,11 +153,11 @@ public static class DependencyInjection
 
         services.AddScoped<IQueryHandler<GetCategoryQuery, Result<CategoryResponse>>, GetCategoryQueryHandler>();
 
-        services.AddScoped<IQueryHandler<ListCategoriesQuery, Result<IReadOnlyCollection<CategoryResponse>>>, ListCategoriesQueryHandler>();
+        services.AddScoped<IQueryHandler<ListCategoriesQuery, Result<PagedResult<CategoryResponse>>>, ListCategoriesQueryHandler>();
 
         services.AddScoped<IQueryHandler<GetProductQuery, Result<ProductResponse>>, GetProductQueryHandler>();
 
-        services.AddScoped<IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>>, ListProductsQueryHandler>();
+        services.AddScoped<IQueryHandler<ListProductsQuery, Result<PagedResult<ProductResponse>>>, ListProductsQueryHandler>();
 
         services.AddScoped<IQueryHandler<SearchCatalogProductsQuery, Result<PagedResult<CatalogProductListItem>>>, SearchCatalogProductsQueryHandler>();
 

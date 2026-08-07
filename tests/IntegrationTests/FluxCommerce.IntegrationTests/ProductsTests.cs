@@ -1,4 +1,5 @@
 using System.Net;
+using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Catalog.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
@@ -320,9 +321,40 @@ public class ProductsTests : CatalogApiTestBase
         var response = await Client.GetAsync("catalog/products");
         response.EnsureSuccessStatusCode();
 
-        var data = (await response.ReadJsonAsync<ApiResponseDto<IReadOnlyCollection<ProductResponse>>>()).Data!;
-        Assert.Contains(data, product => product.Id == keepId);
-        Assert.DoesNotContain(data, product => product.Id == deleteId);
+        var data = (await response.ReadJsonAsync<ApiResponseDto<PagedResult<ProductResponse>>>()).Data!;
+        Assert.Contains(data.Items, product => product.Id == keepId);
+        Assert.DoesNotContain(data.Items, product => product.Id == deleteId);
+    }
+
+    [Fact]
+    public async Task List_Paginates()
+    {
+        var categoryId = await CreateCategoryAsync("List Pagination", "list-pagination");
+        for (var i = 1; i <= 3; i++)
+            await CreateProductAsync(categoryId, $"List Product {i}");
+
+        var first = await Client.GetAsync("catalog/products?pageSize=2&pageNumber=1");
+        first.EnsureSuccessStatusCode();
+        var firstData = (await first.ReadJsonAsync<ApiResponseDto<PagedResult<ProductResponse>>>()).Data!;
+        Assert.Equal(3, firstData.TotalCount);
+        Assert.Equal(2, firstData.Items.Count);
+        Assert.Equal(1, firstData.PageNumber);
+
+        var second = await Client.GetAsync("catalog/products?pageSize=2&pageNumber=2");
+        second.EnsureSuccessStatusCode();
+        var secondData = (await second.ReadJsonAsync<ApiResponseDto<PagedResult<ProductResponse>>>()).Data!;
+        Assert.Single(secondData.Items);
+        Assert.Equal(2, secondData.PageNumber);
+    }
+
+    [Fact]
+    public async Task List_InvalidPageNumber_ReturnsBadRequest()
+    {
+        var response = await Client.GetAsync("catalog/products?pageNumber=0");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
+        Assert.Equal("One or more fields are invalid.", problem.Detail);
     }
 
     private async Task<ProductResponse> GetProductAsync(Guid productId)

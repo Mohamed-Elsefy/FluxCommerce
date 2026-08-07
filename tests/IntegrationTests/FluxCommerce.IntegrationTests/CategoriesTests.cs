@@ -1,4 +1,5 @@
 using System.Net;
+using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Catalog.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
@@ -307,9 +308,40 @@ public class CategoriesTests : CatalogApiTestBase
         var response = await Client.GetAsync("catalog/categories");
         response.EnsureSuccessStatusCode();
 
-        var data = (await response.ReadJsonAsync<ApiResponseDto<IReadOnlyCollection<CategoryResponse>>>()).Data!;
-        Assert.Contains(data, category => category.Id == keepId);
-        Assert.DoesNotContain(data, category => category.Id == deleteId);
+        var data = (await response.ReadJsonAsync<ApiResponseDto<PagedResult<CategoryResponse>>>()).Data!;
+        Assert.Contains(data.Items, category => category.Id == keepId);
+        Assert.DoesNotContain(data.Items, category => category.Id == deleteId);
+    }
+
+    [Fact]
+    public async Task List_Paginates()
+    {
+        await CreateCategoryAsync("List Cat One", "list-cat-one");
+        await CreateCategoryAsync("List Cat Two", "list-cat-two");
+        await CreateCategoryAsync("List Cat Three", "list-cat-three");
+
+        var first = await Client.GetAsync("catalog/categories?pageSize=2&pageNumber=1");
+        first.EnsureSuccessStatusCode();
+        var firstData = (await first.ReadJsonAsync<ApiResponseDto<PagedResult<CategoryResponse>>>()).Data!;
+        Assert.Equal(3, firstData.TotalCount);
+        Assert.Equal(2, firstData.Items.Count);
+        Assert.Equal(1, firstData.PageNumber);
+
+        var second = await Client.GetAsync("catalog/categories?pageSize=2&pageNumber=2");
+        second.EnsureSuccessStatusCode();
+        var secondData = (await second.ReadJsonAsync<ApiResponseDto<PagedResult<CategoryResponse>>>()).Data!;
+        Assert.Single(secondData.Items);
+        Assert.Equal(2, secondData.PageNumber);
+    }
+
+    [Fact]
+    public async Task List_InvalidPageSize_ReturnsBadRequest()
+    {
+        var response = await Client.GetAsync("catalog/categories?pageSize=101");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
+        Assert.Equal("One or more fields are invalid.", problem.Detail);
     }
 
     private async Task SoftDeleteCategoryAsync(Guid categoryId)

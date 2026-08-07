@@ -20,6 +20,24 @@ public sealed class FakeProductRepository : IProductRepository
     public Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyCollection<Product>>(_products.Values.ToList());
 
+    public Task<(IReadOnlyCollection<Product> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var all = _products.Values
+            .Where(product => !product.IsDeleted)
+            .OrderBy(product => product.Name)
+            .ToList();
+
+        return Task.FromResult((
+            (IReadOnlyCollection<Product>)all
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList(),
+            all.Count));
+    }
+
     public Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(
         string searchTerm,
         Guid? categoryId = null,

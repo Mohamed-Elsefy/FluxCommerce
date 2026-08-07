@@ -26,10 +26,10 @@ All architectural principles from `ARCHITECTURE.md` were preserved: Modular Mono
 | SQL Search | **Delivered** | Full-text-lite search over name/description via `EF.Functions` |
 | Filtering | **Delivered** | By category, status, price range, keyword |
 | Sorting | **Delivered** | Name/price/created/updated + direction |
-| Pagination | **Delivered** | Page/page-size with validators and sanitized responses |
-| Validation | **Delivered** | 35 FluentValidation validators (34 command + 1 query) |
+| Pagination | **Delivered** | `PagedResult` on catalog search + product/category list endpoints, with validators and sanitized responses |
+| Validation | **Delivered** | 36 FluentValidation validators (34 command + 2 query) |
 | Localization | **Delivered** | 5 resources × 140 keys, identical key sets; 43 `Catalog.*` error codes |
-| Testing | **Delivered** | 722 unit + 171 integration + 39 architecture = **932 green** |
+| Testing | **Delivered** | 728 unit + 175 integration + 39 architecture = **942 green** |
 | Documentation | **Delivered** | Architecture/phase docs kept in sync; this report |
 
 ## 3. Completed Sub-Phases
@@ -61,7 +61,7 @@ Sub-phase 2.8 was executed as sub-audits 2.8.1–2.8.8 (domain, application, inf
 ### 4.2 Application
 
 - 34 commands + 15 queries, 49 handlers, 14 mappers; thin controllers delegating to `ISender`.
-- 35 FluentValidation validators; every validator message routed through the localizer.
+- 36 FluentValidation validators; every validator message routed through the localizer.
 - Read paths use `AsNoTracking` + filtered `Include` (from sub-phase 2.8.7) so aggregates are fetched read-only without loading soft-deleted/non-active children — keeps queries efficient and prevents stale-tracking overhead.
 
 ### 4.3 Infrastructure
@@ -100,10 +100,10 @@ Sub-phase 2.8 was executed as sub-audits 2.8.1–2.8.8 (domain, application, inf
 |------|--------|
 | Build with `TreatWarningsAsErrors` + `AnalysisLevel=latest` | 0 warnings / 0 errors |
 | EF migrations applied to SQL Server | 6/6, no pending model changes |
-| Unit tests | 722 passed |
-| Integration tests | 171 passed (incl. 3 new Swagger security tests) |
+| Unit tests | 728 passed |
+| Integration tests | 175 passed (incl. 3 Swagger security + 4 list-pagination tests) |
 | Architecture tests | 39 passed |
-| Validation coverage | 35 validators, all localized |
+| Validation coverage | 36 validators, all localized |
 | Authorization | Management ops `[Authorize]`, public ops `[AllowAnonymous]`, verified via Swagger + tests |
 | Swagger/OpenAPI | Complete doc, correct security scoping, tags, localized descriptions |
 | Localization | 5 locales in sync, all codes mapped |
@@ -117,7 +117,7 @@ Sub-phase 2.8 was executed as sub-audits 2.8.1–2.8.8 (domain, application, inf
 | API paths / operations (Catalog) | 31 / 49 |
 | Commands / Queries | 34 / 15 |
 | Handlers (command + query) | 49 |
-| Validators (command + query) | 34 / 1 |
+| Validators (command + query) | 34 / 2 |
 | Mappers | 14 |
 | Aggregate roots / owned entities | 4 / 3 |
 | Value objects | 3 |
@@ -128,7 +128,7 @@ Sub-phase 2.8 was executed as sub-audits 2.8.1–2.8.8 (domain, application, inf
 | Contracts (requests / responses / read models / enums) | 17 / 8 / 7 / 6 |
 | Localization keys per resource (×5 locales) | 140 |
 | Catalog error codes mapped | 43 |
-| Tests (unit / integration / architecture) | 722 / 171 / 39 = **932** |
+| Tests (unit / integration / architecture) | 728 / 175 / 39 = **942** |
 
 ## 7. Known Limitations
 
@@ -141,7 +141,7 @@ Sub-phase 2.8 was executed as sub-audits 2.8.1–2.8.8 (domain, application, inf
 
 ## 8. Readiness Assessment
 
-Phase 2 is **complete and verified**. The Catalog module builds clean, respects all modular boundaries, exposes complete management and query capabilities, ships a verified EF Core schema, and is covered by 932 passing tests including architecture conformance tests that enforce the documented boundaries.
+Phase 2 is **complete and verified**. The Catalog module builds clean, respects all modular boundaries, exposes complete management and query capabilities, ships a verified EF Core schema, and is covered by 942 passing tests including architecture conformance tests that enforce the documented boundaries.
 
 The module is ready to serve as the foundation for the future Commerce modules (Cart, Pricing, Orders, Inventory, Search, etc.), and the project is ready for Phase 3.
 

@@ -35,6 +35,25 @@ public sealed class ProductRepository : IProductRepository
             .OrderBy(product => product.Name)
             .ToListAsync(cancellationToken);
 
+    public async Task<(IReadOnlyCollection<Product> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Product> query = Products.AsNoTracking()
+            .Where(product => !product.IsDeleted);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderBy(product => product.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     public async Task<(IReadOnlyCollection<Product> Items, int TotalCount)> SearchAsync(
         string searchTerm,
         Guid? categoryId = null,

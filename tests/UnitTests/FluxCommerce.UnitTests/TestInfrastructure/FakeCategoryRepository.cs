@@ -16,6 +16,24 @@ public sealed class FakeCategoryRepository : ICategoryRepository
     public Task<IReadOnlyCollection<Category>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyCollection<Category>>(_categories.Values.ToList());
 
+    public Task<(IReadOnlyCollection<Category> Items, int TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var all = _categories.Values
+            .Where(category => !category.IsDeleted)
+            .OrderBy(category => category.Name)
+            .ToList();
+
+        return Task.FromResult((
+            (IReadOnlyCollection<Category>)all
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList(),
+            all.Count));
+    }
+
     public Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(_categories.ContainsKey(id));
 

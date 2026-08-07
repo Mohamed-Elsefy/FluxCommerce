@@ -1,7 +1,7 @@
 # Phase 2 — Catalog Module
 
 > **Status:** Implemented & Verified
-> **Completion report:** `docs/PHASE_2_COMPLETION_REPORT.md`
+> **Completion report:** `docs/completed/PHASE_2_COMPLETION_REPORT.md`
 
 > **Phase Goal**
 >

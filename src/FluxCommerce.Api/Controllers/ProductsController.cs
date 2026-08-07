@@ -43,7 +43,7 @@ public sealed class ProductsController : ApiControllerBase
     private readonly ICommandHandler<SoftDeleteProductCommand, Result> _softDeleteProductHandler;
     private readonly ICommandHandler<RestoreProductCommand, Result> _restoreProductHandler;
     private readonly IQueryHandler<GetProductQuery, Result<ProductResponse>> _getProductHandler;
-    private readonly IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>> _listProductsHandler;
+    private readonly IQueryHandler<ListProductsQuery, Result<PagedResult<ProductResponse>>> _listProductsHandler;
     private readonly IQueryHandler<SearchCatalogProductsQuery, Result<PagedResult<CatalogProductListItem>>> _searchCatalogProductsHandler;
 
     public ProductsController(
@@ -55,7 +55,7 @@ public sealed class ProductsController : ApiControllerBase
         ICommandHandler<SoftDeleteProductCommand, Result> softDeleteProductHandler,
         ICommandHandler<RestoreProductCommand, Result> restoreProductHandler,
         IQueryHandler<GetProductQuery, Result<ProductResponse>> getProductHandler,
-        IQueryHandler<ListProductsQuery, Result<IReadOnlyCollection<ProductResponse>>> listProductsHandler,
+        IQueryHandler<ListProductsQuery, Result<PagedResult<ProductResponse>>> listProductsHandler,
         IQueryHandler<SearchCatalogProductsQuery, Result<PagedResult<CatalogProductListItem>>> searchCatalogProductsHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
@@ -155,12 +155,15 @@ public sealed class ProductsController : ApiControllerBase
         return Success(await _getProductHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists all non-deleted products.</summary>
+    /// <summary>Lists non-deleted products with pagination.</summary>
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> List(CancellationToken cancellationToken)
+    public async Task<IActionResult> List(
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        CancellationToken cancellationToken)
     {
-        var query = new ListProductsQuery();
+        var query = new ListProductsQuery(pageNumber, pageSize);
         return Success(await _listProductsHandler.HandleAsync(query, cancellationToken));
     }
 
