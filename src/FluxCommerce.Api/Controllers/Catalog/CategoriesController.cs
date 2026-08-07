@@ -14,10 +14,11 @@ using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FluxCommerce.Api.Controllers;
+namespace FluxCommerce.Api.Controllers.Catalog;
 
 [ApiController]
 [Route("catalog/categories")]

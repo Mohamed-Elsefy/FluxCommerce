@@ -12,10 +12,11 @@ using FluxCommerce.Modules.Catalog.Application.Queries.GetProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FluxCommerce.Api.Controllers;
+namespace FluxCommerce.Api.Controllers.Catalog;
 
 [ApiController]
 [Route("catalog/products/{productId}/variants")]

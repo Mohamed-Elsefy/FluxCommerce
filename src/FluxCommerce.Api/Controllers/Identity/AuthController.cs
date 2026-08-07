@@ -15,10 +15,11 @@ using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Contracts.Requests;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FluxCommerce.Api.Controllers;
+namespace FluxCommerce.Api.Controllers.Identity;
 
 [ApiController]
 [Route("auth")]

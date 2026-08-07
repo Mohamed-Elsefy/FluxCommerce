@@ -13,10 +13,11 @@ using FluxCommerce.Modules.Catalog.Application.Queries.GetProductImage;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductImages;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FluxCommerce.Api.Controllers;
+namespace FluxCommerce.Api.Controllers.Catalog;
 
 [ApiController]
 [Route("catalog/products/{productId}/images")]

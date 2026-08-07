@@ -14,12 +14,14 @@ using FluxCommerce.Modules.Catalog.Application.Queries.GetAttributeDefinition;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListAttributeDefinitions;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+
 using ContractsAttributeDataType = FluxCommerce.Modules.Catalog.Contracts.Enums.AttributeDataType;
 using DomainAttributeDataType = FluxCommerce.Modules.Catalog.Domain.Enums.AttributeDataType;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FluxCommerce.Api.Controllers;
+namespace FluxCommerce.Api.Controllers.Catalog;
 
 [ApiController]
 [Route("catalog/attribute-definitions")]

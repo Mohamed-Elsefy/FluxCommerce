@@ -18,16 +18,18 @@ using FluxCommerce.Modules.Catalog.Application.Queries.SearchCatalogProducts;
 using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+
 using ContractsProductStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductStatus;
 using ContractsProductVisibility = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductVisibility;
 using DomainCatalogProductSortBy = FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortBy;
 using DomainCatalogProductSortDirection = FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortDirection;
 using DomainProductStatus = FluxCommerce.Modules.Catalog.Domain.Enums.ProductStatus;
 using DomainProductVisibility = FluxCommerce.Modules.Catalog.Domain.Enums.ProductVisibility;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FluxCommerce.Api.Controllers;
+namespace FluxCommerce.Api.Controllers.Catalog;
 
 [ApiController]
 [Route("catalog/products")]
