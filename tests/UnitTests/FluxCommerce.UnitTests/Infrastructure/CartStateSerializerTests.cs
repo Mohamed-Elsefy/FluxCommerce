@@ -63,6 +63,18 @@ public class CartStateSerializerTests
     }
 
     [Fact]
+    public void Serialize_DoesNotEmbedExpirationInPayload()
+    {
+        var serializer = new CartStateSerializer();
+
+        var json = serializer.Serialize(CreateDocument());
+
+        Assert.DoesNotContain("expiresAt", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ttl", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("expiry", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Serialize_RoundTripsDocument()
     {
         var serializer = new CartStateSerializer();
@@ -119,6 +131,150 @@ public class CartStateSerializerTests
         var json = """{"schemaVersion":1}""";
 
         Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_MalformedJson_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var json = """{"schemaVersion":1,"data":{"cartId":""";
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptyCartId_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var json = serializer.Serialize(CreateDocument() with { CartId = Guid.Empty });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_NullItems_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var json = serializer.Serialize(CreateDocument() with { Items = null! });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Deserialize_InvalidQuantity_Throws(int quantity)
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { Quantity = quantity };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_NegativeUnitPrice_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { UnitPrice = -1m };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptySku_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { Sku = string.Empty };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptyProductName_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { ProductName = string.Empty };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptyCurrency_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { Currency = string.Empty };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptyVariantId_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { VariantId = Guid.Empty };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptyProductId_Throws()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { ProductId = Guid.Empty };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        Assert.Throws<InvalidDataException>(() => serializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_EmptyItems_IsValid()
+    {
+        var serializer = new CartStateSerializer();
+        var original = CreateDocument() with { Items = [] };
+
+        var roundTripped = serializer.Deserialize(serializer.Serialize(original));
+
+        Assert.Empty(roundTripped.Items);
+    }
+
+    [Fact]
+    public void Serialize_RoundTripsGuestDocument()
+    {
+        var serializer = new CartStateSerializer();
+        var original = CreateDocument() with { UserId = null };
+
+        var roundTripped = serializer.Deserialize(serializer.Serialize(original));
+
+        Assert.Null(roundTripped.UserId);
+    }
+
+    [Fact]
+    public void Serialize_UsesIso8601DateTimeOffsets()
+    {
+        var serializer = new CartStateSerializer();
+
+        var json = serializer.Serialize(CreateDocument());
+
+        Assert.Contains("\"2026-08-07T10:30:00+00:00\"", json);
+        Assert.Contains("\"2026-08-07T10:35:00+00:00\"", json);
+    }
+
+    [Fact]
+    public void Serialize_PreservesMonetaryPrecision()
+    {
+        var serializer = new CartStateSerializer();
+        var item = CreateDocument().Items[0] with { UnitPrice = 19.9900m };
+        var json = serializer.Serialize(CreateDocument() with { Items = [item] });
+
+        var roundTripped = serializer.Deserialize(json);
+
+        Assert.Equal(19.9900m, roundTripped.Items[0].UnitPrice);
     }
 
     private static CartDocument CreateDocument() =>

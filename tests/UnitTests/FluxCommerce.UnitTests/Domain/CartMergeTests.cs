@@ -203,7 +203,7 @@ public class CartMergeTests
         var result = target.Merge(source, UtcNow);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(CartErrors.InvalidQuantity, result.Error);
+        Assert.Equal(CartErrors.QuantityLimitExceeded, result.Error);
     }
 
     [Fact]

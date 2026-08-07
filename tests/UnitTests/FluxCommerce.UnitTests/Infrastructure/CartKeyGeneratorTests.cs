@@ -84,6 +84,58 @@ public class CartKeyGeneratorTests
     }
 
     [Fact]
+    public void ForCart_IsDeterministic_ForSameCartId()
+    {
+        var cartId = new CartId(Guid.NewGuid());
+        var generator = CreateGenerator("cart");
+
+        Assert.Equal(generator.ForCart(cartId), generator.ForCart(cartId));
+    }
+
+    [Fact]
+    public void ForUser_IsDeterministic_ForSameUserId()
+    {
+        var userId = Guid.NewGuid();
+        var generator = CreateGenerator("cart");
+
+        Assert.Equal(generator.ForUser(userId), generator.ForUser(userId));
+    }
+
+    [Fact]
+    public void ForCart_DifferentNamespaces_ProduceDistinctKeys()
+    {
+        var cartId = new CartId(Guid.NewGuid());
+
+        var first = CreateGenerator("cart").ForCart(cartId);
+        var second = CreateGenerator("storefront-cart").ForCart(cartId);
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void ForUser_DifferentNamespaces_ProduceDistinctKeys()
+    {
+        var userId = Guid.NewGuid();
+
+        var first = CreateGenerator("cart").ForUser(userId);
+        var second = CreateGenerator("storefront-cart").ForUser(userId);
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void ForCart_KeyDoesNotContainVersion()
+    {
+        var cartId = new CartId(Guid.NewGuid());
+        var generator = CreateGenerator("cart");
+
+        var key = generator.ForCart(cartId);
+
+        Assert.Equal($"cart:{cartId.Value:D}", key);
+        Assert.DoesNotContain("version", key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ForUser_EmptyUserId_Throws()
     {
         var generator = CreateGenerator("cart");

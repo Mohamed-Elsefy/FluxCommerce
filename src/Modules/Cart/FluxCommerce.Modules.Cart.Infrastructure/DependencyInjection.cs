@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Cart.Application.Interfaces;
 using FluxCommerce.Modules.Cart.Infrastructure.Configuration;
 using FluxCommerce.Modules.Cart.Infrastructure.Redis;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +17,8 @@ public static class DependencyInjection
 
         services.AddSingleton<CartKeyGenerator>();
         services.AddSingleton<CartStateSerializer>();
+        services.AddSingleton<CartStateMapper>();
+        services.AddSingleton<ICartStore, RedisCartStore>();
 
         return services;
     }

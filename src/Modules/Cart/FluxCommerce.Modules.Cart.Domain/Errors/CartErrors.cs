@@ -6,6 +6,10 @@ public static class CartErrors
         "Cart.InvalidQuantity",
         "A cart item quantity must be a positive integer.");
 
+    public static readonly DomainError QuantityLimitExceeded = DomainError.Create(
+        "Cart.QuantityLimitExceeded",
+        "The cart item quantity exceeds the maximum allowed.");
+
     public static readonly DomainError CartItemNotFound = DomainError.Create(
         "Cart.CartItemNotFound",
         "The cart does not contain an item for the specified variant.");

@@ -239,7 +239,7 @@ public class CartAddItemTests
         var result = cart.AddItem(ProductId.Create(), variantId, new Sku("SKU-A"), "Product A", new Money(19.99m, "USD"), 1, UtcNow);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(CartErrors.InvalidQuantity, result.Error);
+        Assert.Equal(CartErrors.QuantityLimitExceeded, result.Error);
         Assert.Equal(int.MaxValue, Assert.Single(cart.Items).Quantity);
     }
 }

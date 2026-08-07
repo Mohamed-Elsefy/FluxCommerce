@@ -11,4 +11,6 @@ public interface ICartStore
     Task<CartSaveResult> SaveAsync(CartState cart, long expectedVersion, CancellationToken cancellationToken = default);
 
     Task<bool> DeleteAsync(CartId cartId, CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsAsync(CartId cartId, CancellationToken cancellationToken = default);
 }

@@ -42,7 +42,7 @@ public class CartInfrastructureRegistrationTests
     }
 
     [Fact]
-    public void AddCartInfrastructure_DoesNotRegister_ICartStore()
+    public void AddCartInfrastructure_RegistersICartStore_AsRedisCartStore_Singleton()
     {
         var services = new ServiceCollection();
 
@@ -52,7 +52,22 @@ public class CartInfrastructureRegistrationTests
             .Where(descriptor => descriptor.ServiceType == typeof(ICartStore))
             .ToList();
 
-        Assert.Empty(registrations);
+        Assert.Single(registrations);
+        Assert.Equal(typeof(RedisCartStore), registrations[0].ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, registrations[0].Lifetime);
+    }
+
+    [Fact]
+    public void AddCartInfrastructure_WithRedis_ResolvesRedisCartStore()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddRedis("localhost:6379");
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<RedisCartStore>(provider.GetRequiredService<ICartStore>());
     }
 
     [Fact]

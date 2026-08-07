@@ -83,7 +83,7 @@ public sealed class Cart : AggregateRoot<CartId>
             var newQuantity = (long)existing.Quantity + quantity;
 
             if (newQuantity > int.MaxValue)
-                return DomainResult.Failure(CartErrors.InvalidQuantity);
+                return DomainResult.Failure(CartErrors.QuantityLimitExceeded);
 
             existing.ChangeQuantity((int)newQuantity);
 
@@ -173,7 +173,7 @@ public sealed class Cart : AggregateRoot<CartId>
                 continue;
 
             if ((long)targetItem.Quantity + sourceItem.Quantity > int.MaxValue)
-                return DomainResult.Failure(CartErrors.InvalidQuantity);
+                return DomainResult.Failure(CartErrors.QuantityLimitExceeded);
         }
 
         foreach (var sourceItem in source.Items)

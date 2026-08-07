@@ -4,6 +4,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Cart.Domain\FluxCommerce.Modules.Cart.Domain.csproj" />
     <ProjectReference Include="..\FluxCommerce.Modules.Cart.Application\FluxCommerce.Modules.Cart.Application.csproj" />
     <ProjectReference Include="..\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />
