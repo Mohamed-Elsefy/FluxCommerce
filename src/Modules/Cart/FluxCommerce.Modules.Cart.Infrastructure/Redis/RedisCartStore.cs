@@ -64,17 +64,33 @@ public sealed class RedisCartStore : ICartStore
         var database = GetDatabase();
         var cartKey = _keyGenerator.ForCart(cart.CartId);
         var json = _serializer.Serialize(_mapper.ToDocument(cart));
-        var expiry = GetExpiry(_options.Value);
+        var ttl = GetTtl(_options.Value);
 
-        await database.StringSetAsync(cartKey, json, expiry).ConfigureAwait(false);
+        var result = (long)await database.ScriptEvaluateAsync(
+            CartCasScript.Source,
+            [cartKey],
+            [json, expectedVersion, (long)ttl.TotalSeconds]).ConfigureAwait(false);
 
-        if (cart.UserId is Guid userId)
+        switch ((int)result)
         {
-            var userKey = _keyGenerator.ForUser(userId);
-            await database.StringSetAsync(userKey, cart.CartId.Value.ToString("D"), expiry).ConfigureAwait(false);
-        }
+            case CartCasScript.Success:
+                if (cart.UserId is Guid userId)
+                {
+                    var userKey = _keyGenerator.ForUser(userId);
+                    await database.StringSetAsync(userKey, cart.CartId.Value.ToString("D"), ttl, When.Always, CommandFlags.None).ConfigureAwait(false);
+                }
 
-        return new CartSaveResult(CartSaveStatus.Success, cart);
+                return new CartSaveResult(CartSaveStatus.Success, cart);
+
+            case CartCasScript.VersionConflict:
+                return new CartSaveResult(CartSaveStatus.VersionConflict, null);
+
+            case CartCasScript.CartMissing:
+                return new CartSaveResult(CartSaveStatus.CartMissing, null);
+
+            default:
+                throw new InvalidDataException("Stored cart state could not be validated during optimistic concurrency check.");
+        }
     }
 
     public async Task<bool> DeleteAsync(CartId cartId, CancellationToken cancellationToken = default)
@@ -97,12 +113,12 @@ public sealed class RedisCartStore : ICartStore
 
     private IDatabase GetDatabase() => _connectionProvider.GetConnection().GetDatabase();
 
-    internal static TimeSpan GetExpiry(CartOptions options)
+    internal static TimeSpan GetTtl(CartOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         if (options.DefaultTtlMinutes < 1)
-            throw new ArgumentException("Cart TTL must be greater than zero.", nameof(options));
+            throw new ArgumentException("Cart TTL must be at least one minute.", nameof(options));
 
         return TimeSpan.FromMinutes(options.DefaultTtlMinutes);
     }

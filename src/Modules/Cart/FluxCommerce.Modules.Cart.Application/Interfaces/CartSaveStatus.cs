@@ -4,4 +4,5 @@ public enum CartSaveStatus
 {
     Success = 0,
     VersionConflict = 1,
+    CartMissing = 2,
 }

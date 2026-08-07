@@ -25,17 +25,38 @@ public class CartOptionsTests
     }
 
     [Fact]
-    public void CustomNamespace_IsValid()
+    public void CustomTtl_IsValid()
     {
-        var options = new CartOptions { KeyNamespace = "custom-cart", DefaultTtlMinutes = 1440 };
+        var options = new CartOptions { KeyNamespace = "cart", DefaultTtlMinutes = 30 };
 
         Assert.Empty(Validate(options));
     }
 
-    [Fact]
-    public void CustomTtl_IsValid()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(525600)]
+    public void BoundaryTtl_IsValid(int defaultTtlMinutes)
     {
-        var options = new CartOptions { KeyNamespace = "cart", DefaultTtlMinutes = 30 };
+        var options = new CartOptions { KeyNamespace = "cart", DefaultTtlMinutes = defaultTtlMinutes };
+
+        Assert.Empty(Validate(options));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(525601)]
+    public void OutOfRangeTtl_IsInvalid(int defaultTtlMinutes)
+    {
+        var options = new CartOptions { KeyNamespace = "cart", DefaultTtlMinutes = defaultTtlMinutes };
+
+        Assert.Contains(Validate(options), r => r.MemberNames.Contains(nameof(CartOptions.DefaultTtlMinutes)));
+    }
+
+    [Fact]
+    public void CustomNamespace_IsValid()
+    {
+        var options = new CartOptions { KeyNamespace = "custom-cart" };
 
         Assert.Empty(Validate(options));
     }
@@ -73,16 +94,5 @@ public class CartOptionsTests
         var options = new CartOptions { KeyNamespace = keyNamespace };
 
         Assert.Contains(Validate(options), r => r.MemberNames.Contains(nameof(CartOptions.KeyNamespace)));
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(525601)]
-    public void OutOfRangeTtl_IsInvalid(int ttl)
-    {
-        var options = new CartOptions { KeyNamespace = "cart", DefaultTtlMinutes = ttl };
-
-        Assert.Contains(Validate(options), r => r.MemberNames.Contains(nameof(CartOptions.DefaultTtlMinutes)));
     }
 }

@@ -17,4 +17,8 @@ public static class CartErrors
     public static readonly DomainError InvalidMergeSource = DomainError.Create(
         "Cart.InvalidMergeSource",
         "Only a guest cart can be used as the source of a cart merge.");
+
+    public static readonly DomainError CartConcurrencyConflict = DomainError.Create(
+        "Cart.CartConcurrencyConflict",
+        "The cart was modified by another request. Reload the cart and try again.");
 }

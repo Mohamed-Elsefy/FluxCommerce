@@ -35,6 +35,13 @@ public class CartErrorsTests
     }
 
     [Fact]
+    public void CartConcurrencyConflict_HasStableCode()
+    {
+        Assert.Equal("Cart.CartConcurrencyConflict", CartErrors.CartConcurrencyConflict.Code);
+        Assert.Equal("The cart was modified by another request. Reload the cart and try again.", CartErrors.CartConcurrencyConflict.Description);
+    }
+
+    [Fact]
     public void AllErrors_HaveNonEmptyDescriptions()
     {
         Assert.All(AllErrors(), error => Assert.False(string.IsNullOrWhiteSpace(error.Description)));
@@ -61,6 +68,7 @@ public class CartErrorsTests
         Assert.Equal(DomainError.Create("Cart.QuantityLimitExceeded", "The cart item quantity exceeds the maximum allowed."), CartErrors.QuantityLimitExceeded);
         Assert.Equal(DomainError.Create("Cart.CartItemNotFound", "The cart does not contain an item for the specified variant."), CartErrors.CartItemNotFound);
         Assert.Equal(DomainError.Create("Cart.InvalidMergeSource", "Only a guest cart can be used as the source of a cart merge."), CartErrors.InvalidMergeSource);
+        Assert.Equal(DomainError.Create("Cart.CartConcurrencyConflict", "The cart was modified by another request. Reload the cart and try again."), CartErrors.CartConcurrencyConflict);
     }
 
     [Fact]
@@ -73,11 +81,22 @@ public class CartErrorsTests
         Assert.Equal(CartErrors.InvalidQuantity.Description, error.Description);
     }
 
+    [Fact]
+    public void CartConcurrencyConflict_MapsToApplicationConflictError()
+    {
+        var error = Error.Conflict(CartErrors.CartConcurrencyConflict.Code, CartErrors.CartConcurrencyConflict.Description);
+
+        Assert.Equal(ErrorType.Conflict, error.Type);
+        Assert.Equal("Cart.CartConcurrencyConflict", error.Code);
+        Assert.Equal(CartErrors.CartConcurrencyConflict.Description, error.Description);
+    }
+
     private static IEnumerable<DomainError> AllErrors()
     {
         yield return CartErrors.InvalidQuantity;
         yield return CartErrors.QuantityLimitExceeded;
         yield return CartErrors.CartItemNotFound;
         yield return CartErrors.InvalidMergeSource;
+        yield return CartErrors.CartConcurrencyConflict;
     }
 }

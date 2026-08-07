@@ -18,14 +18,13 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
 
         using var provider = services.BuildServiceProvider();
 
         var options = provider.GetRequiredService<IOptions<CartOptions>>().Value;
 
         Assert.Equal("cart", options.KeyNamespace);
-        Assert.Equal(10080, options.DefaultTtlMinutes);
     }
 
     [Fact]
@@ -33,7 +32,7 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart items", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart items"));
 
         using var provider = services.BuildServiceProvider();
 
@@ -46,7 +45,7 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
 
         var registrations = services
             .Where(descriptor => descriptor.ServiceType == typeof(ICartStore))
@@ -62,7 +61,7 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
         services.AddRedis("localhost:6379");
 
         using var provider = services.BuildServiceProvider();
@@ -75,7 +74,7 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
 
         var registrations = services
             .Where(descriptor => descriptor.ServiceType == typeof(IRedisConnectionProvider))
@@ -104,7 +103,7 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
 
         using var provider = services.BuildServiceProvider();
 
@@ -116,19 +115,53 @@ public class CartInfrastructureRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddCartInfrastructure(CreateConfiguration("cart", "10080"));
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
 
         using var provider = services.BuildServiceProvider();
 
         Assert.NotNull(provider.GetRequiredService<CartStateSerializer>());
     }
 
-    private static IConfiguration CreateConfiguration(string keyNamespace, string ttlMinutes) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [$"{CartOptions.SectionName}:KeyNamespace"] = keyNamespace,
-                [$"{CartOptions.SectionName}:DefaultTtlMinutes"] = ttlMinutes,
-            })
+    [Fact]
+    public void AddCartInfrastructure_BindsDefaultTtlMinutes_FromConfiguration()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCartInfrastructure(CreateConfiguration("cart", defaultTtlMinutes: 45));
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<CartOptions>>().Value;
+
+        Assert.Equal(45, options.DefaultTtlMinutes);
+    }
+
+    [Fact]
+    public void AddCartInfrastructure_WithoutTtlConfiguration_UsesDefault()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<CartOptions>>().Value;
+
+        Assert.Equal(7 * 24 * 60, options.DefaultTtlMinutes);
+    }
+
+    private static IConfiguration CreateConfiguration(string keyNamespace, int? defaultTtlMinutes = null)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            [$"{CartOptions.SectionName}:KeyNamespace"] = keyNamespace,
+        };
+
+        if (defaultTtlMinutes is int ttl)
+            values[$"{CartOptions.SectionName}:DefaultTtlMinutes"] = ttl.ToString();
+
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
             .Build();
+    }
 }
