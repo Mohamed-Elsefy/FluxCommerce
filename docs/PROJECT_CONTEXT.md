@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), and **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), and **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1256,6 +1256,44 @@ The runtime preparation phase (see `docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md
 - **Verification** — first end-to-end runtime verification of Identity (register → verify → login → authorize → refresh → logout), health endpoints operational.
 
 **Deferred per scope** — API versioning, rate limiting, refresh-token hashing, CI/CD, production secret management, OAuth/external login, MFA, passkeys (SMTP email provider was delivered within Phase 1 instead).
+
+---
+
+### 14.3 Phase 3 — Cart Module — Implemented & Verified
+
+The Cart Module (Phase 3) delivers the shopping cart domain — the first customer-facing commerce domain. It introduces the **Cart** aggregate with **CartItem** entities, supporting both **Guest** and **Authenticated** carts, **Redis-backed persistence**, **Catalog contract integration** for variant validation and snapshots, **Guest → Authenticated merge**, a complete **REST API**, full **localization**, and a green test suite.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 3.1 | Cart Module Foundation — Redis setup, module structure, DI, ICartStore, architecture tests | Implemented |
+| 3.2 | Cart Domain Model — Cart aggregate, CartItem, ownership, quantity rules, Add/Update/Remove/Clear/Merge, domain errors | Implemented |
+| 3.3 | Redis Cart Persistence — ICartStore, RedisCartStore, serialization, key naming, TTL, CAS, merge-and-consume script | Implemented |
+| 3.4 | Guest Cart — Opaque CartId, create/get/add/update/remove/clear/expiration, ownership protection | Implemented |
+| 3.5 | Authenticated Cart — ICurrentUser integration, UserId ownership, one active cart per user | Implemented |
+| 3.6 | Cart Merge — Guest → Authenticated, duplicate variant handling, quantity aggregation, guest consumption, idempotency, concurrency | Implemented |
+| 3.7 | Catalog Contract Integration — ICatalogVariantCartLookup, variant eligibility, price/snapshot data | Implemented |
+| 3.8 | Cart Application Use Cases — 11 commands, 2 queries, 13 handlers, ownership, Domain/Catalog/Store coordination | Implemented |
+| 3.9 | Cart API — CartController, request/response DTOs, guest/auth endpoints, ProblemDetails, Swagger | Implemented |
+| 3.10 | Localization & Error Handling — 16 Cart keys, 12 error codes, ErrorCodeLocalizer, Arabic/English parity | Implemented |
+| 3.11 | Testing & Hardening — 722 Cart tests (509 unit + 178 integration + 35 architecture) | Implemented |
+| 3.12 | Documentation & Closure — PROJECT_CONTEXT sync, Architecture review, Swagger review, Phase 4 readiness | Implemented |
+
+**Key decisions (Cart architecture).**
+
+- Redis is the primary Cart persistence — no SQL schema/EF migrations for Cart state.
+- Cart owns temporary shopping state; Catalog owns product state; Orders will own order state.
+- Guest Cart identity is an opaque, non-sequential CartId; Authenticated Cart uses ICurrentUser.
+- Cart Merge is Guest → Authenticated only; merge is idempotent, atomic (target persist + source consume), and concurrency-safe.
+- Catalog integration uses explicit contract (`ICatalogVariantCartLookup`) — zero CatalogDbContext dependency.
+- Cart snapshots (ProductId, SKU, ProductName, UnitPrice, Currency) come from Catalog at add-time; Cart price is a temporary snapshot, not final order price.
+- Optimistic concurrency via Cart version + Redis CAS; all mutations validate expected version.
+- Single batch Catalog call per add/merge (no N+1); malformed Catalog results fail safely.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 74/74, Unit tests 1,259/1,259, Integration tests 178/178; Cart-specific: 509 unit + 178 integration + 35 architecture = 722 green.
+
+**Deferred.** Cart expiration background worker (Redis TTL handles it), Inventory reservation (Phase 5), Final pricing/checkout (Phase 4), RabbitMQ/Outbox events (Phase 6), Wishlist (future phase).
 
 ---
 
@@ -1820,6 +1858,7 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_1_IDENTITY_ACCESS.md
         PHASE_1_5_RUNTIME_PREPARATION.md
         PHASE_2_CATALOG_MODULE.md
+        PHASE_3_CART_MODULE.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md

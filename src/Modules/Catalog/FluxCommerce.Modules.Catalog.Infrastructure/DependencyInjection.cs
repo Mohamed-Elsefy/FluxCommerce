@@ -36,6 +36,8 @@ using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductSpecificati
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Interfaces;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetAttributeDefinition;
+using FluxCommerce.Modules.Catalog.Application.Services;
+using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProduct;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetProductAttributeValue;
@@ -82,6 +84,8 @@ public static class DependencyInjection
         services.AddScoped<IAttributeDefinitionRepository, AttributeDefinitionRepository>();
 
         services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
+
+        services.AddScoped<ICatalogVariantCartLookup, CatalogVariantCartLookup>();
 
         services.AddScoped<ICommandHandler<CreateCategoryCommand, Result<Guid>>, CreateCategoryCommandHandler>();
 

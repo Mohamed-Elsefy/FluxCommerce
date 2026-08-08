@@ -80,7 +80,7 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
 
         services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
-        services.AddCartInfrastructure(GetConnectionString(configuration, "Cart"));
+        services.AddCartInfrastructure(configuration);
         services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
         services.AddInventoryInfrastructure(GetConnectionString(configuration, "Inventory"));
         services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));

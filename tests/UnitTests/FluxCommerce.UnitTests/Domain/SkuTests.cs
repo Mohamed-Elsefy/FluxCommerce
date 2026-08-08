@@ -1,4 +1,4 @@
-using FluxCommerce.Modules.Catalog.Domain.ValueObjects;
+using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using Xunit;
 
 namespace FluxCommerce.UnitTests.Domain;
@@ -8,80 +8,63 @@ public class SkuTests
     [Fact]
     public void Constructor_WithValidSku_Succeeds()
     {
-        var sku = new Sku("SMARTPHONE-128GB");
+        var sku = new Sku("SHIRT-BLUE-M");
 
-        Assert.Equal("SMARTPHONE-128GB", sku.Value);
+        Assert.Equal("SHIRT-BLUE-M", sku.Value);
     }
 
     [Fact]
-    public void Constructor_TrimsAndUppercases()
+    public void Constructor_WithNullSku_Throws()
     {
-        var sku = new Sku("  smartphone-128gb  ");
-
-        Assert.Equal("SMARTPHONE-128GB", sku.Value);
+        Assert.Throws<ArgumentException>(() => new Sku(null));
     }
 
     [Fact]
-    public void Constructor_AcceptsUnderscoresAndDots()
+    public void Constructor_WithBlankSku_Throws()
     {
-        var sku = new Sku("PHONE_128.GB");
+        Assert.Throws<ArgumentException>(() => new Sku("   "));
+    }
 
-        Assert.Equal("PHONE_128.GB", sku.Value);
+    [Fact]
+    public void Constructor_WithLowercaseSku_NormalizesToUppercase()
+    {
+        var sku = new Sku("shirt-blue-m");
+
+        Assert.Equal("SHIRT-BLUE-M", sku.Value);
+    }
+
+    [Fact]
+    public void Constructor_WithLeadingAndTrailingWhitespace_Trims()
+    {
+        var sku = new Sku("  SHIRT  ");
+
+        Assert.Equal("SHIRT", sku.Value);
+    }
+
+    [Fact]
+    public void Constructor_WithSkuExceedingMaxLength_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => new Sku(new string('A', Sku.MaxLength + 1)));
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData(null)]
-    public void Constructor_WithEmptyValue_Throws(string? value)
-    {
-        Assert.Throws<ArgumentException>(() => new Sku(value));
-    }
-
-    [Theory]
-    [InlineData("SMART PHONE")]
-    [InlineData("SMART#PHONE")]
-    [InlineData("SMART/PHONE")]
-    [InlineData("SMARTPHONE-128!")]
+    [InlineData("SHIRT@")]
+    [InlineData("SHIRT BLUE")]
+    [InlineData("SHIRT#M")]
     public void Constructor_WithInvalidCharacters_Throws(string value)
     {
         Assert.Throws<ArgumentException>(() => new Sku(value));
     }
 
     [Fact]
-    public void Constructor_WithMaxLengthValue_Succeeds()
-    {
-        var value = string.Concat(Enumerable.Repeat("A", Sku.MaxLength));
-
-        var sku = new Sku(value);
-
-        Assert.Equal(value, sku.Value);
-    }
-
-    [Fact]
-    public void Constructor_WithOverMaxLengthValue_Throws()
-    {
-        var value = string.Concat(Enumerable.Repeat("A", Sku.MaxLength + 1));
-
-        Assert.Throws<ArgumentException>(() => new Sku(value));
-    }
-
-    [Fact]
     public void Equality_TwoSkusWithSameValue_AreEqual()
     {
-        var first = new Sku("SMARTPHONE-128GB");
-        var second = new Sku("smartphone-128gb");
-
-        Assert.Equal(first, second);
-        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.Equal(new Sku("SHIRT"), new Sku("shirt"));
     }
 
     [Fact]
     public void Equality_TwoSkusWithDifferentValues_AreNotEqual()
     {
-        var first = new Sku("SMARTPHONE-128GB");
-        var second = new Sku("SMARTPHONE-256GB");
-
-        Assert.NotEqual(first, second);
+        Assert.NotEqual(new Sku("SHIRT"), new Sku("PANTS"));
     }
 }

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
       <PrivateAssets>all</PrivateAssets>
@@ -12,10 +13,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Localization\FluxCommerce.BuildingBlocks.Localization.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Application\FluxCommerce.Modules.Catalog.Application.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Catalog\FluxCommerce.Modules.Catalog.Domain\FluxCommerce.Modules.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Cart\FluxCommerce.Modules.Cart.Infrastructure\FluxCommerce.Modules.Cart.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Application\FluxCommerce.Modules.Identity.Application.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
