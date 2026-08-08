@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Errors;
+﻿using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
@@ -13,8 +13,8 @@ namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
 /// Exercises the complete Guest Cart lifecycle end to end against real Redis:
-/// create → retrieve → add → verify → update → verify → remove → verify → add again → clear
-/// → verify empty → expire → behaves as missing → explicit re-creation.
+/// create â†’ retrieve â†’ add â†’ verify â†’ update â†’ verify â†’ remove â†’ verify â†’ add again â†’ clear
+/// â†’ verify empty â†’ expire â†’ behaves as missing â†’ explicit re-creation.
 /// </summary>
 [Collection(RedisCartTestCollection.Name)]
 public class GuestCartLifecycleRedisIntegrationTests
@@ -32,7 +32,7 @@ public class GuestCartLifecycleRedisIntegrationTests
         var store = _fixture.CreateStore(defaultTtlMinutes: 1);
         var create = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var get = new GetGuestCartQueryHandler(store);
-        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var update = new UpdateGuestCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var remove = new RemoveGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var clear = new ClearGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
@@ -58,12 +58,12 @@ public class GuestCartLifecycleRedisIntegrationTests
         var variantA = Guid.NewGuid();
         var variantB = Guid.NewGuid();
         var addA = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartId, variantA, Guid.NewGuid(), "SKU-A", "Product A", 10.00m, "USD", 2),
+            new AddGuestCartItemCommand(cartId, variantA, 10.00m, "USD", 2),
             CancellationToken.None);
         Assert.True(addA.IsSuccess);
         Assert.Equal(2, addA.Value!.Version);
         var addB = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartId, variantB, Guid.NewGuid(), "SKU-B", "Product B", 20.00m, "USD", 1),
+            new AddGuestCartItemCommand(cartId, variantB, 20.00m, "USD", 1),
             CancellationToken.None);
         Assert.True(addB.IsSuccess);
         Assert.Equal(3, addB.Value!.Version);
@@ -96,7 +96,7 @@ public class GuestCartLifecycleRedisIntegrationTests
 
         // 10. Add items again.
         var reAdd = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartId, variantA, Guid.NewGuid(), "SKU-A", "Product A", 10.00m, "USD", 3),
+            new AddGuestCartItemCommand(cartId, variantA, 10.00m, "USD", 3),
             CancellationToken.None);
         Assert.True(reAdd.IsSuccess);
         Assert.Equal(6, reAdd.Value!.Version);
@@ -127,7 +127,7 @@ public class GuestCartLifecycleRedisIntegrationTests
 
         // Expired Cart is not resurrected by mutations.
         var addAfterExpiry = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartId, Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1),
+            new AddGuestCartItemCommand(cartId, Guid.NewGuid(), 1m, "USD", 1),
             CancellationToken.None);
         Assert.True(addAfterExpiry.IsFailure);
         Assert.Equal("Cart.CartNotFound", addAfterExpiry.Error.Code);

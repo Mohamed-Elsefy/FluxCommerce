@@ -432,4 +432,52 @@
   <data name="Catalog.InvalidImageOrder" xml:space="preserve">
     <value>ترتيب الصور المطلوب غير صالح.</value>
   </data>
+  <data name="Cart.InvalidQuantity" xml:space="preserve">
+    <value>يجب أن تكون كمية عنصر السلة عددًا صحيحًا موجبًا.</value>
+  </data>
+  <data name="Cart.QuantityLimitExceeded" xml:space="preserve">
+    <value>تتجاوز كمية عنصر السلة الحد الأقصى المسموح به.</value>
+  </data>
+  <data name="Cart.CartItemNotFound" xml:space="preserve">
+    <value>لا تحتوي السلة على عنصر للنوع البديل المحدد.</value>
+  </data>
+  <data name="Cart.CartNotFound" xml:space="preserve">
+    <value>لم يتم العثور على السلة.</value>
+  </data>
+  <data name="Cart.CartAccessDenied" xml:space="preserve">
+    <value>لا يمكن الوصول إلى السلة باستخدام المعرف المقدم.</value>
+  </data>
+  <data name="Cart.CartConcurrencyConflict" xml:space="preserve">
+    <value>تم تعديل السلة من قبل طلب آخر. أعد تحميل السلة وحاول مرة أخرى.</value>
+  </data>
+  <data name="Cart.InvalidCartItem" xml:space="preserve">
+    <value>بيانات عنصر السلة غير صالحة.</value>
+  </data>
+  <data name="Cart.InvalidCartId" xml:space="preserve">
+    <value>مطلوب معرّف سلة صالح.</value>
+  </data>
+  <data name="Cart.AuthenticationRequired" xml:space="preserve">
+    <value>مطلوب المصادقة للوصول إلى سلة المستخدم.</value>
+  </data>
+  <data name="Cart.VariantNotFound" xml:space="preserve">
+    <value>لم يتم العثور على النوع البديل.</value>
+  </data>
+  <data name="Cart.VariantUnavailable" xml:space="preserve">
+    <value>النوع البديل غير متاح للشراء.</value>
+  </data>
+  <data name="Cart.CatalogOperationFailed" xml:space="preserve">
+    <value>تعذر التحقق من النوع البديل. حاول مرة أخرى.</value>
+  </data>
+  <data name="Validation.Fields.Quantity" xml:space="preserve">
+    <value>الكمية</value>
+  </data>
+  <data name="Validation.Fields.CartId" xml:space="preserve">
+    <value>معرّف السلة</value>
+  </data>
+  <data name="Validation.Fields.Currency" xml:space="preserve">
+    <value>العملة</value>
+  </data>
+  <data name="Validation.Fields.UnitPriceAmount" xml:space="preserve">
+    <value>مبلغ السعر للوحدة</value>
+  </data>
 </root>

@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Errors;
+﻿using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
@@ -12,7 +12,7 @@ using Xunit;
 namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
-/// Phase 3.6.2: Guest → Authenticated merge against real Redis. Verifies source/target ownership
+/// Phase 3.6.2: Guest â†’ Authenticated merge against real Redis. Verifies source/target ownership
 /// validation, add-missing / sum-duplicate / no-duplicate-item semantics, implicit target creation,
 /// quantity invariants, atomic persistence AND Guest source consumption through
 /// ICartStore.MergeAndConsumeAsync, logical idempotency (a consumed Guest Cart can never be
@@ -36,18 +36,18 @@ public class MergeCartRedisIntegrationTests
         var userId = Guid.NewGuid();
         var currentUser = CreateUser(userId);
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
         var targetCartId = created.Value!.CartId;
         var guestItem = (await store.GetAsync(guestCartId))!.Items[0];
         await add.HandleAsync(new AddAuthenticatedCartItemCommand(
-            guestItem.VariantId.Value, guestItem.ProductId.Value, guestItem.Sku.Value, guestItem.ProductName,
-            guestItem.UnitPrice.Amount, guestItem.UnitPrice.Currency, 3), CancellationToken.None);
+            guestItem.VariantId.Value, guestItem.UnitPrice.Amount, guestItem.UnitPrice.Currency, 3),
+            CancellationToken.None);
 
         var before = (await store.GetAsync(targetCartId))!;
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -57,7 +57,7 @@ public class MergeCartRedisIntegrationTests
         Assert.Equal(before.Version + 1, merged.Version);
         var mergedItem = Assert.Single(merged.Items);
         Assert.Equal(guestItem.VariantId, mergedItem.VariantId);
-        Assert.Equal(5, mergedItem.Quantity); // 3 + 2 → Phase 3 duplicate rule.
+        Assert.Equal(5, mergedItem.Quantity); // 3 + 2 â†’ Phase 3 duplicate rule.
 
         // The merge is persisted, not just returned.
         var persisted = (await store.GetAsync(targetCartId))!;
@@ -75,7 +75,7 @@ public class MergeCartRedisIntegrationTests
         var guestCartId = await CreateGuestCartWithItemAsync(store);
         var userId = Guid.NewGuid();
         var currentUser = CreateUser(userId);
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
@@ -103,9 +103,9 @@ public class MergeCartRedisIntegrationTests
         var store = _fixture.CreateStore();
         var guestCartId = await CreateGuestCartWithItemAsync(store);
         var guestItemA = (await store.GetAsync(guestCartId))!.Items.Single();
-        var addGuest = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var addGuest = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var second = await addGuest.HandleAsync(new AddGuestCartItemCommand(
-            guestCartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-2002", "Mechanical Keyboard", 79.99m, "USD", 1),
+            guestCartId.Value, Guid.NewGuid(), 79.99m, "USD", 1),
             CancellationToken.None);
         Assert.True(second.IsSuccess);
         var guestItems = (await store.GetAsync(guestCartId))!.Items;
@@ -118,12 +118,12 @@ public class MergeCartRedisIntegrationTests
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         // The user Cart already holds the same variant A (3) plus an unrelated variant C (4).
         await add.HandleAsync(new AddAuthenticatedCartItemCommand(
-            guestItemA.VariantId.Value, guestItemA.ProductId.Value, guestItemA.Sku.Value, guestItemA.ProductName,
-            guestItemA.UnitPrice.Amount, guestItemA.UnitPrice.Currency, 3), CancellationToken.None);
+            guestItemA.VariantId.Value, guestItemA.UnitPrice.Amount, guestItemA.UnitPrice.Currency, 3),
+            CancellationToken.None);
         var variantC = new CartItemState(
             new ProductId(Guid.NewGuid()),
             new VariantId(Guid.NewGuid()),
@@ -132,10 +132,10 @@ public class MergeCartRedisIntegrationTests
             new Money(9.99m, "USD"),
             4);
         await add.HandleAsync(new AddAuthenticatedCartItemCommand(
-            variantC.VariantId.Value, variantC.ProductId.Value, variantC.Sku.Value, variantC.ProductName,
-            variantC.UnitPrice.Amount, variantC.UnitPrice.Currency, variantC.Quantity), CancellationToken.None);
+            variantC.VariantId.Value, variantC.UnitPrice.Amount, variantC.UnitPrice.Currency, variantC.Quantity),
+            CancellationToken.None);
 
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -159,7 +159,7 @@ public class MergeCartRedisIntegrationTests
         var guestCartId = await CreateGuestCartWithItemAsync(store);
         var userId = Guid.NewGuid();
         var currentUser = CreateUser(userId);
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var first = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
         Assert.True(first.IsSuccess);
@@ -186,7 +186,7 @@ public class MergeCartRedisIntegrationTests
         var firstGuestItem = (await store.GetAsync(firstGuestCartId))!.Items.Single();
         var userId = Guid.NewGuid();
         var currentUser = CreateUser(userId);
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var first = await merge.HandleAsync(new MergeCartCommand(firstGuestCartId.Value), CancellationToken.None);
         Assert.True(first.IsSuccess);
@@ -216,7 +216,7 @@ public class MergeCartRedisIntegrationTests
         var store = _fixture.CreateStore();
         var userId = Guid.NewGuid();
         var currentUser = CreateUser(userId);
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var result = await merge.HandleAsync(new MergeCartCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -233,16 +233,16 @@ public class MergeCartRedisIntegrationTests
         var sourceUserId = Guid.NewGuid();
         var sourceUser = CreateUser(sourceUserId);
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), sourceUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), sourceUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), sourceUser, FakeCatalogVariantCartLookup.Available());
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
         var sourceCartId = created.Value!.CartId;
         await add.HandleAsync(new AddAuthenticatedCartItemCommand(
-            Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 10m, "USD", 1), CancellationToken.None);
+            Guid.NewGuid(), 10m, "USD", 1), CancellationToken.None);
 
         var mergeUserId = Guid.NewGuid();
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(mergeUserId));
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(mergeUserId), FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(sourceCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -270,7 +270,7 @@ public class MergeCartRedisIntegrationTests
         var targetCartId = created.Value!.CartId;
         var before = (await store.GetAsync(targetCartId))!;
 
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -306,7 +306,7 @@ public class MergeCartRedisIntegrationTests
         var seed = await store.SaveAsync(seeded, expectedVersion: targetBefore.Version);
         Assert.Equal(CartSaveStatus.Success, seed.Status);
 
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -346,7 +346,7 @@ public class MergeCartRedisIntegrationTests
         var seed = await store.SaveAsync(seeded, expectedVersion: targetBefore.Version);
         Assert.Equal(CartSaveStatus.Success, seed.Status);
 
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -393,15 +393,15 @@ public class MergeCartRedisIntegrationTests
         Assert.True(otherCreated.IsSuccess);
         _fixture.Track(otherCreated.Value!);
         var otherCartId = otherCreated.Value!.CartId;
-        var otherAdd = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), otherUser);
+        var otherAdd = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), otherUser, FakeCatalogVariantCartLookup.Available());
         var otherAdded = await otherAdd.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-O", "Other Product", 7m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 7m, "USD", 1),
             CancellationToken.None);
         Assert.True(otherAdded.IsSuccess);
 
         // A different authenticated user merges the Guest Cart.
         var mergeUserId = Guid.NewGuid();
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(mergeUserId));
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(mergeUserId), FakeCatalogVariantCartLookup.Available());
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -419,7 +419,7 @@ public class MergeCartRedisIntegrationTests
         // Regression for the concurrent double-apply race: the atomic merge script must verify the
         // Guest source is still present and unchanged at commit time, so a merge that read the
         // source before the winner consumed it can never commit against a target that already
-        // contains the same Guest quantities (A×3 target + 7 × A×2 guest would otherwise be A×17).
+        // contains the same Guest quantities (AÃ—3 target + 7 Ã— AÃ—2 guest would otherwise be AÃ—17).
         var store = _fixture.CreateStore();
         var guestCartId = await CreateGuestCartWithItemAsync(store);
         var guestItem = (await store.GetAsync(guestCartId))!.Items[0];
@@ -429,10 +429,10 @@ public class MergeCartRedisIntegrationTests
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var seeded = await add.HandleAsync(new AddAuthenticatedCartItemCommand(
-            guestItem.VariantId.Value, guestItem.ProductId.Value, guestItem.Sku.Value, guestItem.ProductName,
-            guestItem.UnitPrice.Amount, guestItem.UnitPrice.Currency, 3), CancellationToken.None);
+            guestItem.VariantId.Value, guestItem.UnitPrice.Amount, guestItem.UnitPrice.Currency, 3),
+            CancellationToken.None);
         Assert.True(seeded.IsSuccess);
 
         // 7 concurrent merges of the same Guest Cart against the same target. Exactly one can
@@ -440,7 +440,7 @@ public class MergeCartRedisIntegrationTests
         // presence/version, so the Guest quantities are applied exactly once.
         var writers = Enumerable
             .Range(0, 7)
-            .Select(_ => new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser));
+            .Select(_ => new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available()));
         var results = await Task.WhenAll(
             writers.Select(writer => writer.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None)));
 
@@ -452,7 +452,7 @@ public class MergeCartRedisIntegrationTests
                 r.Error!.Code,
                 new[] { "Cart.CartConcurrencyConflict", "Cart.CartNotFound" }));
 
-        // The Guest quantities are applied exactly once: A(3) + A(2) = A(5), never A(3) + 7 × A(2).
+        // The Guest quantities are applied exactly once: A(3) + A(2) = A(5), never A(3) + 7 Ã— A(2).
         var persisted = (await store.GetByUserIdAsync(userId))!;
         _fixture.Track(persisted);
         Assert.Single(persisted.Items);
@@ -477,9 +477,9 @@ public class MergeCartRedisIntegrationTests
 
         // The Guest Cart is mutated AFTER the expected source version was captured, which is the
         // persistence-level shape of a concurrent guest mutation during the merge.
-        var addGuest = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var addGuest = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var mutated = await addGuest.HandleAsync(new AddGuestCartItemCommand(
-            guestCartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-EXTRA", "Extra", 5m, "USD", 1),
+            guestCartId.Value, Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(mutated.IsSuccess);
         Assert.NotEqual(guestBefore.Version, (await store.GetAsync(guestCartId))!.Version);
@@ -540,7 +540,7 @@ public class MergeCartRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var guestCartId = await CreateGuestCartWithItemAsync(store);
-        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(null));
+        var merge = new MergeCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(null), FakeCatalogVariantCartLookup.Available());
 
         var result = await merge.HandleAsync(new MergeCartCommand(guestCartId.Value), CancellationToken.None);
 
@@ -558,9 +558,9 @@ public class MergeCartRedisIntegrationTests
         _fixture.Track(created.Value!);
         var cartId = created.Value!.CartId;
 
-        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var added = await add.HandleAsync(new AddGuestCartItemCommand(
-            cartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-1001", "Wireless Mouse", 24.99m, "USD", 2),
+            cartId.Value, Guid.NewGuid(), 24.99m, "USD", 2),
             CancellationToken.None);
         Assert.True(added.IsSuccess);
 

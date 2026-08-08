@@ -1,4 +1,4 @@
-using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
+﻿using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveAuthenticatedCartItem;
@@ -13,8 +13,8 @@ namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
 /// Phase 3.5.3 verification: the complete authenticated Cart lifecycle exercised against real Redis
-/// with a real retrieval after every mutation (create → retrieve → add → retrieve → update →
-/// retrieve → remove → retrieve → add again → clear → retrieve empty), plus a concurrent-mutation
+/// with a real retrieval after every mutation (create â†’ retrieve â†’ add â†’ retrieve â†’ update â†’
+/// retrieve â†’ remove â†’ retrieve â†’ add again â†’ clear â†’ retrieve empty), plus a concurrent-mutation
 /// test proving the existing optimistic-concurrency mechanism prevents lost updates when two
 /// authenticated writers attempt to persist the same base version.
 /// </summary>
@@ -36,7 +36,7 @@ public class AuthenticatedCartLifecycleVerificationRedisIntegrationTests
         var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
         var get = new GetAuthenticatedCartQueryHandler(store, currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var update = new UpdateAuthenticatedCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
         var remove = new RemoveAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
         var clear = new ClearAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
@@ -58,7 +58,7 @@ public class AuthenticatedCartLifecycleVerificationRedisIntegrationTests
         // 4. Add an item.
         var variantX = Guid.NewGuid();
         var added = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantX, Guid.NewGuid(), "SKU-X", "Product X", 10.00m, "USD", 2),
+            new AddAuthenticatedCartItemCommand(variantX, 10.00m, "USD", 2),
             CancellationToken.None);
         Assert.True(added.IsSuccess);
 
@@ -91,11 +91,11 @@ public class AuthenticatedCartLifecycleVerificationRedisIntegrationTests
         // 10. Add items again (two distinct variants).
         var variantY = Guid.NewGuid();
         var reAddX = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantX, Guid.NewGuid(), "SKU-X", "Product X", 10.00m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(variantX, 10.00m, "USD", 1),
             CancellationToken.None);
         Assert.True(reAddX.IsSuccess);
         var reAddY = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantY, Guid.NewGuid(), "SKU-Y", "Product Y", 7.50m, "USD", 3),
+            new AddAuthenticatedCartItemCommand(variantY, 7.50m, "USD", 3),
             CancellationToken.None);
         Assert.True(reAddY.IsSuccess);
         Assert.Equal(2, reAddY.Value!.Items.Count);
@@ -120,14 +120,14 @@ public class AuthenticatedCartLifecycleVerificationRedisIntegrationTests
         var userId = Guid.NewGuid();
         var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
         var baseVariant = Guid.NewGuid();
         var seeded = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(baseVariant, Guid.NewGuid(), "SKU-BASE", "Base Product", 1m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(baseVariant, 1m, "USD", 1),
             CancellationToken.None);
         Assert.True(seeded.IsSuccess);
 
@@ -139,21 +139,23 @@ public class AuthenticatedCartLifecycleVerificationRedisIntegrationTests
         var writerA = new AddAuthenticatedCartItemCommandHandler(
             new StaleUserIndexStore(store, stale),
             FixedDateTimeProvider.CreateDefault(),
-            currentUser);
+            currentUser,
+            FakeCatalogVariantCartLookup.Available());
         var writerB = new AddAuthenticatedCartItemCommandHandler(
             new StaleUserIndexStore(store, stale),
             FixedDateTimeProvider.CreateDefault(),
-            currentUser);
+            currentUser,
+            FakeCatalogVariantCartLookup.Available());
 
         var variantA = Guid.NewGuid();
         var variantB = Guid.NewGuid();
 
         var results = await Task.WhenAll(
             writerA.HandleAsync(
-                new AddAuthenticatedCartItemCommand(variantA, Guid.NewGuid(), "SKU-A", "Writer A", 2m, "USD", 1),
+                new AddAuthenticatedCartItemCommand(variantA, 2m, "USD", 1),
                 CancellationToken.None),
             writerB.HandleAsync(
-                new AddAuthenticatedCartItemCommand(variantB, Guid.NewGuid(), "SKU-B", "Writer B", 3m, "USD", 1),
+                new AddAuthenticatedCartItemCommand(variantB, 3m, "USD", 1),
                 CancellationToken.None));
 
         // Exactly one mutation wins; the other reports the existing concurrency conflict.

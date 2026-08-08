@@ -1,4 +1,4 @@
-using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
+﻿using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
@@ -38,21 +38,21 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         var currentUserB = new FakeCurrentUser { UserId = userB, IsAuthenticated = true };
 
         var createA = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA);
-        var addA = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA);
+        var addA = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA, FakeCatalogVariantCartLookup.Available());
         var createdA = await createA.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(createdA.IsSuccess);
         _fixture.Track(createdA.Value!);
         var cartA = createdA.Value!;
         var variantInA = Guid.NewGuid();
         var addAResult = await addA.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantInA, Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(variantInA, 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addAResult.IsSuccess);
         var cartABefore = (await store.GetAsync(cartA.CartId))!;
 
         // User B has no active Cart: retrieval and every mutation resolve B's own (missing) index.
         var getB = new GetAuthenticatedCartQueryHandler(store, currentUserB);
-        var addB = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
+        var addB = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB, FakeCatalogVariantCartLookup.Available());
         var updateB = new UpdateAuthenticatedCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
         var removeB = new RemoveAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
         var clearB = new ClearAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
@@ -60,7 +60,7 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         var results = new[]
         {
             (await getB.HandleAsync(new GetAuthenticatedCartQuery(), CancellationToken.None)).Error?.Code,
-            (await addB.HandleAsync(new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1), CancellationToken.None)).Error?.Code,
+            (await addB.HandleAsync(new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 1m, "USD", 1), CancellationToken.None)).Error?.Code,
             (await updateB.HandleAsync(new UpdateAuthenticatedCartItemQuantityCommand(variantInA, 5), CancellationToken.None)).Error?.Code,
             (await removeB.HandleAsync(new RemoveAuthenticatedCartItemCommand(variantInA), CancellationToken.None)).Error?.Code,
             (await clearB.HandleAsync(new ClearAuthenticatedCartCommand(), CancellationToken.None)).Error?.Code,
@@ -79,22 +79,22 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         var userId = Guid.NewGuid();
         var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
         var cartId = created.Value!.CartId.Value;
         var addResult = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addResult.IsSuccess);
 
-        var guestAdd = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var guestAdd = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var guestGet = new GetGuestCartQueryHandler(store);
 
         var addCode = (await guestAdd.HandleAsync(
-            new AddGuestCartItemCommand(cartId, Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1),
+            new AddGuestCartItemCommand(cartId, Guid.NewGuid(), 1m, "USD", 1),
             CancellationToken.None)).Error?.Code;
         var getCode = (await guestGet.HandleAsync(new GetGuestCartQuery(cartId), CancellationToken.None)).Error?.Code;
 
@@ -135,8 +135,8 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
 
         var createA = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA);
         var createB = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
-        var addA = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA);
-        var addB = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
+        var addA = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA, FakeCatalogVariantCartLookup.Available());
+        var addB = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB, FakeCatalogVariantCartLookup.Available());
         var getA = new GetAuthenticatedCartQueryHandler(store, currentUserA);
         var getB = new GetAuthenticatedCartQueryHandler(store, currentUserB);
 
@@ -146,7 +146,7 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         _fixture.Track(createdA.Value!);
         var variantInA = Guid.NewGuid();
         var addAResult = await addA.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantInA, Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(variantInA, 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addAResult.IsSuccess);
 
@@ -155,7 +155,7 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         _fixture.Track(createdB.Value!);
         var variantInB = Guid.NewGuid();
         var addBResult = await addB.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantInB, Guid.NewGuid(), "SKU-B", "Product B", 9m, "USD", 2),
+            new AddAuthenticatedCartItemCommand(variantInB, 9m, "USD", 2),
             CancellationToken.None);
         Assert.True(addBResult.IsSuccess);
 
@@ -191,13 +191,13 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         var currentUserB = new FakeCurrentUser { UserId = userB, IsAuthenticated = true };
 
         var createA = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA);
-        var addA = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA);
+        var addA = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserA, FakeCatalogVariantCartLookup.Available());
         var createdA = await createA.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(createdA.IsSuccess);
         _fixture.Track(createdA.Value!);
         var variantInA = Guid.NewGuid();
         var addAResult = await addA.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantInA, Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(variantInA, 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addAResult.IsSuccess);
         var cartA = createdA.Value!;
@@ -209,7 +209,7 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         await _fixture.Database.StringSetAsync(_fixture.UserKey(userB), cartA.CartId.Value.ToString("D"));
 
         var getB = new GetAuthenticatedCartQueryHandler(store, currentUserB);
-        var addB = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
+        var addB = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB, FakeCatalogVariantCartLookup.Available());
         var updateB = new UpdateAuthenticatedCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
         var removeB = new RemoveAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
         var clearB = new ClearAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUserB);
@@ -217,7 +217,7 @@ public class AuthenticatedCartOwnershipRedisIntegrationTests
         var results = new[]
         {
             (await getB.HandleAsync(new GetAuthenticatedCartQuery(), CancellationToken.None)).Error?.Code,
-            (await addB.HandleAsync(new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1), CancellationToken.None)).Error?.Code,
+            (await addB.HandleAsync(new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 1m, "USD", 1), CancellationToken.None)).Error?.Code,
             (await updateB.HandleAsync(new UpdateAuthenticatedCartItemQuantityCommand(variantInA, 5), CancellationToken.None)).Error?.Code,
             (await removeB.HandleAsync(new RemoveAuthenticatedCartItemCommand(variantInA), CancellationToken.None)).Error?.Code,
             (await clearB.HandleAsync(new ClearAuthenticatedCartCommand(), CancellationToken.None)).Error?.Code,

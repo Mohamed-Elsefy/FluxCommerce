@@ -24,6 +24,9 @@ public static class CartErrorMapper
             "Cart.InvalidCartItem" => Error.Validation(error.Code, error.Description),
             "Cart.InvalidCartId" => Error.Validation(error.Code, error.Description),
             "Cart.AuthenticationRequired" => Error.Unauthorized(error.Code, error.Description),
+            "Cart.VariantNotFound" => Error.NotFound(error.Code, error.Description),
+            "Cart.VariantUnavailable" => Error.NotFound(error.Code, error.Description),
+            "Cart.CatalogOperationFailed" => Error.Failure(error.Code, error.Description),
             _ => Error.Validation(error.Code, error.Description),
         };
     }

@@ -19,6 +19,17 @@ public class CartArchitectureTests
             {
                 foreach (var layer in new[] { "Domain", "Application", "Infrastructure", "Contracts" })
                 {
+                    // Phase 3.7 boundary: Cart.Application is allowed to depend on the approved
+                    // cross-module Catalog contract (FluxCommerce.Modules.Catalog.Contracts) — the
+                    // ONLY Catalog boundary Cart may cross. All other module references remain
+                    // forbidden.
+                    if (module == "Catalog"
+                        && layer == "Contracts"
+                        && assembly.GetName().Name == "FluxCommerce.Modules.Cart.Application")
+                    {
+                        continue;
+                    }
+
                     AssertNoDependencies(
                         assembly,
                         $"FluxCommerce.Modules.{module}.{layer}",

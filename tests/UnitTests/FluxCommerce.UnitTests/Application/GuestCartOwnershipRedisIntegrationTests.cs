@@ -1,4 +1,4 @@
-using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
+﻿using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
@@ -29,7 +29,7 @@ public class GuestCartOwnershipRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var create = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var update = new UpdateGuestCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var remove = new RemoveGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var clear = new ClearGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
@@ -41,7 +41,7 @@ public class GuestCartOwnershipRedisIntegrationTests
         var cartA = a.Value!;
         var variantInA = Guid.NewGuid();
         var addA = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartA.CartId.Value, variantInA, Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddGuestCartItemCommand(cartA.CartId.Value, variantInA, 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addA.IsSuccess);
 
@@ -52,14 +52,14 @@ public class GuestCartOwnershipRedisIntegrationTests
         var cartB = b.Value!;
         var variantInB = Guid.NewGuid();
         var addB = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartB.CartId.Value, variantInB, Guid.NewGuid(), "SKU-B", "Product B", 5m, "USD", 1),
+            new AddGuestCartItemCommand(cartB.CartId.Value, variantInB, 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addB.IsSuccess);
         var cartBBefore = (await store.GetAsync(cartB.CartId))!;
 
         // Guest A mutates BOTH carts with its own identifier: B must be completely unaffected.
         var mutatingB = await add.HandleAsync(
-            new AddGuestCartItemCommand(cartA.CartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1),
+            new AddGuestCartItemCommand(cartA.CartId.Value, Guid.NewGuid(), 1m, "USD", 1),
             CancellationToken.None);
         Assert.True(mutatingB.IsSuccess);
         var cartBAfterAdd = (await store.GetAsync(cartB.CartId))!;
@@ -69,7 +69,7 @@ public class GuestCartOwnershipRedisIntegrationTests
         var wrongIdentifier = Guid.NewGuid();
         var results = new[]
         {
-            (await add.HandleAsync(new AddGuestCartItemCommand(wrongIdentifier, Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1), CancellationToken.None)).Error?.Code,
+            (await add.HandleAsync(new AddGuestCartItemCommand(wrongIdentifier, Guid.NewGuid(), 1m, "USD", 1), CancellationToken.None)).Error?.Code,
             (await update.HandleAsync(new UpdateGuestCartItemQuantityCommand(wrongIdentifier, variantInB, 5), CancellationToken.None)).Error?.Code,
             (await remove.HandleAsync(new RemoveGuestCartItemCommand(wrongIdentifier, variantInB), CancellationToken.None)).Error?.Code,
             (await clear.HandleAsync(new ClearGuestCartCommand(wrongIdentifier), CancellationToken.None)).Error?.Code,
@@ -86,7 +86,7 @@ public class GuestCartOwnershipRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var create = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var update = new UpdateGuestCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var remove = new RemoveGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
         var clear = new ClearGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
@@ -100,7 +100,7 @@ public class GuestCartOwnershipRedisIntegrationTests
 
         var results = new[]
         {
-            (await add.HandleAsync(new AddGuestCartItemCommand(cartId, Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1), CancellationToken.None)).Error?.Code,
+            (await add.HandleAsync(new AddGuestCartItemCommand(cartId, Guid.NewGuid(), 1m, "USD", 1), CancellationToken.None)).Error?.Code,
             (await update.HandleAsync(new UpdateGuestCartItemQuantityCommand(cartId, variantId, 5), CancellationToken.None)).Error?.Code,
             (await remove.HandleAsync(new RemoveGuestCartItemCommand(cartId, variantId), CancellationToken.None)).Error?.Code,
             (await clear.HandleAsync(new ClearGuestCartCommand(cartId), CancellationToken.None)).Error?.Code,
@@ -117,7 +117,7 @@ public class GuestCartOwnershipRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var create = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
 
         var a = await create.HandleAsync(new CreateGuestCartCommand(), CancellationToken.None);
         var b = await create.HandleAsync(new CreateGuestCartCommand(), CancellationToken.None);
@@ -127,10 +127,10 @@ public class GuestCartOwnershipRedisIntegrationTests
         _fixture.Track(b.Value!);
 
         var addA = await add.HandleAsync(
-            new AddGuestCartItemCommand(a.Value!.CartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddGuestCartItemCommand(a.Value!.CartId.Value, Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
         var addB = await add.HandleAsync(
-            new AddGuestCartItemCommand(b.Value!.CartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-B", "Product B", 5m, "USD", 1),
+            new AddGuestCartItemCommand(b.Value!.CartId.Value, Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
 
         Assert.True(addA.IsSuccess);

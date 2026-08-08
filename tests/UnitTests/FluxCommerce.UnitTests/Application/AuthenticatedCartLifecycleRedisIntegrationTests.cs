@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Errors;
+﻿using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
@@ -15,7 +15,7 @@ namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
 /// Exercises the complete authenticated Cart lifecycle end to end against real Redis:
-/// create → retrieve → add → update → remove → add again → clear, plus Clear TTL semantics,
+/// create â†’ retrieve â†’ add â†’ update â†’ remove â†’ add again â†’ clear, plus Clear TTL semantics,
 /// expiration, and a stale-version concurrency conflict through the existing CAS mechanism.
 /// </summary>
 [Collection(RedisCartTestCollection.Name)]
@@ -36,7 +36,7 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
         var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
         var get = new GetAuthenticatedCartQueryHandler(store, currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var update = new UpdateAuthenticatedCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
         var remove = new RemoveAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
         var clear = new ClearAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
@@ -59,12 +59,12 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
         var variantA = Guid.NewGuid();
         var variantB = Guid.NewGuid();
         var addA = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantA, Guid.NewGuid(), "SKU-A", "Product A", 10.00m, "USD", 2),
+            new AddAuthenticatedCartItemCommand(variantA, 10.00m, "USD", 2),
             CancellationToken.None);
         Assert.True(addA.IsSuccess);
         Assert.Equal(2, addA.Value!.Version);
         var addB = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantB, Guid.NewGuid(), "SKU-B", "Product B", 20.00m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(variantB, 20.00m, "USD", 1),
             CancellationToken.None);
         Assert.True(addB.IsSuccess);
         Assert.Equal(3, addB.Value!.Version);
@@ -88,7 +88,7 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
 
         // 7. Add an item again.
         var reAdd = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(variantA, Guid.NewGuid(), "SKU-A", "Product A", 10.00m, "USD", 3),
+            new AddAuthenticatedCartItemCommand(variantA, 10.00m, "USD", 3),
             CancellationToken.None);
         Assert.True(reAdd.IsSuccess);
         Assert.Equal(2, reAdd.Value!.Items.Count);
@@ -115,7 +115,7 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
         var userId = Guid.NewGuid();
         var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
         var clear = new ClearAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
 
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
@@ -123,7 +123,7 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
         _fixture.Track(created.Value!);
         var cartId = created.Value!.CartId;
         var addResult = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
         Assert.True(addResult.IsSuccess);
 
@@ -152,7 +152,7 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
         var userId = Guid.NewGuid();
         var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
@@ -173,7 +173,7 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
 
         // Expired Cart is not resurrected by mutations.
         var addResult = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 1m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 1m, "USD", 1),
             CancellationToken.None);
         Assert.True(addResult.IsFailure);
         Assert.Equal("Cart.CartNotFound", addResult.Error.Code);
@@ -211,10 +211,11 @@ public class AuthenticatedCartLifecycleRedisIntegrationTests
         var addHandler = new AddAuthenticatedCartItemCommandHandler(
             new StaleUserIndexStore(store, stale),
             FixedDateTimeProvider.CreateDefault(),
-            currentUser);
+            currentUser,
+            FakeCatalogVariantCartLookup.Available());
 
         var result = await addHandler.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-STALE", "Stale Product", 1m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 1m, "USD", 1),
             CancellationToken.None);
 
         Assert.True(result.IsFailure);

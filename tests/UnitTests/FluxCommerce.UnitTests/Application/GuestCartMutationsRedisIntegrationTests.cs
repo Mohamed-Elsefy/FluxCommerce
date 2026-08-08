@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
@@ -28,7 +28,7 @@ public class GuestCartMutationsRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var createHandler = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var getHandler = new GetGuestCartQueryHandler(store);
 
         var created = await createHandler.HandleAsync(new CreateGuestCartCommand(), CancellationToken.None);
@@ -40,9 +40,6 @@ public class GuestCartMutationsRedisIntegrationTests
             new AddGuestCartItemCommand(
                 created.Value!.CartId.Value,
                 variantId,
-                Guid.NewGuid(),
-                "SKU-ADD",
-                "Added Product",
                 9.99m,
                 "USD",
                 3),
@@ -70,7 +67,7 @@ public class GuestCartMutationsRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var createHandler = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var updateHandler = new UpdateGuestCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault());
 
         var created = await createHandler.HandleAsync(new CreateGuestCartCommand(), CancellationToken.None);
@@ -79,7 +76,7 @@ public class GuestCartMutationsRedisIntegrationTests
 
         var variantId = Guid.NewGuid();
         await addHandler.HandleAsync(
-            new AddGuestCartItemCommand(created.Value!.CartId.Value, variantId, Guid.NewGuid(), "SKU-ADD", "Product A", 9.99m, "USD", 2),
+            new AddGuestCartItemCommand(created.Value!.CartId.Value, variantId, 9.99m, "USD", 2),
             CancellationToken.None);
 
         var updated = await updateHandler.HandleAsync(
@@ -101,7 +98,7 @@ public class GuestCartMutationsRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var createHandler = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var removeHandler = new RemoveGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
 
         var created = await createHandler.HandleAsync(new CreateGuestCartCommand(), CancellationToken.None);
@@ -110,7 +107,7 @@ public class GuestCartMutationsRedisIntegrationTests
 
         var variantId = Guid.NewGuid();
         await addHandler.HandleAsync(
-            new AddGuestCartItemCommand(created.Value!.CartId.Value, variantId, Guid.NewGuid(), "SKU-ADD", "Product A", 9.99m, "USD", 2),
+            new AddGuestCartItemCommand(created.Value!.CartId.Value, variantId, 9.99m, "USD", 2),
             CancellationToken.None);
 
         var removed = await removeHandler.HandleAsync(
@@ -162,11 +159,11 @@ public class GuestCartMutationsRedisIntegrationTests
     public async Task GuestMutation_OnMissingCart_ReturnsCartNotFound_AndCreatesNothing()
     {
         var store = _fixture.CreateStore();
-        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var addHandler = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var cartId = new CartId(Guid.NewGuid());
 
         var result = await addHandler.HandleAsync(
-            new AddGuestCartItemCommand(cartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 5m, "USD", 1),
+            new AddGuestCartItemCommand(cartId.Value, Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -202,10 +199,11 @@ public class GuestCartMutationsRedisIntegrationTests
         // The handler reads the stale snapshot and attempts a stale write.
         var addHandler = new AddGuestCartItemCommandHandler(
             new StaleGetStore(store, stale),
-            FixedDateTimeProvider.CreateDefault());
+            FixedDateTimeProvider.CreateDefault(),
+            FakeCatalogVariantCartLookup.Available());
 
         var result = await addHandler.HandleAsync(
-            new AddGuestCartItemCommand(stale.CartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-STALE", "Stale Product", 1m, "USD", 1),
+            new AddGuestCartItemCommand(stale.CartId.Value, Guid.NewGuid(), 1m, "USD", 1),
             CancellationToken.None);
 
         Assert.True(result.IsFailure);

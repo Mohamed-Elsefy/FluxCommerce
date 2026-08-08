@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearGuestCart;
@@ -244,17 +244,17 @@ public class GuestCartClearRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var create = new CreateGuestCartCommandHandler(store, FixedDateTimeProvider.CreateDefault());
-        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault());
+        var add = new AddGuestCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), FakeCatalogVariantCartLookup.Available());
         var created = await create.HandleAsync(new CreateGuestCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
 
         var add1 = await add.HandleAsync(
-            new AddGuestCartItemCommand(created.Value!.CartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-1", "Product 1", 9.99m, "USD", 1),
+            new AddGuestCartItemCommand(created.Value!.CartId.Value, Guid.NewGuid(), 9.99m, "USD", 1),
             CancellationToken.None);
         Assert.True(add1.IsSuccess);
         var add2 = await add.HandleAsync(
-            new AddGuestCartItemCommand(created.Value.CartId.Value, Guid.NewGuid(), Guid.NewGuid(), "SKU-2", "Product 2", 19.99m, "USD", 2),
+            new AddGuestCartItemCommand(created.Value.CartId.Value, Guid.NewGuid(), 19.99m, "USD", 2),
             CancellationToken.None);
         Assert.True(add2.IsSuccess);
         Assert.Equal(3, add2.Value!.Version);

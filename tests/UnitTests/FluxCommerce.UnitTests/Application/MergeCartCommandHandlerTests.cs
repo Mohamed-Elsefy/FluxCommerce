@@ -98,7 +98,7 @@ public class MergeCartCommandHandlerTests
     public async Task HandleAsync_Unauthenticated_ReturnsAuthenticationRequired_AndDoesNothing()
     {
         var mock = new Mock<ICartStore>();
-        var handler = new MergeCartCommandHandler(mock.Object, FixedDateTimeProvider.CreateDefault(), Anonymous());
+        var handler = new MergeCartCommandHandler(mock.Object, FixedDateTimeProvider.CreateDefault(), Anonymous(), FakeCatalogVariantCartLookup.Available());
 
         var result = await handler.HandleAsync(new MergeCartCommand(GuestCartId), CancellationToken.None);
 
@@ -152,7 +152,7 @@ public class MergeCartCommandHandlerTests
     public async Task HandleAsync_InvalidGuestCartId_ReturnsInvalidCartId_AndDoesNothing()
     {
         var mock = new Mock<ICartStore>();
-        var handler = new MergeCartCommandHandler(mock.Object, FixedDateTimeProvider.CreateDefault(), Authenticated());
+        var handler = new MergeCartCommandHandler(mock.Object, FixedDateTimeProvider.CreateDefault(), Authenticated(), FakeCatalogVariantCartLookup.Available());
 
         var result = await handler.HandleAsync(new MergeCartCommand(Guid.Empty), CancellationToken.None);
 
@@ -258,6 +258,96 @@ public class MergeCartCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_MissingGuestVariant_ReturnsVariantNotFound_AndDoesNotMergeOrConsume()
+    {
+        var store = CreateStoreMock(
+            source: GuestCart(Item(VariantA, 2)),
+            existingTarget: AuthenticatedCart(userId: null, version: 3, Item(VariantB, 3)));
+        var handler = new MergeCartCommandHandler(
+            store.Object,
+            FixedDateTimeProvider.CreateDefault(),
+            Authenticated(),
+            new FakeCatalogVariantCartLookup(missing: [VariantA]));
+
+        var result = await handler.HandleAsync(new MergeCartCommand(GuestCartId), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error!.Type);
+        Assert.Equal("Cart.VariantNotFound", result.Error.Code);
+        store.Verify(s => s.MergeAndConsumeAsync(
+            It.IsAny<CartState>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CartId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_UnavailableGuestVariant_ReturnsVariantUnavailable_AndDoesNotMergeOrConsume()
+    {
+        var store = CreateStoreMock(
+            source: GuestCart(Item(VariantA, 2)),
+            existingTarget: AuthenticatedCart(userId: null, version: 3, Item(VariantB, 3)));
+        var handler = new MergeCartCommandHandler(
+            store.Object,
+            FixedDateTimeProvider.CreateDefault(),
+            Authenticated(),
+            new FakeCatalogVariantCartLookup(unavailable: [VariantA]));
+
+        var result = await handler.HandleAsync(new MergeCartCommand(GuestCartId), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error!.Type);
+        Assert.Equal("Cart.VariantUnavailable", result.Error.Code);
+        store.Verify(s => s.MergeAndConsumeAsync(
+            It.IsAny<CartState>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CartId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CatalogLookupFails_ReturnsCatalogOperationFailed_AndDoesNotMergeOrConsume()
+    {
+        var store = CreateStoreMock(
+            source: GuestCart(Item(VariantA, 2)),
+            existingTarget: AuthenticatedCart(userId: null, version: 3, Item(VariantB, 3)));
+        var handler = new MergeCartCommandHandler(
+            store.Object,
+            FixedDateTimeProvider.CreateDefault(),
+            Authenticated(),
+            new FakeCatalogVariantCartLookup(exception: new InvalidOperationException("Catalog is down.")));
+
+        var result = await handler.HandleAsync(new MergeCartCommand(GuestCartId), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Failure, result.Error!.Type);
+        Assert.Equal("Cart.CatalogOperationFailed", result.Error.Code);
+        store.Verify(s => s.MergeAndConsumeAsync(
+            It.IsAny<CartState>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CartId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GuestVariantAlreadyInTarget_SkipsCatalogValidation_AndMerges()
+    {
+        // A Guest variant already present in the authenticated target is trusted: the merge must
+        // not consult the Catalog for it, even when the lookup would consider it unavailable.
+        var store = CreateStoreMock(
+            source: GuestCart(Item(VariantA, 2)),
+            existingTarget: AuthenticatedCart(userId: null, version: 3, Item(VariantA, 1)));
+        var handler = new MergeCartCommandHandler(
+            store.Object,
+            FixedDateTimeProvider.CreateDefault(),
+            Authenticated(),
+            new FakeCatalogVariantCartLookup(unavailable: [VariantA]));
+
+        var result = await handler.HandleAsync(new MergeCartCommand(GuestCartId), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var merged = result.Value!;
+        Assert.Equal(3, QuantityOf(merged, VariantA));
+        Assert.Equal(4, merged.Version);
+        store.Verify(
+            s => s.MergeAndConsumeAsync(
+                It.Is<CartState>(c => QuantityOf(c, VariantA) == 3),
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CartId>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAsync_CreateDuplicateActiveCart_ReReadsWinner_AndMergesIntoIt()
     {
         var winner = AuthenticatedCart(userId: null, version: 2, Item(VariantB, 1));
@@ -302,7 +392,7 @@ public class MergeCartCommandHandlerTests
     }
 
     private static MergeCartCommandHandler CreateHandler(Mock<ICartStore> store) =>
-        new(store.Object, FixedDateTimeProvider.CreateDefault(), Authenticated());
+        new(store.Object, FixedDateTimeProvider.CreateDefault(), Authenticated(), FakeCatalogVariantCartLookup.Available());
 
     private static FakeCurrentUser Authenticated() =>
         new() { UserId = UserId, IsAuthenticated = true };

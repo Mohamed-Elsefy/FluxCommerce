@@ -41,4 +41,16 @@ public static class CartErrors
     public static readonly DomainError AuthenticationRequired = DomainError.Create(
         "Cart.AuthenticationRequired",
         "Authentication is required to access a user cart.");
+
+    public static readonly DomainError VariantNotFound = DomainError.Create(
+        "Cart.VariantNotFound",
+        "The variant was not found.");
+
+    public static readonly DomainError VariantUnavailable = DomainError.Create(
+        "Cart.VariantUnavailable",
+        "The variant is not available for purchase.");
+
+    public static readonly DomainError CatalogOperationFailed = DomainError.Create(
+        "Cart.CatalogOperationFailed",
+        "The variant could not be validated. Try again.");
 }

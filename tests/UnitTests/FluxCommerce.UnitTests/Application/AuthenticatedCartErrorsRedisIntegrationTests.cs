@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Errors;
+﻿using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
@@ -33,7 +33,7 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
         var anonymous = new FakeCurrentUser { UserId = null, IsAuthenticated = false };
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), anonymous);
         var get = new GetAuthenticatedCartQueryHandler(store, anonymous);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), anonymous);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), anonymous, FakeCatalogVariantCartLookup.Available());
         var update = new UpdateAuthenticatedCartItemQuantityCommandHandler(store, FixedDateTimeProvider.CreateDefault(), anonymous);
         var remove = new RemoveAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), anonymous);
         var clear = new ClearAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), anonymous);
@@ -42,7 +42,7 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
         {
             await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None),
             await get.HandleAsync(new GetAuthenticatedCartQuery(), CancellationToken.None),
-            await add.HandleAsync(new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1), CancellationToken.None),
+            await add.HandleAsync(new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 5m, "USD", 1), CancellationToken.None),
             await update.HandleAsync(new UpdateAuthenticatedCartItemQuantityCommand(Guid.NewGuid(), 1), CancellationToken.None),
             await remove.HandleAsync(new RemoveAuthenticatedCartItemCommand(Guid.NewGuid()), CancellationToken.None),
             await clear.HandleAsync(new ClearAuthenticatedCartCommand(), CancellationToken.None),
@@ -64,7 +64,7 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
         var before = (await store.GetAsync(cartId))!;
 
         var result = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 0),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 5m, "USD", 0),
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -146,26 +146,22 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
     }
 
     [Fact]
-    public async Task AddItem_InvalidSnapshotData_ReturnsValidation_AndDoesNotMutate()
+    public async Task AddItem_InvalidIdentifiers_ReturnsValidation_AndDoesNotMutate()
     {
         var store = _fixture.CreateStore();
         var (_, add, cartId) = await CreateCartWithItemAsync(store);
         var before = (await store.GetAsync(cartId))!;
 
-        // Blank product name.
-        var blankName = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "   ", 5m, "USD", 1),
-            CancellationToken.None);
         // Empty Variant identifier.
         var emptyVariant = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.Empty, Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.Empty, 5m, "USD", 1),
             CancellationToken.None);
         // Invalid currency code.
         var invalidCurrency = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "US", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 5m, "US", 1),
             CancellationToken.None);
 
-        Assert.All(new[] { blankName, emptyVariant, invalidCurrency }, result =>
+        Assert.All(new[] { emptyVariant, invalidCurrency }, result =>
         {
             Assert.True(result.IsFailure);
             Assert.Equal(ErrorType.Validation, result.Error!.Type);
@@ -184,7 +180,7 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
         var item = (await store.GetAsync(cartId))!.Items[0];
 
         var first = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(item.VariantId.Value, item.ProductId.Value, item.Sku.Value, item.ProductName, item.UnitPrice.Amount, item.UnitPrice.Currency, 2),
+            new AddAuthenticatedCartItemCommand(item.VariantId.Value, item.UnitPrice.Amount, item.UnitPrice.Currency, 2),
             CancellationToken.None);
         Assert.True(first.IsSuccess);
         Assert.Single(first.Value!.Items);
@@ -192,7 +188,7 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
         Assert.Equal(3, first.Value.Version);
 
         var second = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(item.VariantId.Value, item.ProductId.Value, item.Sku.Value, item.ProductName, item.UnitPrice.Amount, item.UnitPrice.Currency, 3),
+            new AddAuthenticatedCartItemCommand(item.VariantId.Value, item.UnitPrice.Amount, item.UnitPrice.Currency, 3),
             CancellationToken.None);
         Assert.True(second.IsSuccess);
         Assert.Single(second.Value!.Items);
@@ -205,10 +201,10 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
     {
         var store = _fixture.CreateStore();
         var userId = Guid.NewGuid();
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(userId));
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), CreateUser(userId), FakeCatalogVariantCartLookup.Available());
 
         var result = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-A", "Product A", 5m, "USD", 1),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 5m, "USD", 1),
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -222,14 +218,14 @@ public class AuthenticatedCartErrorsRedisIntegrationTests
         var userId = Guid.NewGuid();
         var currentUser = CreateUser(userId);
         var create = new CreateAuthenticatedCartCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
-        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser);
+        var add = new AddAuthenticatedCartItemCommandHandler(store, FixedDateTimeProvider.CreateDefault(), currentUser, FakeCatalogVariantCartLookup.Available());
 
         var created = await create.HandleAsync(new CreateAuthenticatedCartCommand(), CancellationToken.None);
         Assert.True(created.IsSuccess);
         _fixture.Track(created.Value!);
 
         var added = await add.HandleAsync(
-            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), Guid.NewGuid(), "SKU-X", "Product X", 10m, "USD", 2),
+            new AddAuthenticatedCartItemCommand(Guid.NewGuid(), 10m, "USD", 2),
             CancellationToken.None);
         Assert.True(added.IsSuccess);
 

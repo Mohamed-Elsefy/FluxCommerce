@@ -6,6 +6,7 @@ using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Application.Ownership;
 using FluxCommerce.Modules.Cart.Domain.Errors;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
+using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 
 namespace FluxCommerce.Modules.Cart.Application.Commands.MergeCart;
 
@@ -31,15 +32,18 @@ public sealed class MergeCartCommandHandler : ICommandHandler<MergeCartCommand, 
     private readonly ICartStore _cartStore;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ICurrentUser _currentUser;
+    private readonly ICatalogVariantCartLookup _variantLookup;
 
     public MergeCartCommandHandler(
         ICartStore cartStore,
         IDateTimeProvider dateTimeProvider,
-        ICurrentUser currentUser)
+        ICurrentUser currentUser,
+        ICatalogVariantCartLookup variantLookup)
     {
         _cartStore = cartStore ?? throw new ArgumentNullException(nameof(cartStore));
         _dateTimeProvider = dateTimeProvider ?? throw new ArgumentNullException(nameof(dateTimeProvider));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _variantLookup = variantLookup ?? throw new ArgumentNullException(nameof(variantLookup));
     }
 
     public async Task<Result<CartState>> HandleAsync(
@@ -94,7 +98,31 @@ public sealed class MergeCartCommandHandler : ICommandHandler<MergeCartCommand, 
 
         var targetState = targetResult.Value!;
 
-        // 5. Merge Guest items into the target through the existing Domain behavior. No item
+        // 5. Validate the Guest source variants that are not already present in the target. Items
+        //    already in the authenticated target are trusted, so only newly introduced variants are
+        //    checked against the Catalog. A missing or unavailable variant rejects the whole merge
+        //    without mutating either Cart.
+        var targetVariantIds = targetState.Items
+            .Select(item => item.VariantId.Value)
+            .ToHashSet();
+
+        var newVariantIds = sourceState.Items
+            .Select(item => item.VariantId.Value)
+            .Where(variantId => !targetVariantIds.Contains(variantId))
+            .Distinct()
+            .ToArray();
+
+        var (eligibilityError, _) = await CartVariantEligibilityValidator.ValidateAsync(
+            _variantLookup,
+            newVariantIds,
+            cancellationToken).ConfigureAwait(false);
+
+        if (eligibilityError is not null)
+        {
+            return Result.Failure<CartState>(eligibilityError);
+        }
+
+        // 7. Merge Guest items into the target through the existing Domain behavior. No item
         //    manipulation happens at the Application layer.
         var source = CartApplicationMapper.ToAggregate(sourceState);
         var target = CartApplicationMapper.ToAggregate(targetState);
@@ -105,7 +133,7 @@ public sealed class MergeCartCommandHandler : ICommandHandler<MergeCartCommand, 
             return Result.Failure<CartState>(CartErrorMapper.ToApplicationError(merge.Error));
         }
 
-        // 6. Atomically persist the merged authenticated Cart AND consume the Guest source in a
+        // 8. Atomically persist the merged authenticated Cart AND consume the Guest source in a
         //    single storage operation. Consumption happens only when the target write succeeds, so
         //    a failed merge never consumes the source and a retried merge can never duplicate the
         //    Guest quantities. The expected source version closes the concurrent double-apply race:
