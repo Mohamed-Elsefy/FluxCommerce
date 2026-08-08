@@ -23,6 +23,7 @@ public static class CartErrorMapper
             "Cart.CartConcurrencyConflict" => Error.Conflict(error.Code, error.Description),
             "Cart.InvalidCartItem" => Error.Validation(error.Code, error.Description),
             "Cart.InvalidCartId" => Error.Validation(error.Code, error.Description),
+            "Cart.AuthenticationRequired" => Error.Unauthorized(error.Code, error.Description),
             _ => Error.Validation(error.Code, error.Description),
         };
     }

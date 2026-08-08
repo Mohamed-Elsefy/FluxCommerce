@@ -70,6 +70,13 @@ public class CartErrorsTests
     }
 
     [Fact]
+    public void AuthenticationRequired_HasStableCode()
+    {
+        Assert.Equal("Cart.AuthenticationRequired", CartErrors.AuthenticationRequired.Code);
+        Assert.Equal("Authentication is required to access a user cart.", CartErrors.AuthenticationRequired.Description);
+    }
+
+    [Fact]
     public void AllErrors_HaveNonEmptyDescriptions()
     {
         Assert.All(AllErrors(), error => Assert.False(string.IsNullOrWhiteSpace(error.Description)));
@@ -101,6 +108,7 @@ public class CartErrorsTests
         Assert.Equal(DomainError.Create("Cart.CartAccessDenied", "The cart is not accessible with the provided identifier."), CartErrors.CartAccessDenied);
         Assert.Equal(DomainError.Create("Cart.InvalidCartId", "A valid cart identifier is required."), CartErrors.InvalidCartId);
         Assert.Equal(DomainError.Create("Cart.InvalidCartItem", "The cart item data is invalid."), CartErrors.InvalidCartItem);
+        Assert.Equal(DomainError.Create("Cart.AuthenticationRequired", "Authentication is required to access a user cart."), CartErrors.AuthenticationRequired);
     }
 
     [Fact]
@@ -134,5 +142,6 @@ public class CartErrorsTests
         yield return CartErrors.CartAccessDenied;
         yield return CartErrors.InvalidCartId;
         yield return CartErrors.InvalidCartItem;
+        yield return CartErrors.AuthenticationRequired;
     }
 }

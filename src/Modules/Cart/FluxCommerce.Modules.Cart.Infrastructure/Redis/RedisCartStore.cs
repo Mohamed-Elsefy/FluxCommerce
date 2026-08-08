@@ -57,6 +57,37 @@ public sealed class RedisCartStore : ICartStore
         return value.HasValue ? _mapper.ToState(_serializer.Deserialize(value.ToString())) : null;
     }
 
+    public async Task<CartSaveResult> CreateForUserAsync(CartState cart, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cart);
+
+        if (cart.UserId is not Guid userId)
+            throw new ArgumentException("An authenticated cart requires a user id.", nameof(cart));
+
+        var database = GetDatabase();
+        var cartKey = _keyGenerator.ForCart(cart.CartId);
+        var userKey = _keyGenerator.ForUser(userId);
+        var json = _serializer.Serialize(_mapper.ToDocument(cart));
+        var ttl = GetTtl(_options.Value);
+
+        var result = (long)await database.ScriptEvaluateAsync(
+            CartCreateForUserScript.Source,
+            [cartKey, userKey],
+            [json, (long)ttl.TotalSeconds, cart.CartId.Value.ToString("D")]).ConfigureAwait(false);
+
+        switch ((int)result)
+        {
+            case CartCreateForUserScript.Success:
+                return new CartSaveResult(CartSaveStatus.Success, cart);
+
+            case CartCreateForUserScript.DuplicateActiveCart:
+                return new CartSaveResult(CartSaveStatus.DuplicateActiveCart, null);
+
+            default:
+                return new CartSaveResult(CartSaveStatus.VersionConflict, null);
+        }
+    }
+
     public async Task<CartSaveResult> SaveAsync(CartState cart, long expectedVersion, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cart);

@@ -37,4 +37,8 @@ public static class CartErrors
     public static readonly DomainError InvalidCartItem = DomainError.Create(
         "Cart.InvalidCartItem",
         "The cart item data is invalid.");
+
+    public static readonly DomainError AuthenticationRequired = DomainError.Create(
+        "Cart.AuthenticationRequired",
+        "Authentication is required to access a user cart.");
 }

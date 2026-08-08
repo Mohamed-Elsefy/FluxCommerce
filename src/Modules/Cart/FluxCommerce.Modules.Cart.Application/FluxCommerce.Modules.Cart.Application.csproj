@@ -8,9 +8,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Commands\" />
     <Folder Include="Interfaces\" />
     <Folder Include="Mappings\" />
+    <Folder Include="Ownership\" />
     <Folder Include="Queries\" />
     <Folder Include="Validation\" />
   </ItemGroup>

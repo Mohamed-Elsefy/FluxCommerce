@@ -1,3 +1,4 @@
+using System.Reflection;
 using NetArchTest.Rules;
 using Xunit;
 
@@ -44,6 +45,45 @@ public class CartArchitectureTests
                     $"FluxCommerce.Modules.{module}.Infrastructure.DbContexts",
                     $"Cart -> {module} DbContext",
                     failures);
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Cart_ShouldNot_ReferenceIdentityInfrastructure_OrJwtImplementation()
+    {
+        // Phase 3.5 boundary: Cart consumes the shared ICurrentUser abstraction only. It must not
+        // reference the Identity infrastructure namespace (which owns IdentityDbContext, JwtProvider,
+        // JwtOptions and CurrentUser) nor any JWT implementation type.
+        var failures = new List<string>();
+
+        foreach (var assembly in CartAssemblies)
+        {
+            var infra = Types.InAssembly(assembly)
+                .ShouldNot()
+                .HaveDependencyOn("FluxCommerce.Modules.Identity.Infrastructure")
+                .GetResult();
+
+            if (!infra.IsSuccessful)
+            {
+                var failing = infra.FailingTypeNames is null ? [] : infra.FailingTypeNames.ToArray();
+                failures.Add($"Cart -> Identity.Infrastructure: {assembly.GetName().Name} via {string.Join(", ", failing)}");
+            }
+
+            foreach (var jwtType in new[] { "JwtProvider", "JwtOptions" })
+            {
+                var jwt = Types.InAssembly(assembly)
+                    .ShouldNot()
+                    .HaveDependencyOn(jwtType)
+                    .GetResult();
+
+                if (!jwt.IsSuccessful)
+                {
+                    var failing = jwt.FailingTypeNames is null ? [] : jwt.FailingTypeNames.ToArray();
+                    failures.Add($"Cart -> {jwtType}: {assembly.GetName().Name} via {string.Join(", ", failing)}");
+                }
             }
         }
 
@@ -310,6 +350,68 @@ public class CartArchitectureTests
             {
                 var failing = result.FailingTypeNames is null ? [] : result.FailingTypeNames.ToArray();
                 failures.Add($"Cart.Application depends on '{providerType}' via: {string.Join(", ", failing)}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Cart_Application_UsesTheSharedICurrentUser_Abstraction()
+    {
+        // The current authenticated identity must come from the existing BuildingBlocks
+        // ICurrentUser abstraction. Cart.Application must reference the assembly that defines
+        // it, must consume its namespace, and must never define a Cart-local duplicate.
+        var definingAssembly = typeof(FluxCommerce.BuildingBlocks.Application.Abstractions.ICurrentUser).Assembly;
+
+        Assert.Equal("FluxCommerce.BuildingBlocks.Application", definingAssembly.GetName().Name);
+
+        var referenced = CartApplication.GetReferencedAssemblies()
+            .Select(assembly => assembly.Name)
+            .Contains(definingAssembly.GetName().Name);
+
+        Assert.True(referenced, "Cart.Application must reference the BuildingBlocks assembly that defines ICurrentUser.");
+
+        var localDefinitions = Types.InAssembly(CartApplication)
+            .That()
+            .HaveName("ICurrentUser")
+            .GetTypes()
+            .ToArray();
+
+        Assert.Empty(localDefinitions);
+
+        var consumers = Types.InAssembly(CartApplication)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Application.Abstractions")
+            .GetTypes()
+            .ToArray();
+
+        Assert.NotEmpty(consumers);
+    }
+
+    [Fact]
+    public void Cart_AuthenticatedCommands_DoNotAcceptUserId_OrCartId_FromRequestData()
+    {
+        // Authenticated ownership must come from ICurrentUser, never from a client-supplied
+        // UserId or CartId in the request payload.
+        var types = Types.InAssembly(CartApplication)
+            .That()
+            .HaveNameEndingWith("AuthenticatedCartCommand")
+            .Or()
+            .HaveNameEndingWith("AuthenticatedCartQuery")
+            .GetTypes();
+
+        Assert.NotEmpty(types);
+
+        var failures = new List<string>();
+        foreach (var type in types)
+        {
+            foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (property.Name is "UserId" or "CartId")
+                {
+                    failures.Add($"{type.FullName}.{property.Name} must not be accepted from request data.");
+                }
             }
         }
 

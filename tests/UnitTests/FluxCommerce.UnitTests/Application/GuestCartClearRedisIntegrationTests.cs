@@ -279,6 +279,9 @@ public class GuestCartClearRedisIntegrationTests
         public Task<CartState?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
             _inner.GetByUserIdAsync(userId, cancellationToken);
 
+        public Task<CartSaveResult> CreateForUserAsync(CartState cart, CancellationToken cancellationToken = default) =>
+            _inner.CreateForUserAsync(cart, cancellationToken);
+
         public Task<CartSaveResult> SaveAsync(CartState cart, long expectedVersion, CancellationToken cancellationToken = default) =>
             _inner.SaveAsync(cart, expectedVersion, cancellationToken);
 
