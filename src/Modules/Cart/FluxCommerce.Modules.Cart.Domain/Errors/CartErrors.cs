@@ -21,4 +21,20 @@ public static class CartErrors
     public static readonly DomainError CartConcurrencyConflict = DomainError.Create(
         "Cart.CartConcurrencyConflict",
         "The cart was modified by another request. Reload the cart and try again.");
+
+    public static readonly DomainError CartNotFound = DomainError.Create(
+        "Cart.CartNotFound",
+        "The cart was not found.");
+
+    public static readonly DomainError CartAccessDenied = DomainError.Create(
+        "Cart.CartAccessDenied",
+        "The cart is not accessible with the provided identifier.");
+
+    public static readonly DomainError InvalidCartId = DomainError.Create(
+        "Cart.InvalidCartId",
+        "A valid cart identifier is required.");
+
+    public static readonly DomainError InvalidCartItem = DomainError.Create(
+        "Cart.InvalidCartItem",
+        "The cart item data is invalid.");
 }

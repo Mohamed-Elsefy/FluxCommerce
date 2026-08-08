@@ -42,6 +42,34 @@ public class CartErrorsTests
     }
 
     [Fact]
+    public void CartNotFound_HasStableCode()
+    {
+        Assert.Equal("Cart.CartNotFound", CartErrors.CartNotFound.Code);
+        Assert.Equal("The cart was not found.", CartErrors.CartNotFound.Description);
+    }
+
+    [Fact]
+    public void CartAccessDenied_HasStableCode()
+    {
+        Assert.Equal("Cart.CartAccessDenied", CartErrors.CartAccessDenied.Code);
+        Assert.Equal("The cart is not accessible with the provided identifier.", CartErrors.CartAccessDenied.Description);
+    }
+
+    [Fact]
+    public void InvalidCartId_HasStableCode()
+    {
+        Assert.Equal("Cart.InvalidCartId", CartErrors.InvalidCartId.Code);
+        Assert.Equal("A valid cart identifier is required.", CartErrors.InvalidCartId.Description);
+    }
+
+    [Fact]
+    public void InvalidCartItem_HasStableCode()
+    {
+        Assert.Equal("Cart.InvalidCartItem", CartErrors.InvalidCartItem.Code);
+        Assert.Equal("The cart item data is invalid.", CartErrors.InvalidCartItem.Description);
+    }
+
+    [Fact]
     public void AllErrors_HaveNonEmptyDescriptions()
     {
         Assert.All(AllErrors(), error => Assert.False(string.IsNullOrWhiteSpace(error.Description)));
@@ -69,6 +97,10 @@ public class CartErrorsTests
         Assert.Equal(DomainError.Create("Cart.CartItemNotFound", "The cart does not contain an item for the specified variant."), CartErrors.CartItemNotFound);
         Assert.Equal(DomainError.Create("Cart.InvalidMergeSource", "Only a guest cart can be used as the source of a cart merge."), CartErrors.InvalidMergeSource);
         Assert.Equal(DomainError.Create("Cart.CartConcurrencyConflict", "The cart was modified by another request. Reload the cart and try again."), CartErrors.CartConcurrencyConflict);
+        Assert.Equal(DomainError.Create("Cart.CartNotFound", "The cart was not found."), CartErrors.CartNotFound);
+        Assert.Equal(DomainError.Create("Cart.CartAccessDenied", "The cart is not accessible with the provided identifier."), CartErrors.CartAccessDenied);
+        Assert.Equal(DomainError.Create("Cart.InvalidCartId", "A valid cart identifier is required."), CartErrors.InvalidCartId);
+        Assert.Equal(DomainError.Create("Cart.InvalidCartItem", "The cart item data is invalid."), CartErrors.InvalidCartItem);
     }
 
     [Fact]
@@ -98,5 +130,9 @@ public class CartErrorsTests
         yield return CartErrors.CartItemNotFound;
         yield return CartErrors.InvalidMergeSource;
         yield return CartErrors.CartConcurrencyConflict;
+        yield return CartErrors.CartNotFound;
+        yield return CartErrors.CartAccessDenied;
+        yield return CartErrors.InvalidCartId;
+        yield return CartErrors.InvalidCartItem;
     }
 }

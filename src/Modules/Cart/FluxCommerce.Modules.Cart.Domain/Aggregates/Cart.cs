@@ -64,6 +64,56 @@ public sealed class Cart : AggregateRoot<CartId>
         return new Cart(id, CartOwner.Authenticated(userId), InitialVersion, utcNow);
     }
 
+    /// <summary>
+    /// Reconstitutes a Cart from persisted state. Used by the Application hydration path only;
+    /// it restores the exact version, timestamps, owner and items so that optimistic concurrency
+    /// and the Cart invariants remain intact across a persistence round trip.
+    /// </summary>
+    public static Cart Hydrate(
+        CartId id,
+        CartOwner owner,
+        long version,
+        DateTimeOffset createdAtUtc,
+        DateTimeOffset updatedAtUtc,
+        IReadOnlyCollection<CartItem> items)
+    {
+        if (id is null)
+            throw new ArgumentNullException(nameof(id));
+
+        if (owner is null)
+            throw new ArgumentNullException(nameof(owner));
+
+        if (version < InitialVersion)
+            throw new ArgumentException(
+                $"A cart version must be at least {InitialVersion}.",
+                nameof(version));
+
+        if (createdAtUtc == default)
+            throw new ArgumentException("A valid creation timestamp is required.", nameof(createdAtUtc));
+
+        if (updatedAtUtc == default)
+            throw new ArgumentException("A valid update timestamp is required.", nameof(updatedAtUtc));
+
+        var cart = new Cart(id, owner, version, createdAtUtc);
+        cart._updatedAtUtc = updatedAtUtc;
+
+        if (items is not null)
+        {
+            foreach (var item in items)
+            {
+                if (item is null)
+                    throw new ArgumentException("A hydrated cart cannot contain a null item.", nameof(items));
+
+                if (cart._items.Any(existing => existing.VariantId == item.VariantId))
+                    throw new ArgumentException("A hydrated cart cannot contain duplicate variants.", nameof(items));
+
+                cart._items.Add(item);
+            }
+        }
+
+        return cart;
+    }
+
     public DomainResult AddItem(
         ProductId productId,
         VariantId variantId,

@@ -19,7 +19,7 @@ public sealed class CartItem : Entity<VariantId>
 
     public int Quantity { get; private set; }
 
-    internal CartItem(
+    public CartItem(
         ProductId productId,
         VariantId variantId,
         Sku sku,
