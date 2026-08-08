@@ -124,6 +124,55 @@ public sealed class RedisCartStore : ICartStore
         }
     }
 
+    public async Task<CartSaveResult> MergeAndConsumeAsync(
+        CartState target,
+        long expectedVersion,
+        long expectedSourceVersion,
+        CartId sourceCartId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(sourceCartId);
+
+        var database = GetDatabase();
+        var targetKey = _keyGenerator.ForCart(target.CartId);
+        var sourceKey = _keyGenerator.ForCart(sourceCartId);
+        var json = _serializer.Serialize(_mapper.ToDocument(target));
+        var ttl = GetTtl(_options.Value);
+
+        var result = (long)await database.ScriptEvaluateAsync(
+            CartMergeConsumeScript.Source,
+            [targetKey, sourceKey],
+            [json, expectedVersion, (long)ttl.TotalSeconds, expectedSourceVersion]).ConfigureAwait(false);
+
+        switch ((int)result)
+        {
+            case CartMergeConsumeScript.Success:
+                if (target.UserId is Guid userId)
+                {
+                    var userKey = _keyGenerator.ForUser(userId);
+                    await database.StringSetAsync(userKey, target.CartId.Value.ToString("D"), ttl, When.Always, CommandFlags.None).ConfigureAwait(false);
+                }
+
+                return new CartSaveResult(CartSaveStatus.Success, target);
+
+            case CartMergeConsumeScript.TargetVersionConflict:
+                return new CartSaveResult(CartSaveStatus.VersionConflict, null);
+
+            case CartMergeConsumeScript.SourceConsumed:
+                return new CartSaveResult(CartSaveStatus.VersionConflict, null);
+
+            case CartMergeConsumeScript.SourceModified:
+                return new CartSaveResult(CartSaveStatus.VersionConflict, null);
+
+            case CartMergeConsumeScript.TargetCartMissing:
+                return new CartSaveResult(CartSaveStatus.CartMissing, null);
+
+            default:
+                throw new InvalidDataException("Stored cart state could not be validated during optimistic concurrency check.");
+        }
+    }
+
     public async Task<bool> DeleteAsync(CartId cartId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cartId);

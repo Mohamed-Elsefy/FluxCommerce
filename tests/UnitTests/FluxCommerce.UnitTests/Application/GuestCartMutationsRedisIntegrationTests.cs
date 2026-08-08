@@ -241,6 +241,14 @@ public class GuestCartMutationsRedisIntegrationTests
         public Task<CartSaveResult> SaveAsync(CartState cart, long expectedVersion, CancellationToken cancellationToken = default) =>
             _inner.SaveAsync(cart, expectedVersion, cancellationToken);
 
+        public Task<CartSaveResult> MergeAndConsumeAsync(
+            CartState target,
+            long expectedVersion,
+            long expectedSourceVersion,
+            CartId sourceCartId,
+            CancellationToken cancellationToken = default) =>
+            _inner.MergeAndConsumeAsync(target, expectedVersion, expectedSourceVersion, sourceCartId, cancellationToken);
+
         public Task<bool> DeleteAsync(CartId cartId, CancellationToken cancellationToken = default) =>
             _inner.DeleteAsync(cartId, cancellationToken);
 

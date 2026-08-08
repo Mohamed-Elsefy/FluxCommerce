@@ -6,6 +6,7 @@ using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
+using FluxCommerce.Modules.Cart.Application.Commands.MergeCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateAuthenticatedCartItemQuantity;
@@ -47,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<UpdateAuthenticatedCartItemQuantityCommand, Result<CartState>>, UpdateAuthenticatedCartItemQuantityCommandHandler>();
         services.AddScoped<ICommandHandler<RemoveAuthenticatedCartItemCommand, Result<CartState>>, RemoveAuthenticatedCartItemCommandHandler>();
         services.AddScoped<ICommandHandler<ClearAuthenticatedCartCommand, Result<CartState>>, ClearAuthenticatedCartCommandHandler>();
+        services.AddScoped<ICommandHandler<MergeCartCommand, Result<CartState>>, MergeCartCommandHandler>();
 
         return services;
     }
