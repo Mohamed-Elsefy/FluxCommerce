@@ -98,6 +98,7 @@ public class CatalogVariantCartLookupTests : CatalogApiTestBase
                 product.Id,
                 new Sku($"SKU-ACT-{Guid.NewGuid():N}"),
                 "Active Variant",
+                new Money(89.99m, "USD"),
                 utcNow));
         }
 
@@ -108,6 +109,7 @@ public class CatalogVariantCartLookupTests : CatalogApiTestBase
                 product.Id,
                 new Sku($"SKU-INA-{Guid.NewGuid():N}"),
                 "Inactive Variant",
+                new Money(79.99m, "USD"),
                 utcNow);
             inactiveVariant.Deactivate();
             dbContext.Add(inactiveVariant);

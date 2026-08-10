@@ -17,6 +17,11 @@ public sealed class FakeProductRepository : IProductRepository
     public Task<Product?> GetByIdForReadAsync(Guid id, CancellationToken cancellationToken = default) =>
         GetByIdAsync(id, cancellationToken);
 
+    public Task<IReadOnlyCollection<Product>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<Product>>(_products.Values
+            .Where(product => ids.Contains(product.Id))
+            .ToList());
+
     public Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyCollection<Product>>(_products.Values.ToList());
 

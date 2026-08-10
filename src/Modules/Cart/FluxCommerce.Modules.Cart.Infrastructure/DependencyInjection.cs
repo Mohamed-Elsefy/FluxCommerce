@@ -14,6 +14,8 @@ using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity
 using FluxCommerce.Modules.Cart.Application.Interfaces;
 using FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
+using FluxCommerce.Modules.Cart.Application.Services;
+using FluxCommerce.Modules.Cart.Contracts.Abstractions;
 using FluxCommerce.Modules.Cart.Infrastructure.Configuration;
 using FluxCommerce.Modules.Cart.Infrastructure.Redis;
 using Microsoft.Extensions.Configuration;
@@ -34,6 +36,8 @@ public static class DependencyInjection
         services.AddSingleton<CartStateSerializer>();
         services.AddSingleton<CartStateMapper>();
         services.AddSingleton<ICartStore, RedisCartStore>();
+
+        services.AddScoped<ICartCheckoutSnapshotProvider, CartCheckoutSnapshotProvider>();
 
         services.AddScoped<ICommandHandler<CreateGuestCartCommand, Result<CartState>>, CreateGuestCartCommandHandler>();
         services.AddScoped<IQueryHandler<GetGuestCartQuery, Result<CartState>>, GetGuestCartQueryHandler>();

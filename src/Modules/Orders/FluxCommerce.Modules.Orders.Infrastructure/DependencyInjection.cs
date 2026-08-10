@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Orders.Application.Services;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,8 @@ public static class DependencyInjection
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Orders");
                 sqlOptions.MigrationsAssembly(typeof(OrdersDbContext).Assembly.GetName().Name);
             }));
+
+        services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
 
         return services;
     }

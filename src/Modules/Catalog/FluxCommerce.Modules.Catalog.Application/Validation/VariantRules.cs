@@ -50,4 +50,25 @@ public static class VariantRules
         if (sku.Trim().Length > Sku.MaxLength)
             ValidationErrors.Add(errors, propertyName, localizer.Get("Validation.Field.MaxLength", displayName, Sku.MaxLength));
     }
+
+    public static void ValidateUnitPrice(
+        decimal unitPriceAmount,
+        string? currency,
+        string amountPropertyName,
+        string currencyPropertyName,
+        Dictionary<string, string[]> errors,
+        ILocalizer localizer)
+    {
+        if (unitPriceAmount <= 0)
+        {
+            var amountDisplayName = localizer["Validation.Fields.UnitPriceAmount"];
+            ValidationErrors.Add(errors, amountPropertyName, localizer.Get("Validation.Field.Required", amountDisplayName));
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            var currencyDisplayName = localizer["Validation.Fields.Currency"];
+            ValidationErrors.Add(errors, currencyPropertyName, localizer.Get("Validation.Field.Required", currencyDisplayName));
+        }
+    }
 }

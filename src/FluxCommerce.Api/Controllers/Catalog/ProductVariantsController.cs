@@ -54,7 +54,7 @@ public sealed class ProductVariantsController : ApiControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(Guid productId, [FromBody] CreateProductVariantRequest request, CancellationToken cancellationToken)
     {
-        var command = new CreateProductVariantCommand(productId, request.Sku, request.Name);
+        var command = new CreateProductVariantCommand(productId, request.Sku, request.Name, request.UnitPriceAmount, request.Currency);
         var result = await _createProductVariantHandler.HandleAsync(command, cancellationToken);
 
         return result.IsSuccess
@@ -68,7 +68,7 @@ public sealed class ProductVariantsController : ApiControllerBase
     {
         var command = new CreateProductVariantsCommand(
             productId,
-            request.Variants?.Select(v => new CreateProductVariantItemCommand(v.Sku, v.Name)).ToList() ?? []);
+            request.Variants?.Select(v => new CreateProductVariantItemCommand(v.Sku, v.Name, v.UnitPriceAmount, v.Currency)).ToList() ?? []);
 
         var result = await _createProductVariantsHandler.HandleAsync(command, cancellationToken);
 

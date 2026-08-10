@@ -42,6 +42,17 @@ public sealed class VariantConfiguration : IEntityTypeConfiguration<Variant>
                 .IsUnique();
         });
 
+        builder.OwnsOne(variant => variant.UnitPrice, unitPrice =>
+        {
+            unitPrice.Property(p => p.Amount)
+                .HasColumnName("UnitPriceAmount")
+                .HasPrecision(18, 6);
+
+            unitPrice.Property(p => p.Currency)
+                .HasColumnName("UnitPriceCurrency")
+                .HasMaxLength(3);
+        });
+
         builder.HasOne<Product>()
             .WithMany()
             .HasForeignKey(variant => variant.ProductId)

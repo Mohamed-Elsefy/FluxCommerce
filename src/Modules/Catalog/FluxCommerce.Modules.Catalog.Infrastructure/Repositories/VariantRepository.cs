@@ -20,6 +20,15 @@ public sealed class VariantRepository : IVariantRepository
     public Task<Variant?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Variants.FirstOrDefaultAsync(variant => variant.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyCollection<Variant>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var idsArray = ids.ToArray();
+
+        return await Variants.AsNoTracking()
+            .Where(variant => idsArray.Contains(variant.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<Variant>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await Variants
             .Where(variant => !variant.IsDeleted)

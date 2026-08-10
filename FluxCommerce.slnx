@@ -11,6 +11,7 @@
     <File Path="docs/adr/003-building-blocks.md" />
     <File Path="docs/adr/004-messaging-reliability.md" />
     <File Path="docs/adr/005-observability.md" />
+    <File Path="docs/adr/006-catalog-variant-unit-price.md" />
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />

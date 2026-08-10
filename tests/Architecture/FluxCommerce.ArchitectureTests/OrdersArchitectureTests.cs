@@ -19,6 +19,17 @@ public class OrdersArchitectureTests
             {
                 foreach (var layer in new[] { "Domain", "Application", "Infrastructure", "Contracts" })
                 {
+                    // Phase 4.5 boundary: Orders.Application is allowed to depend on the approved
+                    // cross-module checkout contracts (FluxCommerce.Modules.Cart.Contracts and
+                    // FluxCommerce.Modules.Catalog.Contracts) — the ONLY Cart/Catalog boundaries
+                    // Orders may cross. All other module references remain forbidden.
+                    if ((module == "Cart" || module == "Catalog")
+                        && layer == "Contracts"
+                        && assembly.GetName().Name == "FluxCommerce.Modules.Orders.Application")
+                    {
+                        continue;
+                    }
+
                     AssertNoDependencies(
                         assembly,
                         $"FluxCommerce.Modules.{module}.{layer}",

@@ -1,6 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+using FluxCommerce.Modules.Orders.Domain.Aggregates;
+using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -16,4 +18,8 @@ public sealed class OrdersDbContext : BaseDbContext
         : base(options, dateTimeProvider, currentUser, saveChangesInterceptor)
     {
     }
+
+    public DbSet<Order> Orders { get; set; } = null!;
+
+    public DbSet<CheckoutIdempotency> CheckoutIdempotencies { get; set; } = null!;
 }

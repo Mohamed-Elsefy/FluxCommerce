@@ -17,6 +17,8 @@ public sealed class Variant : AggregateRoot<Guid>
 
     public string Name { get; private set; }
 
+    public Money UnitPrice { get; private set; }
+
     public VariantStatus Status { get; private set; }
 
     public bool IsDeleted { get; private set; }
@@ -25,12 +27,13 @@ public sealed class Variant : AggregateRoot<Guid>
 
     public DateTime? DeletedAtUtc { get; private set; }
 
-    private Variant(Guid id, Guid productId, Sku sku, string name, DateTime createdAtUtc)
+    private Variant(Guid id, Guid productId, Sku sku, string name, Money unitPrice, DateTime createdAtUtc)
         : base(id)
     {
         ProductId = productId;
         Sku = sku;
         Name = ValidateName(name, nameof(name), NameMaxLength);
+        UnitPrice = unitPrice ?? throw new ArgumentNullException(nameof(unitPrice));
         Status = VariantStatus.Active;
         IsDeleted = false;
         CreatedAtUtc = createdAtUtc;
@@ -41,7 +44,7 @@ public sealed class Variant : AggregateRoot<Guid>
     private Variant() { }
     #pragma warning restore CS8618
 
-    public static Variant Create(Guid id, Guid productId, Sku sku, string name, DateTime utcNow)
+    public static Variant Create(Guid id, Guid productId, Sku sku, string name, Money unitPrice, DateTime utcNow)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("A variant id must be provided.", nameof(id));
@@ -49,7 +52,10 @@ public sealed class Variant : AggregateRoot<Guid>
         if (productId == Guid.Empty)
             throw new ArgumentException("A product id must be provided.", nameof(productId));
 
-        var variant = new Variant(id, productId, sku, name, utcNow);
+        if (unitPrice is null)
+            throw new ArgumentNullException(nameof(unitPrice));
+
+        var variant = new Variant(id, productId, sku, name, unitPrice, utcNow);
 
         variant.AddDomainEvent(new VariantCreated(id));
 
@@ -95,6 +101,22 @@ public sealed class Variant : AggregateRoot<Guid>
         Sku = sku;
 
         AddDomainEvent(new VariantSkuChanged(Id, sku.Value));
+
+        return DomainResult.Success();
+    }
+
+    public DomainResult SetUnitPrice(Money unitPrice)
+    {
+        if (IsDeleted)
+            return DomainResult.Failure(VariantErrors.DeletedVariantCannotBeModified);
+
+        if (unitPrice is null)
+            throw new ArgumentNullException(nameof(unitPrice));
+
+        if (UnitPrice == unitPrice)
+            return DomainResult.Success();
+
+        UnitPrice = unitPrice;
 
         return DomainResult.Success();
     }
