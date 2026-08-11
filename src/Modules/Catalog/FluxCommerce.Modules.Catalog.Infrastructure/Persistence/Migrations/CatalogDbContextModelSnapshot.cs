@@ -191,7 +191,6 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductAttributeValue", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AttributeDefinitionId")
@@ -223,7 +222,6 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductImage", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AltText")
@@ -268,7 +266,6 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FluxCommerce.Modules.Catalog.Domain.Aggregates.ProductSpecification", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -479,6 +476,30 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.OwnsOne("FluxCommerce.Modules.Catalog.Domain.ValueObjects.Money", "UnitPrice", b1 =>
+                        {
+                            b1.Property<Guid>("VariantId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(18, 6)
+                                .HasColumnType("decimal(18,6)")
+                                .HasColumnName("UnitPriceAmount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("nvarchar(3)")
+                                .HasColumnName("UnitPriceCurrency");
+
+                            b1.HasKey("VariantId");
+
+                            b1.ToTable("Variants");
+
+                            b1.WithOwner()
+                                .HasForeignKey("VariantId");
+                        });
+
                     b.OwnsOne("FluxCommerce.Modules.Catalog.Domain.ValueObjects.Sku", "Sku", b1 =>
                         {
                             b1.Property<Guid>("VariantId")
@@ -502,6 +523,9 @@ namespace FluxCommerce.Modules.Catalog.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Sku")
+                        .IsRequired();
+
+                    b.Navigation("UnitPrice")
                         .IsRequired();
                 });
 

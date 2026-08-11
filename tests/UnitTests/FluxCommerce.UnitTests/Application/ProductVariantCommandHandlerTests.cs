@@ -24,7 +24,7 @@ public class ProductVariantCommandHandlerTests
         await _products.AddAsync(product);
         var handler = new CreateProductVariantCommandHandler(_products, _variants, _unitOfWork, _clock, new FakeLocalizer());
 
-        var result = await handler.HandleAsync(new CreateProductVariantCommand(product.Id, " sku-123 ", "128GB"));
+        var result = await handler.HandleAsync(new CreateProductVariantCommand(product.Id, " sku-123 ", "128GB", 999.99m, "USD"));
 
         Assert.True(result.IsSuccess);
         var variant = Assert.Single(_variants.Variants);
@@ -32,6 +32,8 @@ public class ProductVariantCommandHandlerTests
         Assert.Equal(product.Id, variant.ProductId);
         Assert.Equal("SKU-123", variant.Sku.Value);
         Assert.Equal("128GB", variant.Name);
+        Assert.Equal(999.99m, variant.UnitPrice.Amount);
+        Assert.Equal("USD", variant.UnitPrice.Currency);
         Assert.Equal(1, _unitOfWork.SaveChangesCount);
     }
 
@@ -40,7 +42,7 @@ public class ProductVariantCommandHandlerTests
     {
         var handler = new CreateProductVariantCommandHandler(_products, _variants, _unitOfWork, _clock, new FakeLocalizer());
 
-        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-123", "128GB"));
+        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-123", "128GB", 999.99m, "USD"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Catalog.ProductNotFound", result.Error.Code);
@@ -54,7 +56,7 @@ public class ProductVariantCommandHandlerTests
         await _products.AddAsync(TestProducts.Create());
         var handler = new CreateProductVariantCommandHandler(_products, _variants, _unitOfWork, _clock, new FakeLocalizer());
 
-        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-123", ""));
+        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-123", "", 999.99m, "USD"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Catalog.ValidationFailed", result.Error.Code);
@@ -67,7 +69,7 @@ public class ProductVariantCommandHandlerTests
         await _products.AddAsync(TestProducts.Create());
         var handler = new CreateProductVariantCommandHandler(_products, _variants, _unitOfWork, _clock, new FakeLocalizer());
 
-        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "bad sku!", "128GB"));
+        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "bad sku!", "128GB", 999.99m, "USD"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Catalog.InvalidSku", result.Error.Code);
@@ -82,13 +84,26 @@ public class ProductVariantCommandHandlerTests
         await _variants.AddAsync(TestVariants.Create(productId: product.Id, sku: "SKU-123"));
         var handler = new CreateProductVariantCommandHandler(_products, _variants, _unitOfWork, _clock, new FakeLocalizer());
 
-        var result = await handler.HandleAsync(new CreateProductVariantCommand(product.Id, "sku-123", "128GB"));
+        var result = await handler.HandleAsync(new CreateProductVariantCommand(product.Id, "sku-123", "128GB", 999.99m, "USD"));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Catalog.DuplicateVariantSku", result.Error.Code);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Single(_variants.Variants);
         Assert.Equal(0, _unitOfWork.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CreateVariant_InvalidUnitPriceCurrency_ReturnsValidation()
+    {
+        await _products.AddAsync(TestProducts.Create());
+        var handler = new CreateProductVariantCommandHandler(_products, _variants, _unitOfWork, _clock, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-123", "128GB", 999.99m, "US"));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Catalog.InvalidUnitPrice", result.Error.Code);
+        Assert.Empty(_variants.Variants);
     }
 
     // ---- CreateProductVariants ----
@@ -102,14 +117,15 @@ public class ProductVariantCommandHandlerTests
 
         var result = await handler.HandleAsync(new CreateProductVariantsCommand(product.Id, new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", "128GB"),
-            new CreateProductVariantItemCommand("SKU-2", "256GB"),
+            new CreateProductVariantItemCommand("SKU-1", "128GB", 999.99m, "USD"),
+            new CreateProductVariantItemCommand("SKU-2", "256GB", 1099.99m, "USD"),
         }));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Count);
         Assert.Equal(2, _variants.Variants.Count);
         Assert.Equal(2, _variants.Variants.Select(v => v.Id).Intersect(result.Value).Count());
+        Assert.All(_variants.Variants, variant => Assert.Equal("USD", variant.UnitPrice.Currency));
         Assert.Equal(1, _unitOfWork.SaveChangesCount);
     }
 
@@ -120,7 +136,7 @@ public class ProductVariantCommandHandlerTests
 
         var result = await handler.HandleAsync(new CreateProductVariantsCommand(Guid.NewGuid(), new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", "128GB"),
+            new CreateProductVariantItemCommand("SKU-1", "128GB", 999.99m, "USD"),
         }));
 
         Assert.True(result.IsFailure);
@@ -137,8 +153,8 @@ public class ProductVariantCommandHandlerTests
 
         var result = await handler.HandleAsync(new CreateProductVariantsCommand(product.Id, new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", "128GB"),
-            new CreateProductVariantItemCommand("SKU-1", "256GB"),
+            new CreateProductVariantItemCommand("SKU-1", "128GB", 999.99m, "USD"),
+            new CreateProductVariantItemCommand("SKU-1", "256GB", 999.99m, "USD"),
         }));
 
         Assert.True(result.IsFailure);
@@ -156,7 +172,7 @@ public class ProductVariantCommandHandlerTests
 
         var result = await handler.HandleAsync(new CreateProductVariantsCommand(product.Id, new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", "128GB"),
+            new CreateProductVariantItemCommand("SKU-1", "128GB", 999.99m, "USD"),
         }));
 
         Assert.True(result.IsFailure);
@@ -172,7 +188,7 @@ public class ProductVariantCommandHandlerTests
 
         var result = await handler.HandleAsync(new CreateProductVariantsCommand(Guid.NewGuid(), new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", " "),
+            new CreateProductVariantItemCommand("SKU-1", " ", 999.99m, "USD"),
         }));
 
         Assert.True(result.IsFailure);

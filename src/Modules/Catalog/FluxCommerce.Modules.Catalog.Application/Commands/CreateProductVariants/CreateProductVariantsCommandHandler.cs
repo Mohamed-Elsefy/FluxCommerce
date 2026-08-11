@@ -43,6 +43,7 @@ public sealed class CreateProductVariantsCommandHandler : ICommandHandler<Create
                 Error.Validation("Catalog.ValidationFailed", "One or more fields are invalid."));
 
         var skus = new Sku[command.Variants.Count];
+        var unitPrices = new Money[command.Variants.Count];
 
         for (var i = 0; i < command.Variants.Count; i++)
         {
@@ -54,6 +55,16 @@ public sealed class CreateProductVariantsCommandHandler : ICommandHandler<Create
             {
                 return Result.Failure<IReadOnlyCollection<Guid>>(
                     Error.Validation(CatalogErrors.InvalidSku.Code, CatalogErrors.InvalidSku.Description));
+            }
+
+            try
+            {
+                unitPrices[i] = new Money(command.Variants[i].UnitPriceAmount, command.Variants[i].Currency);
+            }
+            catch (ArgumentException)
+            {
+                return Result.Failure<IReadOnlyCollection<Guid>>(
+                    Error.Validation(CatalogErrors.InvalidUnitPrice.Code, CatalogErrors.InvalidUnitPrice.Description));
             }
         }
 
@@ -88,6 +99,7 @@ public sealed class CreateProductVariantsCommandHandler : ICommandHandler<Create
                 command.ProductId,
                 skus[i],
                 command.Variants[i].Name!.Trim(),
+                unitPrices[i],
                 now);
 
             created.Add(variant.Id);

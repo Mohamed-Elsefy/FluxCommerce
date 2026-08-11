@@ -87,6 +87,8 @@ public static class DependencyInjection
 
         services.AddScoped<ICatalogVariantCartLookup, CatalogVariantCartLookup>();
 
+        services.AddScoped<ICatalogVariantCheckoutLookup, CatalogVariantCheckoutLookup>();
+
         services.AddScoped<ICommandHandler<CreateCategoryCommand, Result<Guid>>, CreateCategoryCommandHandler>();
 
         services.AddScoped<ICommandHandler<UpdateCategoryCommand, Result>, UpdateCategoryCommandHandler>();

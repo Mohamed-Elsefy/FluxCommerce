@@ -7,6 +7,8 @@ public interface IVariantRepository
 {
     Task<Variant?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<Variant>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<Variant>> GetAllAsync(CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default);

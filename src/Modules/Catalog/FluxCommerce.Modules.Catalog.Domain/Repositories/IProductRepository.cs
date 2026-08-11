@@ -10,6 +10,8 @@ public interface IProductRepository
 
     Task<Product?> GetByIdForReadAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<Product>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyCollection<Product> Items, int TotalCount)> GetPagedAsync(

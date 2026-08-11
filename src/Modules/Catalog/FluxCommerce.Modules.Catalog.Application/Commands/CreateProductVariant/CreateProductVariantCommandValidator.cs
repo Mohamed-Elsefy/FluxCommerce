@@ -12,6 +12,7 @@ public sealed class CreateProductVariantCommandValidator(ILocalizer localizer)
         VariantRules.ValidateId(command.ProductId, "ProductId", localizer["Validation.Fields.ProductId"], errors, localizer);
         VariantRules.ValidateSku(command.Sku, errors, localizer);
         VariantRules.ValidateName(command.Name, "Name", localizer["Validation.Fields.VariantName"], errors, localizer);
+        VariantRules.ValidateUnitPrice(command.UnitPriceAmount, command.Currency, "UnitPriceAmount", "Currency", errors, localizer);
 
         return errors.Count == 0
             ? ValidationResult.Success()

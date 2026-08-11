@@ -468,6 +468,39 @@
   <data name="Cart.CatalogOperationFailed" xml:space="preserve">
     <value>The variant could not be validated. Try again.</value>
   </data>
+  <data name="Order.CartEmpty" xml:space="preserve">
+    <value>The cart contains no items to check out.</value>
+  </data>
+  <data name="Order.VariantUnavailable" xml:space="preserve">
+    <value>One or more cart items is no longer available for purchase.</value>
+  </data>
+  <data name="Order.DuplicateVariant" xml:space="preserve">
+    <value>The order cannot contain the same variant more than once.</value>
+  </data>
+  <data name="Order.CurrencyMismatch" xml:space="preserve">
+    <value>All money amounts on an order must share the same currency.</value>
+  </data>
+  <data name="Order.AuthenticationRequired" xml:space="preserve">
+    <value>Authentication is required to place an order.</value>
+  </data>
+  <data name="Order.CartNotFound" xml:space="preserve">
+    <value>The cart was not found.</value>
+  </data>
+  <data name="Order.CartAccessDenied" xml:space="preserve">
+    <value>The cart does not belong to the current user.</value>
+  </data>
+  <data name="Order.InvalidIdempotencyKey" xml:space="preserve">
+    <value>A valid Idempotency-Key header is required.</value>
+  </data>
+  <data name="Order.IdempotencyConflict" xml:space="preserve">
+    <value>The Idempotency-Key was already used for a different checkout request.</value>
+  </data>
+  <data name="Order.InvalidAddress" xml:space="preserve">
+    <value>The checkout address data is invalid.</value>
+  </data>
+  <data name="Order.CancelConflict" xml:space="preserve">
+    <value>The order cannot be cancelled in its current state.</value>
+  </data>
   <data name="Validation.Fields.Quantity" xml:space="preserve">
     <value>Quantity</value>
   </data>

@@ -13,6 +13,11 @@ public sealed class FakeVariantRepository : IVariantRepository
     public Task<Variant?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(_variants.TryGetValue(id, out var variant) ? variant : null);
 
+    public Task<IReadOnlyCollection<Variant>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<Variant>>(_variants.Values
+            .Where(variant => ids.Contains(variant.Id))
+            .ToList());
+
     public Task<IReadOnlyCollection<Variant>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyCollection<Variant>>(_variants.Values.ToList());
 

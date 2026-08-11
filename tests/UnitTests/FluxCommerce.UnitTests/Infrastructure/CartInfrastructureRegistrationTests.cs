@@ -9,6 +9,8 @@ using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
+using FluxCommerce.Modules.Cart.Application.Services;
+using FluxCommerce.Modules.Cart.Contracts.Abstractions;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Cart.Infrastructure.Configuration;
 using FluxCommerce.Modules.Cart.Infrastructure.Redis;
@@ -223,6 +225,22 @@ public class CartInfrastructureRegistrationTests
 
         Assert.Single(registrations);
         Assert.Equal(typeof(ClearGuestCartCommandHandler), registrations[0].ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, registrations[0].Lifetime);
+    }
+
+    [Fact]
+    public void AddCartInfrastructure_RegistersCartCheckoutSnapshotProvider()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCartInfrastructure(CreateConfiguration("cart"));
+
+        var registrations = services
+            .Where(descriptor => descriptor.ServiceType == typeof(ICartCheckoutSnapshotProvider))
+            .ToList();
+
+        Assert.Single(registrations);
+        Assert.Equal(typeof(CartCheckoutSnapshotProvider), registrations[0].ImplementationType);
         Assert.Equal(ServiceLifetime.Scoped, registrations[0].Lifetime);
     }
 

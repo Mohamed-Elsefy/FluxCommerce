@@ -18,7 +18,7 @@ public class ProductVariantValidatorsTests
     {
         var validator = new CreateProductVariantCommandValidator(Localizer);
 
-        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", "128GB"));
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", "128GB", 999.99m, "USD"));
 
         Assert.True(result.IsValid);
         Assert.Empty(result.Errors);
@@ -29,7 +29,7 @@ public class ProductVariantValidatorsTests
     {
         var validator = new CreateProductVariantCommandValidator(Localizer);
 
-        var result = validator.Validate(new CreateProductVariantCommand(Guid.Empty, "SKU-1", "128GB"));
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.Empty, "SKU-1", "128GB", 999.99m, "USD"));
 
         Assert.False(result.IsValid);
         Assert.True(result.Errors.ContainsKey("ProductId"));
@@ -40,7 +40,7 @@ public class ProductVariantValidatorsTests
     {
         var validator = new CreateProductVariantCommandValidator(Localizer);
 
-        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), null, "128GB"));
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), null, "128GB", 999.99m, "USD"));
 
         Assert.False(result.IsValid);
         Assert.True(result.Errors.ContainsKey("Sku"));
@@ -51,7 +51,7 @@ public class ProductVariantValidatorsTests
     {
         var validator = new CreateProductVariantCommandValidator(Localizer);
 
-        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), string.Concat(Enumerable.Repeat("A", 65)), "128GB"));
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), string.Concat(Enumerable.Repeat("A", 65)), "128GB", 999.99m, "USD"));
 
         Assert.False(result.IsValid);
         Assert.True(result.Errors.ContainsKey("Sku"));
@@ -62,10 +62,32 @@ public class ProductVariantValidatorsTests
     {
         var validator = new CreateProductVariantCommandValidator(Localizer);
 
-        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", " "));
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", " ", 999.99m, "USD"));
 
         Assert.False(result.IsValid);
         Assert.True(result.Errors.ContainsKey("Name"));
+    }
+
+    [Fact]
+    public void CreateVariant_NonPositiveUnitPrice_IsInvalid()
+    {
+        var validator = new CreateProductVariantCommandValidator(Localizer);
+
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", "128GB", 0m, "USD"));
+
+        Assert.False(result.IsValid);
+        Assert.True(result.Errors.ContainsKey("UnitPriceAmount"));
+    }
+
+    [Fact]
+    public void CreateVariant_MissingCurrency_IsInvalid()
+    {
+        var validator = new CreateProductVariantCommandValidator(Localizer);
+
+        var result = validator.Validate(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", "128GB", 999.99m, " "));
+
+        Assert.False(result.IsValid);
+        Assert.True(result.Errors.ContainsKey("Currency"));
     }
 
     // ---- CreateProductVariantsCommandValidator ----
@@ -77,8 +99,8 @@ public class ProductVariantValidatorsTests
 
         var result = validator.Validate(new CreateProductVariantsCommand(Guid.NewGuid(), new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", "128GB"),
-            new CreateProductVariantItemCommand("SKU-2", "256GB"),
+            new CreateProductVariantItemCommand("SKU-1", "128GB", 999.99m, "USD"),
+            new CreateProductVariantItemCommand("SKU-2", "256GB", 1099.99m, "USD"),
         }));
 
         Assert.True(result.IsValid);
@@ -91,7 +113,7 @@ public class ProductVariantValidatorsTests
 
         var result = validator.Validate(new CreateProductVariantsCommand(Guid.Empty, new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", "128GB"),
+            new CreateProductVariantItemCommand("SKU-1", "128GB", 999.99m, "USD"),
         }));
 
         Assert.False(result.IsValid);
@@ -105,7 +127,7 @@ public class ProductVariantValidatorsTests
 
         var result = validator.Validate(new CreateProductVariantsCommand(Guid.NewGuid(), new[]
         {
-            new CreateProductVariantItemCommand("", "128GB"),
+            new CreateProductVariantItemCommand("", "128GB", 999.99m, "USD"),
         }));
 
         Assert.False(result.IsValid);
@@ -119,7 +141,7 @@ public class ProductVariantValidatorsTests
 
         var result = validator.Validate(new CreateProductVariantsCommand(Guid.NewGuid(), new[]
         {
-            new CreateProductVariantItemCommand("SKU-1", ""),
+            new CreateProductVariantItemCommand("SKU-1", "", 999.99m, "USD"),
         }));
 
         Assert.False(result.IsValid);
@@ -133,13 +155,15 @@ public class ProductVariantValidatorsTests
 
         var result = validator.Validate(new CreateProductVariantsCommand(Guid.NewGuid(), new[]
         {
-            new CreateProductVariantItemCommand("", ""),
-            new CreateProductVariantItemCommand("", null),
+            new CreateProductVariantItemCommand("", "", 0m, " "),
+            new CreateProductVariantItemCommand("", null, 0m, null!),
         }));
 
         Assert.False(result.IsValid);
         Assert.True(result.Errors.ContainsKey("Variants[0].Sku"));
         Assert.True(result.Errors.ContainsKey("Variants[0].Name"));
+        Assert.True(result.Errors.ContainsKey("Variants[0].UnitPriceAmount"));
+        Assert.True(result.Errors.ContainsKey("Variants[0].Currency"));
         Assert.True(result.Errors.ContainsKey("Variants[1].Sku"));
         Assert.True(result.Errors.ContainsKey("Variants[1].Name"));
     }

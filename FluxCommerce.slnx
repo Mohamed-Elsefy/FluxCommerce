@@ -11,12 +11,15 @@
     <File Path="docs/adr/003-building-blocks.md" />
     <File Path="docs/adr/004-messaging-reliability.md" />
     <File Path="docs/adr/005-observability.md" />
+    <File Path="docs/adr/006-catalog-variant-unit-price.md" />
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_1_5_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_1_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_2_COMPLETION_REPORT.md" />
+    <File Path="docs/completed/PHASE_3_COMPLETION_REPORT.md" />
+    <File Path="docs/completed/PHASE_4_COMPLETION_REPORT.md" />
   </Folder>
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
@@ -28,6 +31,7 @@
     <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
     <File Path="docs/phases/PHASE_2_CATALOG_MODULE.md" />
     <File Path="docs/phases/PHASE_3_CART_MODULE.md" />
+    <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
   </Folder>
 
   <!-- Solution Items -->

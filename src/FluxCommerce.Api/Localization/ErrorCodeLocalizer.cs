@@ -73,6 +73,20 @@ public sealed class ErrorCodeLocalizer(ILocalizer localizer) : IErrorCodeLocaliz
         ["Cart.VariantNotFound"] = "Cart.VariantNotFound",
         ["Cart.VariantUnavailable"] = "Cart.VariantUnavailable",
         ["Cart.CatalogOperationFailed"] = "Cart.CatalogOperationFailed",
+        ["Order.CartEmpty"] = "Order.CartEmpty",
+        ["Order.VariantUnavailable"] = "Order.VariantUnavailable",
+        ["Order.DuplicateVariant"] = "Order.DuplicateVariant",
+        ["Order.CurrencyMismatch"] = "Order.CurrencyMismatch",
+        ["Order.AuthenticationRequired"] = "Order.AuthenticationRequired",
+        ["Order.CartNotFound"] = "Order.CartNotFound",
+        ["Order.CartAccessDenied"] = "Order.CartAccessDenied",
+        ["Order.InvalidIdempotencyKey"] = "Order.InvalidIdempotencyKey",
+        ["Order.IdempotencyConflict"] = "Order.IdempotencyConflict",
+        ["Order.InvalidAddress"] = "Order.InvalidAddress",
+        ["Order.QueryAuthenticationRequired"] = "Authorization.Unauthorized",
+        ["Order.ValidationFailed"] = "Errors.RequestValidation",
+        ["Order.NotFound"] = "Errors.NotFound",
+        ["Order.CancelConflict"] = "Order.CancelConflict",
     };
 
     public string Localize(string code, string fallback)

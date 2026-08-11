@@ -11,12 +11,15 @@ public static class TestVariants
         Guid? id = null,
         Guid? productId = null,
         string sku = "SMARTPHONE-128GB",
-        string name = "128GB") =>
+        string name = "128GB",
+        decimal unitPriceAmount = 999.99m,
+        string currency = "USD") =>
         Variant.Create(
             id ?? Guid.NewGuid(),
             productId ?? Guid.NewGuid(),
             new Sku(sku),
             name,
+            new Money(unitPriceAmount, currency),
             UtcNow);
 
     public static Variant CreateDeleted(

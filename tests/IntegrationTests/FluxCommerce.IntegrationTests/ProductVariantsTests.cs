@@ -20,7 +20,7 @@ public class ProductVariantsTests : CatalogApiTestBase
 
         var response = await Client.PostAsJsonAsync(
             $"catalog/products/{productId}/variants",
-            new { sku = "SKU-001", name = "Small" });
+            new { sku = "SKU-001", name = "Small", unitPriceAmount = 19.99m, currency = "USD" });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var data = (await response.ReadJsonAsync<ApiResponseDto<Guid>>()).Data;
@@ -35,7 +35,7 @@ public class ProductVariantsTests : CatalogApiTestBase
 
         var response = await Client.PostAsJsonAsync(
             $"catalog/products/{productId}/variants",
-            new { sku = "SKU-DUP", name = "Large" });
+            new { sku = "SKU-DUP", name = "Large", unitPriceAmount = 19.99m, currency = "USD" });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
@@ -49,7 +49,7 @@ public class ProductVariantsTests : CatalogApiTestBase
 
         var response = await Client.PostAsJsonAsync(
             $"catalog/products/{productId}/variants",
-            new { sku = "bad sku!", name = "Broken" });
+            new { sku = "bad sku!", name = "Broken", unitPriceAmount = 19.99m, currency = "USD" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
@@ -63,7 +63,7 @@ public class ProductVariantsTests : CatalogApiTestBase
 
         var response = await Client.PostAsJsonAsync(
             $"catalog/products/{Guid.NewGuid()}/variants",
-            new { sku = "SKU-999", name = "Orphan" });
+            new { sku = "SKU-999", name = "Orphan", unitPriceAmount = 19.99m, currency = "USD" });
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         var problem = await response.ReadJsonAsync<ProblemDetailsDto>();
@@ -81,8 +81,8 @@ public class ProductVariantsTests : CatalogApiTestBase
             {
                 variants = new[]
                 {
-                    new { sku = "SKU-B1", name = "Red" },
-                    new { sku = "SKU-B2", name = "Blue" },
+                    new { sku = "SKU-B1", name = "Red", unitPriceAmount = 19.99m, currency = "USD" },
+                    new { sku = "SKU-B2", name = "Blue", unitPriceAmount = 29.99m, currency = "USD" },
                 }
             });
 
@@ -108,8 +108,8 @@ public class ProductVariantsTests : CatalogApiTestBase
             {
                 variants = new[]
                 {
-                    new { sku = "SKU-SAME", name = "Red" },
-                    new { sku = "SKU-SAME", name = "Blue" },
+                    new { sku = "SKU-SAME", name = "Red", unitPriceAmount = 19.99m, currency = "USD" },
+                    new { sku = "SKU-SAME", name = "Blue", unitPriceAmount = 19.99m, currency = "USD" },
                 }
             });
 
@@ -210,7 +210,7 @@ public class ProductVariantsTests : CatalogApiTestBase
     {
         var response = await Client.PostAsJsonAsync(
             $"catalog/products/{productId}/variants",
-            new { sku, name });
+            new { sku, name, unitPriceAmount = 19.99m, currency = "USD" });
         response.EnsureSuccessStatusCode();
 
         return (await response.ReadJsonAsync<ApiResponseDto<Guid>>()).Data;

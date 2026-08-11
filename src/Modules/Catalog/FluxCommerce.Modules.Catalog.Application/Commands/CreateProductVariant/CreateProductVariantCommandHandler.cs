@@ -53,6 +53,17 @@ public sealed class CreateProductVariantCommandHandler : ICommandHandler<CreateP
                 Error.Validation(CatalogErrors.InvalidSku.Code, CatalogErrors.InvalidSku.Description));
         }
 
+        Money unitPrice;
+        try
+        {
+            unitPrice = new Money(command.UnitPriceAmount, command.Currency);
+        }
+        catch (ArgumentException)
+        {
+            return Result.Failure<Guid>(
+                Error.Validation(CatalogErrors.InvalidUnitPrice.Code, CatalogErrors.InvalidUnitPrice.Description));
+        }
+
         var name = command.Name!.Trim();
 
         var product = await _productRepository.GetByIdAsync(command.ProductId, cancellationToken);
@@ -70,6 +81,7 @@ public sealed class CreateProductVariantCommandHandler : ICommandHandler<CreateP
             command.ProductId,
             sku,
             name,
+            unitPrice,
             _dateTimeProvider.UtcNow);
 
         await _variantRepository.AddAsync(variant, cancellationToken);

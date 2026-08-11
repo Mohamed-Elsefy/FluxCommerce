@@ -144,6 +144,17 @@ public class SharedResourcesTests
         "Cart.VariantNotFound",
         "Cart.VariantUnavailable",
         "Cart.CatalogOperationFailed",
+        "Order.CartEmpty",
+        "Order.VariantUnavailable",
+        "Order.DuplicateVariant",
+        "Order.CurrencyMismatch",
+        "Order.AuthenticationRequired",
+        "Order.CartNotFound",
+        "Order.CartAccessDenied",
+        "Order.InvalidIdempotencyKey",
+        "Order.IdempotencyConflict",
+        "Order.InvalidAddress",
+        "Order.CancelConflict",
     ];
 
     private static readonly string[] SatelliteCultures = ["fr", "de", "es", "ar"];

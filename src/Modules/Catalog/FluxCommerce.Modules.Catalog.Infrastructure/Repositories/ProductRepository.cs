@@ -29,6 +29,15 @@ public sealed class ProductRepository : IProductRepository
         Products.AsNoTracking()
             .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyCollection<Product>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var idsArray = ids.ToArray();
+
+        return await Products.AsNoTracking()
+            .Where(product => idsArray.Contains(product.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await Products.AsNoTracking()
             .Where(product => !product.IsDeleted)
