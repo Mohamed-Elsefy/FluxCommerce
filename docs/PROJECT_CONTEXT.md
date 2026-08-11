@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), and **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), and **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1294,6 +1294,42 @@ The Cart Module (Phase 3) delivers the shopping cart domain — the first custom
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 74/74, Unit tests 1,259/1,259, Integration tests 178/178; Cart-specific: 509 unit + 178 integration + 35 architecture = 722 green.
 
 **Deferred.** Cart expiration background worker (Redis TTL handles it), Inventory reservation (Phase 5), Final pricing/checkout (Phase 4), RabbitMQ/Outbox events (Phase 6), Wishlist (future phase).
+
+---
+
+### 14.4 Phase 4 — Orders & Checkout — Implemented & Verified
+
+The Orders & Checkout phase (see `docs/phases/PHASE_4_ORDERS_CHECKOUT.md` and `docs/completed/PHASE_4_COMPLETION_REPORT.md`) converts an authenticated customer's Cart into a durable, immutable commercial Order. It introduces the **Orders module** (Domain/Application/Infrastructure/Contracts) with the **Order aggregate**, **OrderLineItem**, **Money**, the **Pending → Cancelled** lifecycle, **authenticated Checkout** with persistent **SQL-backed idempotency**, **Catalog revalidation** and **current-price resolution**, immutable **Order snapshots**, **Cart consumption**, customer **Order queries** (list + details), **cancellation**, full **localization**, and a green test suite.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 4.1 | Orders module foundation & architecture (skeleton review, `OrdersDbContext`, DI, config, migrations infrastructure, architecture boundaries) | Implemented |
+| 4.2 | Order domain model & monetary model (Order aggregate, OrderLineItem, Money, totals, snapshots, address) | Implemented |
+| 4.3 | Order lifecycle, cancellation & domain errors (OrderStatus, Pending/Cancelled, domain errors/events) | Implemented |
+| 4.4 | Orders persistence & database schema (EF configurations, monetary precision, indexes, `CheckoutIdempotency`, `InitialOrders` migration) | Implemented |
+| 4.5 | Cart & Catalog checkout contracts (`ICartCheckoutSnapshotProvider`, `ICatalogVariantCheckoutLookup`, `ICartCheckoutConsumption`) | Implemented |
+| 4.6 | Checkout pricing & immutable Order snapshot (current-price resolution, line totals, subtotal, snapshot builder) | Implemented |
+| 4.7 | Checkout application workflow & idempotency (Checkout command, ownership, empty-cart, persistent `(Customer, Key)` idempotency, request fingerprint, atomic persistence) | Implemented |
+| 4.8 | Cart consumption & checkout failure semantics (best-effort post-commit clear, safe retry, no duplicate Orders on failure) | Implemented |
+| 4.9 | Order queries & REST API (`GET /orders`, `GET /orders/{orderId}`, `POST /orders/{orderId}/cancel`, pagination, ownership, Swagger) | Implemented |
+| 4.10 | Hardening, testing, documentation & completion (validation/authorization/localization/Swagger/security/performance/EF reviews, docs sync, completion report) | Implemented |
+
+**Key decisions (Orders architecture).**
+
+- Orders owns Order state exclusively; it never touches Cart Redis, Catalog DbContext, Inventory, Payments, RabbitMQ, or Outbox. Cross-module interaction uses only the approved checkout contracts (`Cart.Contracts`, `Catalog.Contracts`).
+- Checkout is authenticated-only and idempotent: the `Idempotency-Key` header participates in a unique `(UserId, IdempotencyKey)` constraint; the same request+key returns the original Order, a different request reusing the key is rejected with a conflict, and Order + idempotency record persist atomically in one `SaveChanges`.
+- The Cart price snapshot is never authoritative: Checkout revalidates variants against current Catalog state (batch — no per-item calls) and builds the Order from the revalidated price, SKU, product name, and eligibility.
+- The Order stores an immutable commercial snapshot (ProductId, VariantId, SKU, ProductName, UnitPrice, Quantity) and does not depend on live Catalog data after creation.
+- The Order aggregate enforces lifecycle rules (`Pending → Cancelled` only) and all monetary invariants (positive amounts, ISO 4217 currency, single-currency enforcement, deterministic arithmetic, `decimal(18,6)` SQL precision).
+- Customer queries and cancellation are ownership-scoped by the authenticated `ICurrentUser`; another customer's Order is indistinguishable from a missing one (404), preventing IDOR.
+- Order list reads use a lightweight projection (no owned line-item materialization); the page is ordered newest-first with a two-step approach because SQLite cannot `ORDER BY` a `DateTimeOffset` column.
+- Cart clearing is a best-effort step after the Order is durably committed; its failure never rolls back or duplicates the Order.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 103/103, Unit tests 1,497/1,497, Integration tests 207/207. EF model in sync with the `InitialOrders` migration (no pending model changes).
+
+**Deferred.** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). Order cancellation currently performs no inventory/payment compensation by design. `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
 
 ---
 
@@ -1859,11 +1895,14 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_1_5_RUNTIME_PREPARATION.md
         PHASE_2_CATALOG_MODULE.md
         PHASE_3_CART_MODULE.md
+        PHASE_4_ORDERS_CHECKOUT.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md
         PHASE_1_5_COMPLETION_REPORT.md
         PHASE_2_COMPLETION_REPORT.md
+        PHASE_3_COMPLETION_REPORT.md
+        PHASE_4_COMPLETION_REPORT.md
     current/
         EF_CORE_COMMANDS.md
         LOCAL_DEVELOPMENT.md

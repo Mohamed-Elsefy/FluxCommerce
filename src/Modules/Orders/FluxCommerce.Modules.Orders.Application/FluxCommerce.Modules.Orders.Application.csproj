@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\FluxCommerce.Modules.Orders.Domain\FluxCommerce.Modules.Orders.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\..\Cart\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />

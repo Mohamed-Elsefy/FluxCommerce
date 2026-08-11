@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddSingleton<ICartStore, RedisCartStore>();
 
         services.AddScoped<ICartCheckoutSnapshotProvider, CartCheckoutSnapshotProvider>();
+        services.AddScoped<ICartCheckoutConsumption, CartCheckoutConsumption>();
 
         services.AddScoped<ICommandHandler<CreateGuestCartCommand, Result<CartState>>, CreateGuestCartCommandHandler>();
         services.AddScoped<IQueryHandler<GetGuestCartQuery, Result<CartState>>, GetGuestCartQueryHandler>();
