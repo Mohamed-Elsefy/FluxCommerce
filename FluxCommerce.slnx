@@ -20,6 +20,7 @@
     <File Path="docs/completed/PHASE_2_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_3_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_4_COMPLETION_REPORT.md" />
+    <File Path="docs/completed/PHASE_5_COMPLETION_REPORT.md" />
   </Folder>
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
