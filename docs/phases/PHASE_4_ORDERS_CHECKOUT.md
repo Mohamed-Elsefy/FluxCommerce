@@ -162,7 +162,7 @@ The intended flow is:
 Authenticated User
         │
         ▼
-POST /api/orders/checkout
+POST /orders/checkout
         │
         ▼
 Validate Idempotency-Key
@@ -725,8 +725,8 @@ are business references, not cross-module relational foreign keys.
 Phase 4 provides:
 
 ``` http
-GET /api/orders
-GET /api/orders/{orderId}
+GET /orders
+GET /orders/{orderId}
 ```
 
 Customer queries must enforce ownership.
@@ -752,7 +752,7 @@ Do not introduce a separate read database or search infrastructure.
 The expected API is:
 
 ``` http
-POST /api/orders/{orderId}/cancel
+POST /orders/{orderId}/cancel
 ```
 
 Authorization rules:
@@ -769,13 +769,13 @@ Authorization rules:
 The baseline API surface is:
 
 ``` http
-POST /api/orders/checkout
+POST /orders/checkout
 
-GET /api/orders
+GET /orders
 
-GET /api/orders/{orderId}
+GET /orders/{orderId}
 
-POST /api/orders/{orderId}/cancel
+POST /orders/{orderId}/cancel
 ```
 
 Exact route naming should follow existing project API conventions.
@@ -1369,10 +1369,10 @@ CancelOrder
 API:
 
 ``` text
-POST /api/orders/checkout
-GET  /api/orders
-GET  /api/orders/{orderId}
-POST /api/orders/{orderId}/cancel
+POST /orders/checkout
+GET  /orders
+GET  /orders/{orderId}
+POST /orders/{orderId}/cancel
 ```
 
 Cross-cutting:

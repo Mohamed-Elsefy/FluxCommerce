@@ -35,6 +35,12 @@
     <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
     <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
   </Folder>
+  <Folder Name="/docs/refactoring/">
+    <File Path="docs/refactoring/REFACTORING_1_BASELINE.md" />
+    <File Path="docs/refactoring/REFACTORING_1_COMPLETION.md" />
+    <File Path="docs/refactoring/REFACTORING_1_FINDINGS.md" />
+    <File Path="docs/refactoring/REFACTORING_1_PLAN.md" />
+  </Folder>
 
   <!-- Solution Items -->
   <Folder Name="/Solution Items/">

@@ -19,6 +19,8 @@ using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
+using ContractsCatalogProductSortBy = FluxCommerce.Modules.Catalog.Contracts.Enums.CatalogProductSortBy;
+using ContractsCatalogProductSortDirection = FluxCommerce.Modules.Catalog.Contracts.Enums.CatalogProductSortDirection;
 using ContractsProductStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductStatus;
 using ContractsProductVisibility = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductVisibility;
 using DomainCatalogProductSortBy = FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortBy;
@@ -179,8 +181,8 @@ public sealed class ProductsController : ApiControllerBase
         [FromQuery] Guid? categoryId,
         [FromQuery] ContractsProductStatus? status,
         [FromQuery] ContractsProductVisibility? visibility,
-        [FromQuery] DomainCatalogProductSortBy? sortBy,
-        [FromQuery] DomainCatalogProductSortDirection? sortDirection,
+        [FromQuery] ContractsCatalogProductSortBy? sortBy,
+        [FromQuery] ContractsCatalogProductSortDirection? sortDirection,
         [FromQuery] int? pageNumber,
         [FromQuery] int? pageSize,
         CancellationToken cancellationToken)
@@ -188,8 +190,8 @@ public sealed class ProductsController : ApiControllerBase
         var query = new SearchCatalogProductsQuery(
             searchTerm ?? string.Empty,
             BuildFilter(categoryId, status, visibility),
-            sortBy,
-            sortDirection,
+            ToDomainSortBy(sortBy),
+            ToDomainSortDirection(sortDirection),
             pageNumber,
             pageSize);
 
@@ -233,6 +235,25 @@ public sealed class ProductsController : ApiControllerBase
             ContractsProductStatus.Inactive => DomainProductStatus.Inactive,
             ContractsProductStatus.Archived => DomainProductStatus.Archived,
             _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
+
+    private static DomainCatalogProductSortBy? ToDomainSortBy(ContractsCatalogProductSortBy? sortBy) =>
+        sortBy switch
+        {
+            null => null,
+            ContractsCatalogProductSortBy.Name => DomainCatalogProductSortBy.Name,
+            ContractsCatalogProductSortBy.CreatedAtUtc => DomainCatalogProductSortBy.CreatedAtUtc,
+            _ => throw new ArgumentOutOfRangeException(nameof(sortBy), sortBy, null)
+        };
+
+    private static DomainCatalogProductSortDirection? ToDomainSortDirection(
+        ContractsCatalogProductSortDirection? sortDirection) =>
+        sortDirection switch
+        {
+            null => null,
+            ContractsCatalogProductSortDirection.Ascending => DomainCatalogProductSortDirection.Ascending,
+            ContractsCatalogProductSortDirection.Descending => DomainCatalogProductSortDirection.Descending,
+            _ => throw new ArgumentOutOfRangeException(nameof(sortDirection), sortDirection, null)
         };
 
     private static SeoMetadataCommand? ToSeoCommand(SeoRequest? seo) =>

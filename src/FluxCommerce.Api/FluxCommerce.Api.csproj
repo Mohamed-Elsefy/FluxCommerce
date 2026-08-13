@@ -11,7 +11,6 @@
     <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Localization\FluxCommerce.BuildingBlocks.Localization.csproj" />
     <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
-    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
     <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Observability\FluxCommerce.BuildingBlocks.Observability.csproj" />
     <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Web\FluxCommerce.BuildingBlocks.Web.csproj" />
   </ItemGroup>

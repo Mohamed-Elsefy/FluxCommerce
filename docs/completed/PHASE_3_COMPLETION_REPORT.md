@@ -81,7 +81,7 @@ All architectural principles from `ARCHITECTURE.md` were preserved: Modular Mono
 
 ### 4.5 API / Swagger
 
-- **Controller**: `CartController` at `/api/cart` (single controller, guest + auth endpoints separated by route + `[AllowAnonymous]`).
+- **Controller**: `CartController` at `/cart` (single controller, guest + auth endpoints separated by route + `[AllowAnonymous]`).
 - **Endpoints (12)**:
   - Guest: `POST /cart/guest`, `GET /cart/guest/{cartId}`, `POST /cart/guest/{cartId}/items`, `PUT /cart/guest/{cartId}/items/{variantId}`, `DELETE /cart/guest/{cartId}/items/{variantId}`, `DELETE /cart/guest/{cartId}`
   - Auth: `POST /cart`, `GET /cart`, `POST /cart/items`, `PUT /cart/items/{variantId}`, `DELETE /cart/items/{variantId}`, `DELETE /cart`, `POST /cart/merge`

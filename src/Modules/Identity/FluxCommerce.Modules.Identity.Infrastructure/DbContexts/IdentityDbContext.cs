@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -15,4 +16,6 @@ public sealed class IdentityDbContext : BaseDbContext
         : base(options, dateTimeProvider, currentUser, saveChangesInterceptor)
     {
     }
+
+    public DbSet<User> Users { get; set; } = null!;
 }
