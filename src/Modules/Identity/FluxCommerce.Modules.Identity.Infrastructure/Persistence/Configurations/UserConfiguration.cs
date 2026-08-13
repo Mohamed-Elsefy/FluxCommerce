@@ -94,6 +94,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             tokens.Property(token => token.CreatedAtUtc);
             tokens.Property(token => token.ExpiresAtUtc);
             tokens.Property(token => token.ReplacedByTokenValue).HasMaxLength(512);
+
+            tokens.HasIndex(token => token.Value)
+                .HasDatabaseName("IX_RefreshTokens_Value");
         });
 
         builder.OwnsOne(user => user.VerificationToken, token =>
@@ -104,6 +107,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             token.Property(t => t.Value).HasMaxLength(512);
             token.Property(t => t.CreatedAtUtc);
             token.Property(t => t.ExpiresAtUtc);
+
+            token.HasIndex(t => t.Value)
+                .HasDatabaseName("IX_EmailVerificationTokens_Value");
         });
 
         builder.OwnsOne(user => user.ResetToken, token =>
@@ -114,6 +120,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             token.Property(t => t.Value).HasMaxLength(512);
             token.Property(t => t.CreatedAtUtc);
             token.Property(t => t.ExpiresAtUtc);
+
+            token.HasIndex(t => t.Value)
+                .HasDatabaseName("IX_PasswordResetTokens_Value");
         });
     }
 }

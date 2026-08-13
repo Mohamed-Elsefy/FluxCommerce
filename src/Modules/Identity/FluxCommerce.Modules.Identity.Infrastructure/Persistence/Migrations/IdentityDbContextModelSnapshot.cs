@@ -137,6 +137,9 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                             b1.HasIndex("UserId")
                                 .IsUnique();
 
+                            b1.HasIndex("Value")
+                                .HasDatabaseName("IX_EmailVerificationTokens_Value");
+
                             b1.ToTable("EmailVerificationTokens", (string)null);
 
                             b1.WithOwner()
@@ -170,6 +173,9 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
 
                             b1.HasIndex("UserId")
                                 .IsUnique();
+
+                            b1.HasIndex("Value")
+                                .HasDatabaseName("IX_PasswordResetTokens_Value");
 
                             b1.ToTable("PasswordResetTokens", (string)null);
 
@@ -207,6 +213,9 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                             b1.HasKey("Id");
 
                             b1.HasIndex("UserId");
+
+                            b1.HasIndex("Value")
+                                .HasDatabaseName("IX_RefreshTokens_Value");
 
                             b1.ToTable("RefreshTokens", (string)null);
 

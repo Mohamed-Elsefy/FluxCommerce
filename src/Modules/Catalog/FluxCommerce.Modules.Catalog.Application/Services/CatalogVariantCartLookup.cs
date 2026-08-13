@@ -12,7 +12,9 @@ namespace FluxCommerce.Modules.Catalog.Application.Services;
 /// <summary>
 /// Resolves whether Catalog variants are eligible to be added to a Cart. A variant is eligible
 /// only when it exists, is not deleted, is Active, and belongs to a Product that exists, is not
-/// deleted, is Active, and is Visible.
+/// deleted, is Active, and is Visible. Uses batch retrieval (<see cref="IVariantRepository.GetByIdsAsync"/>
+/// and <see cref="IProductRepository.GetByIdsAsync"/>) so a requested collection is resolved with a
+/// bounded number of queries — never one query per Cart item.
 /// </summary>
 public sealed class CatalogVariantCartLookup : ICatalogVariantCartLookup
 {
@@ -38,22 +40,19 @@ public sealed class CatalogVariantCartLookup : ICatalogVariantCartLookup
         if (distinctIds.Length == 0)
             return Array.Empty<CatalogVariantEligibility>();
 
-        var variants = await LoadVariantsAsync(distinctIds, cancellationToken).ConfigureAwait(false);
+        var variants = await _variantRepository.GetByIdsAsync(distinctIds, cancellationToken).ConfigureAwait(false);
 
         var productIds = variants
-            .Where(variant => variant is not null)
-            .Select(variant => variant!.ProductId)
+            .Select(variant => variant.ProductId)
             .Distinct()
             .ToArray();
 
         var products = productIds.Length > 0
-            ? await LoadProductsAsync(productIds, cancellationToken).ConfigureAwait(false)
+            ? await _productRepository.GetByIdsAsync(productIds, cancellationToken).ConfigureAwait(false)
             : Array.Empty<Product>();
 
+        var variantsById = variants.ToDictionary(variant => variant.Id);
         var productsById = products.ToDictionary(product => product.Id);
-        var variantsById = variants
-            .Where(variant => variant is not null)
-            .ToDictionary(variant => variant!.Id, variant => variant!);
 
         return distinctIds
             .Select(id => ToEligibility(id, variantsById, productsById))
@@ -84,36 +83,5 @@ public sealed class CatalogVariantCartLookup : ICatalogVariantCartLookup
             variant.ProductId,
             variant.Sku.Value,
             product.Name);
-    }
-
-    private async Task<IReadOnlyCollection<Variant?>> LoadVariantsAsync(
-        IReadOnlyCollection<Guid> variantIds,
-        CancellationToken cancellationToken)
-    {
-        var loaded = new List<Variant?>(variantIds.Count);
-
-        foreach (var variantId in variantIds)
-        {
-            loaded.Add(await _variantRepository.GetByIdAsync(variantId, cancellationToken).ConfigureAwait(false));
-        }
-
-        return loaded;
-    }
-
-    private async Task<IReadOnlyCollection<Product>> LoadProductsAsync(
-        IReadOnlyCollection<Guid> productIds,
-        CancellationToken cancellationToken)
-    {
-        var loaded = new List<Product>(productIds.Count);
-
-        foreach (var productId in productIds)
-        {
-            var product = await _productRepository.GetByIdAsync(productId, cancellationToken).ConfigureAwait(false);
-
-            if (product is not null)
-                loaded.Add(product);
-        }
-
-        return loaded;
     }
 }

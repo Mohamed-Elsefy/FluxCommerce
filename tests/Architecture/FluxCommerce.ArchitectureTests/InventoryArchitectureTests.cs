@@ -397,6 +397,25 @@ public class InventoryArchitectureTests
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
+    // ---- Contract mirror drift protection ----
+
+    [Fact]
+    public void InventoryReservationStatus_ContractsMirror_ShouldMatchDomain()
+    {
+        var domainNames = Enum.GetNames(typeof(FluxCommerce.Modules.Inventory.Domain.Enums.InventoryReservationStatus));
+        var contractNames = Enum.GetNames(typeof(FluxCommerce.Modules.Inventory.Contracts.Enums.InventoryReservationStatus));
+
+        var domainValues = Enum.GetValues(typeof(FluxCommerce.Modules.Inventory.Domain.Enums.InventoryReservationStatus))
+            .Cast<int>()
+            .ToArray();
+        var contractValues = Enum.GetValues(typeof(FluxCommerce.Modules.Inventory.Contracts.Enums.InventoryReservationStatus))
+            .Cast<int>()
+            .ToArray();
+
+        Assert.Equal(domainNames, contractNames);
+        Assert.Equal(domainValues, contractValues);
+    }
+
     // ---- Assembly helpers ----
 
     private const string InventoryRoot = "FluxCommerce.Modules.Inventory";

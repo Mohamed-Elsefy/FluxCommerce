@@ -337,13 +337,15 @@ Conceptually:
         |
         +-- CatalogDbContext
         |
-        +-- CartDbContext
-        |
         +-- OrdersDbContext
         |
         +-- InventoryDbContext
         |
         +-- PaymentsDbContext
+        |
+        +-- IdentityDbContext
+
+Redis-backed modules (currently Cart) own no SQL DbContext; their state lives in Redis.
 
 Each DbContext belongs to one module.
 

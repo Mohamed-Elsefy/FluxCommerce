@@ -862,12 +862,12 @@ Controllers must not contain:
 
 The recommended REST surface is:
 
-GET    /api/cart
-POST   /api/cart/items
-PUT    /api/cart/items/{variantId}
-DELETE /api/cart/items/{variantId}
-DELETE /api/cart
-POST   /api/cart/merge
+GET    /cart
+POST   /cart/items
+PUT    /cart/items/{variantId}
+DELETE /cart/items/{variantId}
+DELETE /cart
+POST   /cart/merge
 
 
 These routes are the proposed Phase 3 API design and must be verified against
