@@ -3,6 +3,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -14,6 +15,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\FluxCommerce.Api\FluxCommerce.Api.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Application\FluxCommerce.Modules.Inventory.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Contracts\FluxCommerce.Modules.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Domain\FluxCommerce.Modules.Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Infrastructure\FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Infrastructure\FluxCommerce.Modules.Identity.Infrastructure.csproj" />

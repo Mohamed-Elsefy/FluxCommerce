@@ -1,2 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  </Project>
+  <ItemGroup>
+    <Folder Include="Enums\" />
+    <Folder Include="Integration\" />
+    <Folder Include="Requests\" />
+    <Folder Include="Responses\" />
+  </ItemGroup>
+</Project>

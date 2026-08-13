@@ -32,6 +32,7 @@
     <File Path="docs/phases/PHASE_2_CATALOG_MODULE.md" />
     <File Path="docs/phases/PHASE_3_CART_MODULE.md" />
     <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
+    <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
   </Folder>
 
   <!-- Solution Items -->
