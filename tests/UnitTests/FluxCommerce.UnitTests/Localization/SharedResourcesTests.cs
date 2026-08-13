@@ -155,6 +155,10 @@ public class SharedResourcesTests
         "Order.IdempotencyConflict",
         "Order.InvalidAddress",
         "Order.CancelConflict",
+        "Inventory.InvalidSku",
+        "Inventory.InvalidQuantity",
+        "Inventory.DuplicateSku",
+        "Inventory.InvalidReservationId",
     ];
 
     private static readonly string[] SatelliteCultures = ["fr", "de", "es", "ar"];

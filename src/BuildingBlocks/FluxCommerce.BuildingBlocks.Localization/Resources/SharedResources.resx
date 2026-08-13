@@ -513,4 +513,16 @@
   <data name="Validation.Fields.UnitPriceAmount" xml:space="preserve">
     <value>Unit price amount</value>
   </data>
+  <data name="Inventory.InvalidSku" xml:space="preserve">
+    <value>The SKU is invalid.</value>
+  </data>
+  <data name="Inventory.InvalidQuantity" xml:space="preserve">
+    <value>An inventory quantity must be a positive integer.</value>
+  </data>
+  <data name="Inventory.DuplicateSku" xml:space="preserve">
+    <value>An inventory item with this SKU already exists.</value>
+  </data>
+  <data name="Inventory.InvalidReservationId" xml:space="preserve">
+    <value>A valid reservation identifier is required.</value>
+  </data>
 </root>

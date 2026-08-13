@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure;
+using FluxCommerce.Modules.Inventory.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Payments.Infrastructure;
 using FluxCommerce.Modules.Identity.Infrastructure;
@@ -82,7 +83,11 @@ public static class DependencyInjection
         services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
         services.AddCartInfrastructure(configuration);
         services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
-        services.AddInventoryInfrastructure(GetConnectionString(configuration, "Inventory"));
+        services.AddInventoryInfrastructure(
+            GetConnectionString(configuration, "Inventory"),
+            expirationOptions => configuration
+                .GetSection(ReservationExpirationOptions.SectionName)
+                .Bind(expirationOptions));
         services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
         services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
 

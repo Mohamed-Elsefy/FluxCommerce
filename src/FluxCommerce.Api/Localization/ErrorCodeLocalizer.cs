@@ -87,6 +87,12 @@ public sealed class ErrorCodeLocalizer(ILocalizer localizer) : IErrorCodeLocaliz
         ["Order.ValidationFailed"] = "Errors.RequestValidation",
         ["Order.NotFound"] = "Errors.NotFound",
         ["Order.CancelConflict"] = "Order.CancelConflict",
+        ["Inventory.InvalidSku"] = "Inventory.InvalidSku",
+        ["Inventory.InvalidQuantity"] = "Inventory.InvalidQuantity",
+        ["Inventory.SkuNotFound"] = "Errors.NotFound",
+        ["Inventory.DuplicateSku"] = "Inventory.DuplicateSku",
+        ["Inventory.InvalidReservationId"] = "Inventory.InvalidReservationId",
+        ["Inventory.ReservationNotFound"] = "Errors.NotFound",
     };
 
     public string Localize(string code, string fallback)

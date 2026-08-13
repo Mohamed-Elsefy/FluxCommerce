@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+using FluxCommerce.Modules.Inventory.Domain.Aggregates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -16,4 +17,8 @@ public sealed class InventoryDbContext : BaseDbContext
         : base(options, dateTimeProvider, currentUser, saveChangesInterceptor)
     {
     }
+
+    public DbSet<InventoryItem> InventoryItems { get; set; } = null!;
+
+    public DbSet<InventoryReservation> InventoryReservations { get; set; } = null!;
 }
