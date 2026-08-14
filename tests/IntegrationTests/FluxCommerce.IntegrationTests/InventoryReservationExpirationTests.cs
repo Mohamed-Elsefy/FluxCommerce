@@ -28,7 +28,9 @@ public class InventoryReservationExpirationTests
 
         var expired = await _fixture.RunExpirationProcessorAsync(maxResults: 100);
 
-        Assert.True(expired >= 1,
+        Assert.True(expired >= 1);
+
+        var item = await _fixture.GetItemAsync(sku);
         Assert.Equal(0, item.ReservedQuantity);
         Assert.Equal(10, item.AvailableQuantity);
 
@@ -128,10 +130,16 @@ public class InventoryReservationExpirationTests
 
         var expired = await _fixture.RunExpirationProcessorAsync(maxResults: 100);
 
-        Assert.True(expired >= 3,
-            var item = await _fixture.GetItemAsync(sku);
-            Assert.Equal(0, item.ReservedQuantity);
-        }
+        Assert.True(expired >= 3);
+
+        var itemA = await _fixture.GetItemAsync(skuA);
+        Assert.Equal(0, itemA.ReservedQuantity);
+
+        var itemB = await _fixture.GetItemAsync(skuB);
+        Assert.Equal(0, itemB.ReservedQuantity);
+
+        var itemC = await _fixture.GetItemAsync(skuC);
+        Assert.Equal(0, itemC.ReservedQuantity);
     }
 
     [Fact]

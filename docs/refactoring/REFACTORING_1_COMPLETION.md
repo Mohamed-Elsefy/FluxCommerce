@@ -26,15 +26,15 @@ Refactoring Cycle 1 hardened the Phase-5-complete FluxCommerce codebase into a c
 
 ## 2. Baseline vs Final Verification
 
-| Check | R1.1 Baseline | Final (R1.8) | Delta |
+| Check | R1.1 Baseline | Final (R1.8 + test unblock) | Delta |
 |-------|---------------|--------------|-------|
-| Solution build | 4 errors (all in `tests/IntegrationTests/.../InventoryReservationExpirationTests.cs`), 0 warnings | 4 errors (**same file, same lines**), 0 warnings | None — baseline blocker untouched |
+| Solution build | 4 errors (all in `tests/IntegrationTests/.../InventoryReservationExpirationTests.cs`), 0 warnings | **0 errors, 0 warnings** | Blocker fixed at user request after R1.8 |
 | Architecture tests | **128/128** passed | **153/153** passed | +25 (R1.7) |
 | Unit tests | **1675/1675** passed | **1675/1675** passed | None |
-| Integration tests | **Not runnable** — 4 baseline compile errors | **Not runnable** — same 4 errors | None |
-| No. of tests | — | Architecture 153 + Unit 1675 | — |
+| Integration tests | **Not runnable** — 4 baseline compile errors | **246/246 passed** (real SQL Server/Redis/RabbitMQ) | Unblocked after R1.8 (user request) |
+| No. of tests | — | Architecture 153 + Unit 1675 + Integration 246 | — |
 
-**Build detail:** The only build failures in the entire solution are the 4 pre-existing compile errors in `InventoryReservationExpirationTests.cs` (CS1026 at 32:47, CS1003 at 132:17, CS1026 at 132:56, CS1519 at 135:5). These are the original R1.1 baseline blocker, are out of scope by explicit instruction, and were never modified. All production code and the Architecture/Unit test projects build cleanly with **0 warnings**.
+**Build detail:** The R1.1 baseline had exactly 4 compile errors in `InventoryReservationExpirationTests.cs` (CS1026 at 32:47, CS1003 at 132:17, CS1026 at 132:56, CS1519 at 135:5) caused by two corrupted test bodies (a truncated `Assert.True(expired >= 1, …)` and a mangled multi-reservation test with undefined variables). At the user's explicit request, these were repaired (restoring the intended `GetItemAsync`/stock-release assertions), after which the full solution builds with **0 errors and 0 warnings** and the complete Integration test suite runs green against the real infrastructure.
 
 ---
 
@@ -104,7 +104,7 @@ Refactoring Cycle 1 hardened the Phase-5-complete FluxCommerce codebase into a c
 
 ## 6. Known Remaining Issues / Blockers
 
-1. **Integration Tests project is not runnable** — the 4 baseline compile errors in `tests/IntegrationTests/FluxCommerce.IntegrationTests/InventoryReservationExpirationTests.cs` (unchanged from R1.1). This blocks all integration tests, including the Inventory SQL Server concurrency tests and Identity/Orders/Checkout integration coverage. It is the original, user-mandated baseline blocker and was never modified.
+1. ~~Integration Tests project was not runnable (4 baseline compile errors in `InventoryReservationExpirationTests.cs`).~~ **Resolved at user request after R1.8** — the corrupted test bodies were repaired; the Integration suite now builds and runs **246/246 passed** against real SQL Server/Redis/RabbitMQ (including the Inventory SQL Server concurrency and expiration tests).
 2. **Deferred findings F-14, F-15, F-18, F-19, F-20** are documented, low-risk follow-ups for future phases (see §5).
 
 ---
@@ -138,7 +138,7 @@ No module boundary violations remain. No unintended business behavior changes we
 
 ## 9. Remaining Technical Debt (accepted)
 
-1. Integration test suite compile blocker (pre-existing, user-mandated).
+1. ~~Integration test suite compile blocker~~ — resolved at user request after R1.8; the full Integration suite (246 tests) now passes against the real infrastructure.
 2. Six deferred informational findings (F-11, F-14, F-15, F-18, F-19, F-20) — all documented, none blocking.
 3. Read-model GrandTotal duplication in Orders (documented CQRS read-model duplication; formulas kept in lockstep).
 4. `ApiResponse.Fail` / `ApiResponse<T>.Failure` zero-consumer factories deliberately retained as part of the envelope's public surface (R1.6-F-17 decision).
@@ -149,10 +149,10 @@ No module boundary violations remain. No unintended business behavior changes we
 
 **Refactoring Cycle 1 is complete.**
 
-- All production code and the Architecture/Unit test suites build cleanly with **0 warnings**; the only build failures are the 4 pre-existing, user-mandated baseline errors in `InventoryReservationExpirationTests.cs`, which were preserved untouched.
-- Architecture tests: **153/153** (baseline 128). Unit tests: **1675/1675** (unchanged). Integration tests remain blocked by the documented baseline (no new failures).
+- The full solution builds cleanly with **0 errors and 0 warnings** — including the Integration Tests project (the original 4-error baseline blocker was repaired at the user's request after R1.8).
+- Architecture tests: **153/153** (baseline 128). Unit tests: **1675/1675** (unchanged). Integration tests: **246/246 passed** against real SQL Server/Redis/RabbitMQ (previously not runnable).
 - 13 of 21 findings resolved, 2 closed by design, 6 deferred with explicit justification; **zero** Critical or High findings across the entire cycle.
 - No new business functionality, no new architecture, no prohibited patterns (MediatR, FluentValidation, generic repositories, Outbox/Saga, etc.) were introduced; established architectural decisions (ADR-001..006) were preserved and their documentation synchronized with reality.
-- The codebase is a stable, verified, hardened baseline suitable for the next official project phase.
+- The codebase is a stable, verified, fully-tested baseline suitable for the next official project phase.
 
 **No new phase is started after R1.8.**
