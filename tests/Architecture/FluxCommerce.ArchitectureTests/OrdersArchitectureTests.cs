@@ -145,15 +145,31 @@ public class OrdersArchitectureTests
     [Fact]
     public void Orders_ShouldNot_ReferenceOutbox()
     {
+        // Phase 6.2: Orders.Infrastructure implements the module Outbox persistence (it maps the
+        // shared OutboxMessage entity into the Orders DbContext). Domain, Application and Contracts
+        // must remain free of the Outbox abstraction.
         var failures = new List<string>();
 
         AssertNoDependencies(
-            OrdersAssemblies,
+            [OrdersDomain, OrdersApplication, OrdersContracts],
             ["FluxCommerce.BuildingBlocks.Outbox"],
             "Orders -> Outbox",
             failures);
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Orders_Infrastructure_IsAllowedToReferenceOutbox()
+    {
+        var referencingTypes = Types.InAssembly(OrdersInfrastructure)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Outbox")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Orders.Infrastructure must reference the Outbox abstraction to map the module Outbox persistence entity.");
     }
 
     [Fact]

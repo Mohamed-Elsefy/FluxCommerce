@@ -34,6 +34,9 @@
     <File Path="docs/phases/PHASE_3_CART_MODULE.md" />
     <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
     <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
+    <File Path="docs/phases/PHASE_6_1_MESSAGING_AUDIT.md" />
+    <File Path="docs/phases/PHASE_6_2_OUTBOX_PERSISTENCE.md" />
+    <File Path="docs/phases/PHASE_6_OUTBOX_RABBITMQ.md" />
   </Folder>
   <Folder Name="/docs/refactoring/">
     <File Path="docs/refactoring/REFACTORING_1_BASELINE.md" />

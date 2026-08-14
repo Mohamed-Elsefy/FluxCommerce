@@ -68,15 +68,31 @@ public class InventoryArchitectureTests
     [Fact]
     public void Inventory_ShouldNot_ReferenceOutbox()
     {
+        // Phase 6.2: Inventory.Infrastructure implements the module Outbox persistence (it maps the
+        // shared OutboxMessage entity into the Inventory DbContext). Domain, Application and Contracts
+        // must remain free of the Outbox abstraction.
         var failures = new List<string>();
 
         AssertNoDependencies(
-            InventoryAssemblies,
+            [InventoryDomain, InventoryApplication, InventoryContracts],
             ["FluxCommerce.BuildingBlocks.Outbox"],
             "Inventory -> Outbox",
             failures);
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Infrastructure_IsAllowedToReferenceOutbox()
+    {
+        var referencingTypes = Types.InAssembly(InventoryInfrastructure)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Outbox")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Inventory.Infrastructure must reference the Outbox abstraction to map the module Outbox persistence entity.");
     }
 
     [Fact]
