@@ -91,6 +91,11 @@ public static class DependencyInjection
         services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
         services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
 
+        // Web-backed correlation provider overrides the modules' fallback (last registration wins),
+        // so Outbox records written inside HTTP requests carry the request's X-Correlation-ID.
+        services.AddHttpContextAccessor();
+        services.AddSingleton<ICorrelationIdProvider, WebCorrelationIdProvider>();
+
         services.AddRedis(GetRedisConnectionString(configuration));
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));
 

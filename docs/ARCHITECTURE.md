@@ -170,6 +170,12 @@ Examples:
 
 Contracts must not expose internal implementation details.
 
+Integration Event contracts derive from the canonical contract-only `BuildingBlocks.Messaging` metadata
+base (`IIntegrationEvent` / `IntegrationEvent` / `EventVersion`) and carry a stable `EventType`
+identifier. This is the only Messaging reference a module is allowed: the RabbitMQ client and the
+Outbox abstraction stay out of Contracts, and Domain, Application and Infrastructure stay free of
+`BuildingBlocks.Messaging` and `RabbitMQ.Client` (see `docs/adr/007-integration-event-contract-placement.md`).
+
 ---
 
 # 4. BuildingBlocks

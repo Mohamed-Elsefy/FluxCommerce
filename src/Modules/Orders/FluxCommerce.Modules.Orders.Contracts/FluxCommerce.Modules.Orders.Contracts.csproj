@@ -1,2 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  </Project>
+  <ItemGroup>
+    <!-- Phase 6.4 (G12): Contracts host the module Integration Event contracts, which derive from the
+         contract-only BuildingBlocks.Messaging metadata base. This is the only Messaging reference a
+         module is allowed (Domain/Application/Infrastructure and the RabbitMQ client stay excluded). -->
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
+  </ItemGroup>
+</Project>

@@ -387,6 +387,15 @@ self-contained records and use `BuildingBlocks.Messaging` only as the transport/
 carrier; or (b) relax/refine the architecture rule with an explicit decision. This is recorded as an
 **open decision for Phase 6.4** and was **not** changed during the audit.
 
+> **Phase 6.4 delta (not a historical rewrite).** G12 is **resolved** by decision **(b)** in
+> `docs/adr/007-integration-event-contract-placement.md`: integration-event contracts live in module
+> **Contracts** (`FluxCommerce.Modules.<Module>.Contracts.IntegrationEvents`) and derive from the
+> canonical `IntegrationEvent` base. The architecture rules were refined so that module Domain and
+> Application stay free of `BuildingBlocks.Messaging` and `RabbitMQ.Client`; Infrastructure stays free
+> of `RabbitMQ.Client` (and reaches the contract-only Messaging metadata transitively via the Contracts
+> events it serializes); Contracts may reference `BuildingBlocks.Messaging` but not `RabbitMQ.Client` or
+> the Outbox; and positive "Contracts may reference Messaging" rules pin the decision.
+
 ---
 
 ## 13. Existing Abstractions to Reuse (do not reinvent)
@@ -412,6 +421,12 @@ carrier; or (b) relax/refine the architecture rule with an explicit decision. Th
 | Item | Assessment |
 |---|---|
 | `EventMetadata` (Messaging) vs `IntegrationEvent`/`IIntegrationEvent` (Messaging) | **Duplicate/overlapping** — both model event metadata (`EventId`, `CorrelationId`, `CausationId`, `Version`, `OccurredAtUtc`); `EventMetadata` adds `EventType`/`CreatedAtUtc` but has **zero usages**. Not a conflict, but Phase 6.4 should select one canonical metadata carrier and retire or repurpose the other |
+
+> **Phase 6.4 delta (not a historical rewrite).** Resolved in Phase 6.4: `IIntegrationEvent` +
+> `IntegrationEvent` + `EventVersion` is the single canonical metadata model and `EventMetadata` was
+> **removed** (zero usages; `EventType` is a per-contract constant, `CreatedAtUtc` is owned by the
+> Outbox record). See `docs/adr/007-integration-event-contract-placement.md` and the Phase 6.4
+> completion summary.
 | `IDomainEventDispatcher` (Domain) | **Incomplete/unused** — defined, never implemented or registered. Leave as-is; its role is a Phase 6.3 decision. Do not add a second dispatcher abstraction |
 | `RabbitMQConnectionProvider` disposal + `MessageBrokerOptions.RetryCount` | **Incomplete/obsolete** — `RetryCount` is not consumed; provider is not DI-disposed. Flag for Phase 6.6/6.8 |
 | `BuildingBlocks.Messaging` + `BuildingBlocks.Outbox` + `BuildingBlocks.Idempotency` + `BuildingBlocks.Resilience` contracts | **COMPLIANT** — four narrow contract projects match ADR-003; no merging needed |

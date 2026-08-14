@@ -54,12 +54,23 @@ public class InventoryArchitectureTests
     [Fact]
     public void Inventory_ShouldNot_ReferenceMessagingOrRabbitMq()
     {
+        // Phase 6.4 (G12): Inventory.Contracts is the home of the module Integration Event contract,
+        // which derives from the contract-only BuildingBlocks.Messaging metadata base; Infrastructure
+        // necessarily touches that metadata transitively when it serializes the contract into the
+        // Outbox. Domain and Application remain free of Messaging, and the RabbitMQ client stays out
+        // of Domain, Application and Infrastructure.
         var failures = new List<string>();
 
         AssertNoDependencies(
-            InventoryAssemblies,
-            ["FluxCommerce.BuildingBlocks.Messaging", "RabbitMQ.Client"],
-            "Inventory -> Messaging/RabbitMQ",
+            [InventoryDomain, InventoryApplication],
+            ["FluxCommerce.BuildingBlocks.Messaging"],
+            "Inventory -> Messaging",
+            failures);
+
+        AssertNoDependencies(
+            [InventoryDomain, InventoryApplication, InventoryInfrastructure],
+            ["RabbitMQ.Client"],
+            "Inventory -> RabbitMQ",
             failures);
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
@@ -400,17 +411,36 @@ public class InventoryArchitectureTests
     }
 
     [Fact]
-    public void Inventory_Contracts_ShouldNot_ReferenceMessagingOrOutbox()
+    public void Inventory_Contracts_ShouldNot_ReferenceRabbitMqOrOutbox()
     {
+        // Phase 6.4 (G12): Inventory.Contracts may reference BuildingBlocks.Messaging (the
+        // contract-only metadata base its Integration Event contracts derive from), but it must stay
+        // free of the RabbitMQ client and the Outbox abstraction.
         var failures = new List<string>();
 
         AssertNoDependencies(
             [InventoryContracts],
-            ["FluxCommerce.BuildingBlocks.Messaging", "FluxCommerce.BuildingBlocks.Outbox"],
-            "Inventory.Contracts -> Messaging/Outbox",
+            ["RabbitMQ.Client", "FluxCommerce.BuildingBlocks.Outbox"],
+            "Inventory.Contracts -> RabbitMQ/Outbox",
             failures);
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Contracts_IsAllowedToReferenceMessaging()
+    {
+        // Phase 6.4 (G12): pins the intentional dependency — at least one Inventory.Contracts type (the
+        // Integration Event contract) must derive from BuildingBlocks.Messaging, so the decision
+        // cannot be accidentally reverted.
+        var referencingTypes = Types.InAssembly(InventoryContracts)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Messaging")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Inventory.Contracts must reference BuildingBlocks.Messaging to host the module Integration Event contracts (G12).");
     }
 
     // ---- Contract mirror drift protection ----

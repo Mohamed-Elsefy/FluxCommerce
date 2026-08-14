@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.Modules.Orders.Application.Commands.CancelOrder;
 using FluxCommerce.Modules.Orders.Application.Commands.Checkout;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
@@ -9,6 +10,7 @@ using FluxCommerce.Modules.Orders.Application.Services;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,14 +21,22 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddOrdersInfrastructure(this IServiceCollection services, string connectionString)
     {
-        services.AddDbContext<OrdersDbContext>(options =>
+        // Fallback correlation provider keeps the module's persistence stack self-contained; the API
+        // host overrides it with the web-backed provider (last registration wins).
+        services.AddSingleton<ICorrelationIdProvider, GuidCorrelationIdProvider>();
+
+        services.AddSingleton<OrdersOutboxMessageFactory>();
+        services.AddSingleton<OrdersOutboxSaveChangesInterceptor>();
+
+        services.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
             options.UseSqlServer(connectionString, sqlOptions =>
             {
                 sqlOptions.EnableRetryOnFailure(3);
                 sqlOptions.CommandTimeout(30);
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Orders");
                 sqlOptions.MigrationsAssembly(typeof(OrdersDbContext).Assembly.GetName().Name);
-            }));
+            })
+            .AddInterceptors(serviceProvider.GetRequiredService<OrdersOutboxSaveChangesInterceptor>()));
 
         services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
         services.AddScoped<ICheckoutStore, CheckoutStore>();

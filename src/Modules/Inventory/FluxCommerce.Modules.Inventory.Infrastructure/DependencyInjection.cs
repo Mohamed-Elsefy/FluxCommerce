@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.Modules.Inventory.Application.Commands.AdjustStock;
 using FluxCommerce.Modules.Inventory.Application.Commands.CommitReservation;
 using FluxCommerce.Modules.Inventory.Application.Commands.CreateInventoryItem;
@@ -13,6 +14,7 @@ using FluxCommerce.Modules.Inventory.Application.Queries.GetInventoryReservation
 using FluxCommerce.Modules.Inventory.Application.ReadModels;
 using FluxCommerce.Modules.Inventory.Infrastructure.Background;
 using FluxCommerce.Modules.Inventory.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Inventory.Infrastructure.Outbox;
 using FluxCommerce.Modules.Inventory.Infrastructure.Persistence.Stores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,14 +31,22 @@ public static class DependencyInjection
         string connectionString,
         Action<ReservationExpirationOptions>? configureExpiration)
     {
-        services.AddDbContext<InventoryDbContext>(options =>
+        // Fallback correlation provider keeps the module's persistence stack self-contained; the API
+        // host overrides it with the web-backed provider (last registration wins).
+        services.AddSingleton<ICorrelationIdProvider, GuidCorrelationIdProvider>();
+
+        services.AddSingleton<InventoryOutboxMessageFactory>();
+        services.AddSingleton<InventoryOutboxSaveChangesInterceptor>();
+
+        services.AddDbContext<InventoryDbContext>((serviceProvider, options) =>
             options.UseSqlServer(connectionString, sqlOptions =>
             {
                 sqlOptions.EnableRetryOnFailure(3);
                 sqlOptions.CommandTimeout(30);
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Inventory");
                 sqlOptions.MigrationsAssembly(typeof(InventoryDbContext).Assembly.GetName().Name);
-            }));
+            })
+            .AddInterceptors(serviceProvider.GetRequiredService<InventoryOutboxSaveChangesInterceptor>()));
 
         services.AddScoped<IInventoryStore, InventoryStore>();
         services.AddScoped<ICommandHandler<CreateInventoryItemCommand, Result<InventoryItemReadModel>>, CreateInventoryItemCommandHandler>();

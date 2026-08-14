@@ -66,6 +66,12 @@ persistence.
   `Inventory_Contracts_ShouldNot_ReferenceMessagingOrOutbox` rules are unchanged (Contracts stay clean;
   the G12 contract-placement decision remains deferred to Phase 6.4).
 
+> **Phase 6.4 delta (not a historical rewrite):** G12 was resolved in Phase 6.4 — Contracts host the
+> module Integration Event contracts deriving from the contract-only `BuildingBlocks.Messaging` base,
+> so these two Contracts rules were refined to forbid `RabbitMQ.Client` + the Outbox while allowing the
+> Messaging base (see `docs/adr/007-integration-event-contract-placement.md`). The retained row above is
+> the historical Phase 6.2 snapshot.
+
 ## 3. Persistence Model
 
 `OutboxMessage` (from `FluxCommerce.BuildingBlocks.Outbox`, unchanged) is mapped **as-is** — no new
@@ -218,6 +224,10 @@ All pre-existing tests still pass — no regressions.
 - ✅ No unrelated production behavior changed.
 
 ## 11. Remaining Phase 6.3 Work
+
+> **Phase 6.3 delta (2026-08-14):** the items below are now **implemented** in
+> `docs/phases/PHASE_6_3_OUTBOX_INTEGRATION.md`. They are retained here as the historical Phase 6.2
+> snapshot and are not rewritten.
 
 - Domain Event → Outbox integration: attach the Outbox record to the same `SaveChangesAsync` as Business
   State inside the module transaction (not the post-commit hook).

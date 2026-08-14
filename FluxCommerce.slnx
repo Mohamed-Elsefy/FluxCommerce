@@ -12,6 +12,7 @@
     <File Path="docs/adr/004-messaging-reliability.md" />
     <File Path="docs/adr/005-observability.md" />
     <File Path="docs/adr/006-catalog-variant-unit-price.md" />
+    <File Path="docs/adr/007-integration-event-contract-placement.md" />
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
@@ -36,6 +37,7 @@
     <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
     <File Path="docs/phases/PHASE_6_1_MESSAGING_AUDIT.md" />
     <File Path="docs/phases/PHASE_6_2_OUTBOX_PERSISTENCE.md" />
+    <File Path="docs/phases/PHASE_6_3_OUTBOX_INTEGRATION.md" />
     <File Path="docs/phases/PHASE_6_OUTBOX_RABBITMQ.md" />
   </Folder>
   <Folder Name="/docs/refactoring/">

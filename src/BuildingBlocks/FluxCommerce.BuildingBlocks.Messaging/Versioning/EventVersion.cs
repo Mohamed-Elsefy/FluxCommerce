@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace FluxCommerce.BuildingBlocks.Messaging.Versioning;
 
+[JsonConverter(typeof(EventVersionJsonConverter))]
 public readonly record struct EventVersion : IComparable<EventVersion>
 {
     public int Major { get; }
