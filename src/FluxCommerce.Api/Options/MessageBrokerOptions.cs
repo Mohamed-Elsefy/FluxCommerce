@@ -17,5 +17,7 @@ public class MessageBrokerOptions
 
     public string VirtualHost { get; init; } = "/";
 
+    public string ExchangeName { get; init; } = "fluxcommerce.events";
+
     public int RetryCount { get; init; } = 5;
 }

@@ -98,6 +98,7 @@ public static class DependencyInjection
 
         services.AddRedis(GetRedisConnectionString(configuration));
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));
+        services.AddRabbitMQPublisher(GetRabbitMQExchangeName(configuration));
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
@@ -130,6 +131,12 @@ public static class DependencyInjection
         var path = string.IsNullOrEmpty(virtualHost) ? string.Empty : Uri.EscapeDataString(virtualHost);
 
         return $"amqp://{credentials}{options.Host}:{options.Port}/{path}";
+    }
+
+    private static string GetRabbitMQExchangeName(IConfiguration configuration)
+    {
+        return configuration.GetSection(MessageBrokerOptions.SectionName).Get<MessageBrokerOptions>()?.ExchangeName
+            ?? throw new InvalidOperationException("RabbitMQ exchange name is not configured.");
     }
 
     private static string GetConnectionString(IConfiguration configuration, string moduleName)

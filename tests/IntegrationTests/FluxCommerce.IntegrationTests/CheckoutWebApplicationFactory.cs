@@ -6,6 +6,7 @@ using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Identity.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
+using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Entities;
 using Microsoft.AspNetCore.Hosting;
@@ -14,6 +15,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace FluxCommerce.IntegrationTests;
@@ -22,7 +24,8 @@ namespace FluxCommerce.IntegrationTests;
 /// API test host for the Checkout flow. Auth uses the real Identity pipeline backed by SQLite; the
 /// Catalog and Cart contracts are replaced with deterministic fakes so a Checkout is reproducible
 /// without Redis; the Orders DbContext (used by <c>CheckoutStore</c>) is backed by SQLite so Order +
-/// idempotency persistence is asserted end to end.
+/// idempotency persistence is asserted end to end. The Orders outbox dispatcher is removed because
+/// its claim query is SQL-Server-only and the SQLite backing store would otherwise fail on every cycle.
 /// </summary>
 public sealed class CheckoutWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -59,6 +62,17 @@ public sealed class CheckoutWebApplicationFactory : WebApplicationFactory<Progra
 
             RemoveAll(services, typeof(ICartCheckoutConsumption));
             services.AddSingleton<ICartCheckoutConsumption>(CartConsumption);
+
+            var hostedServices = services
+                .Where(d =>
+                    d.ServiceType == typeof(IHostedService)
+                    && d.ImplementationType == typeof(OrdersOutboxDispatcher))
+                .ToList();
+
+            foreach (var descriptor in hostedServices)
+            {
+                services.Remove(descriptor);
+            }
 
             RemoveDbContext(services, typeof(IdentityDbContext));
             RemoveDbContext(services, typeof(OrdersDbContext));

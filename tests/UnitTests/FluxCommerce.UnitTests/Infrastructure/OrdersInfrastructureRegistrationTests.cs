@@ -1,11 +1,15 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.Modules.Orders.Infrastructure;
+using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace FluxCommerce.UnitTests.Infrastructure;
@@ -62,6 +66,38 @@ public class OrdersInfrastructureRegistrationTests
 
         Assert.NotNull(context);
         Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", context.Database.ProviderName);
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersOutboxDispatcher_AsScopedAndHosted()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(OrdersOutboxDispatcher)
+                && descriptor.Lifetime == ServiceLifetime.Scoped);
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(OrdersOutboxDispatcher));
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersOutboxDispatchOptions_WithDefaults()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<OutboxDispatchOptions>>().Value;
+
+        Assert.Equal(50, options.BatchSize);
+        Assert.Equal(TimeSpan.FromSeconds(5), options.PollingInterval);
+        Assert.Equal(TimeSpan.FromSeconds(30), options.ClaimTimeout);
     }
 
     private const string ConnectionString =

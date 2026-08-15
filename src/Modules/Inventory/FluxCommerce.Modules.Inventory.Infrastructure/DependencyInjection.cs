@@ -1,6 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
+using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Inventory.Application.Commands.AdjustStock;
 using FluxCommerce.Modules.Inventory.Application.Commands.CommitReservation;
 using FluxCommerce.Modules.Inventory.Application.Commands.CreateInventoryItem;
@@ -37,6 +39,8 @@ public static class DependencyInjection
 
         services.AddSingleton<InventoryOutboxMessageFactory>();
         services.AddSingleton<InventoryOutboxSaveChangesInterceptor>();
+        services.AddScoped<InventoryOutboxStore>();
+        services.AddScoped<IOutboxStore, InventoryOutboxStore>();
 
         services.AddDbContext<InventoryDbContext>((serviceProvider, options) =>
             options.UseSqlServer(connectionString, sqlOptions =>
@@ -61,11 +65,14 @@ public static class DependencyInjection
         services.AddScoped<IExpiredReservationProcessor, ExpiredReservationProcessor>();
 
         services.AddOptions<ReservationExpirationOptions>();
+        services.AddOptions<OutboxDispatchOptions>();
 
         if (configureExpiration is not null)
             services.Configure(configureExpiration);
 
         services.AddHostedService<ReservationExpirationBackgroundService>();
+        services.AddScoped<InventoryOutboxDispatcher>();
+        services.AddHostedService<InventoryOutboxDispatcher>();
 
         return services;
     }

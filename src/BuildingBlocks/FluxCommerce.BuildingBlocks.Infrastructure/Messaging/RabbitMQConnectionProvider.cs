@@ -22,6 +22,12 @@ public sealed class RabbitMQConnectionProvider : IRabbitMQConnectionProvider
         return await connection.CreateChannelAsync(cancellationToken: cancellationToken);
     }
 
+    public async Task<IChannel> CreateChannelAsync(CreateChannelOptions options, CancellationToken cancellationToken = default)
+    {
+        var connection = await _connection.Value;
+        return await connection.CreateChannelAsync(options, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_connection.IsValueCreated)

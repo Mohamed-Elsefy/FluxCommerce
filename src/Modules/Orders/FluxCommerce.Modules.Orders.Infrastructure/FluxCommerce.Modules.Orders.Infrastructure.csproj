@@ -30,4 +30,8 @@
   <ItemGroup>
     <Folder Include="DbContexts\" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+  </ItemGroup>
 </Project>

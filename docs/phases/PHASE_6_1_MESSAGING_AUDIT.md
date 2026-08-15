@@ -396,6 +396,19 @@ carrier; or (b) relax/refine the architecture rule with an explicit decision. Th
 > events it serializes); Contracts may reference `BuildingBlocks.Messaging` but not `RabbitMQ.Client` or
 > the Outbox; and positive "Contracts may reference Messaging" rules pin the decision.
 
+> **Phase 6.5 delta (not a historical rewrite).** G5 and the §4 rows for **"Outbox store implementation"**,
+> **"Claiming / recovery semantics"**, and **"DI registration"** are **resolved** for the Orders and
+> Inventory modules. `IOutboxStore` was extended with `ClaimPendingAsync(batchSize)`,
+> `MarkRetryableFailureAsync(id, error)`, and `RecoverExpiredClaimsAsync(claimTimeout)`, and the existing
+> transitions now return `bool` (conditional, guarded by current `Status` as the concurrency token). Each
+> module implements its own store (`OrdersOutboxStore`, `InventoryOutboxStore`) in module Infrastructure
+> and registers it scoped via `AddScoped<IOutboxStore, …>` — no shared abstraction was introduced and
+> module-per-DbContext is preserved. A claim is a single atomic conditional `UPDATE … OUTPUT` guarded by
+> `Status = Pending` (with `UPDLOCK, READPAST` so concurrent claimers pick disjoint batches); `ProcessedAtUtc`
+> records the claim time and feeds stale-claim recovery, which returns expired `InProgress` claims to
+> `Pending`. Verified by 38 focused unit tests (SQLite) and 26 real SQL Server integration tests per-module
+> surface including concurrent claim workers. See the Phase 6.5 report.
+
 ---
 
 ## 13. Existing Abstractions to Reuse (do not reinvent)

@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.Modules.Inventory.Application.Commands.AdjustStock;
 using FluxCommerce.Modules.Inventory.Application.Commands.CommitReservation;
 using FluxCommerce.Modules.Inventory.Application.Commands.CreateInventoryItem;
@@ -200,6 +201,38 @@ public class InventoryInfrastructureRegistrationTests
 
         Assert.Equal(TimeSpan.FromSeconds(5), options.Interval);
         Assert.Equal(7, options.BatchSize);
+    }
+
+    [Fact]
+    public void AddInventoryInfrastructure_RegistersOutboxDispatcher_AsScopedAndHosted()
+    {
+        var services = new ServiceCollection();
+
+        services.AddInventoryInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(InventoryOutboxDispatcher)
+                && descriptor.Lifetime == ServiceLifetime.Scoped);
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(InventoryOutboxDispatcher));
+    }
+
+    [Fact]
+    public void AddInventoryInfrastructure_RegistersOutboxDispatchOptions_WithDefaults()
+    {
+        var services = new ServiceCollection();
+
+        services.AddInventoryInfrastructure(ConnectionString);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<OutboxDispatchOptions>>().Value;
+
+        Assert.Equal(50, options.BatchSize);
+        Assert.Equal(TimeSpan.FromSeconds(5), options.PollingInterval);
+        Assert.Equal(TimeSpan.FromSeconds(30), options.ClaimTimeout);
     }
 
     private const string ConnectionString =
