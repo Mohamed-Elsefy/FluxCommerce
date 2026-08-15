@@ -25,7 +25,9 @@ namespace FluxCommerce.IntegrationTests;
 /// <summary>
 /// API test host for the Phase 5.8 Inventory surface. Auth uses the real Identity pipeline backed by
 /// SQLite; the Inventory DbContext is also backed by SQLite. The reservation expiration background
-/// service is removed so tests are deterministic and never touch the SQL-Server-only expiration query.
+/// service is removed so tests are deterministic and never touch the SQL-Server-only expiration query;
+/// the outbox dispatcher is removed as well because its claim query is SQL-Server-only and the SQLite
+/// backing store would otherwise fail on every cycle.
 /// </summary>
 public sealed class InventoryWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -51,7 +53,8 @@ public sealed class InventoryWebApplicationFactory : WebApplicationFactory<Progr
             var hostedServices = services
                 .Where(d =>
                     d.ServiceType == typeof(IHostedService)
-                    && d.ImplementationType == typeof(ReservationExpirationBackgroundService))
+                    && (d.ImplementationType == typeof(ReservationExpirationBackgroundService)
+                        || d.ImplementationType == typeof(InventoryOutboxDispatcher)))
                 .ToList();
 
             foreach (var descriptor in hostedServices)

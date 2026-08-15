@@ -91,8 +91,14 @@ public static class DependencyInjection
         services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
         services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
 
+        // Web-backed correlation provider overrides the modules' fallback (last registration wins),
+        // so Outbox records written inside HTTP requests carry the request's X-Correlation-ID.
+        services.AddHttpContextAccessor();
+        services.AddSingleton<ICorrelationIdProvider, WebCorrelationIdProvider>();
+
         services.AddRedis(GetRedisConnectionString(configuration));
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));
+        services.AddRabbitMQPublisher(GetRabbitMQExchangeName(configuration));
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
@@ -125,6 +131,12 @@ public static class DependencyInjection
         var path = string.IsNullOrEmpty(virtualHost) ? string.Empty : Uri.EscapeDataString(virtualHost);
 
         return $"amqp://{credentials}{options.Host}:{options.Port}/{path}";
+    }
+
+    private static string GetRabbitMQExchangeName(IConfiguration configuration)
+    {
+        return configuration.GetSection(MessageBrokerOptions.SectionName).Get<MessageBrokerOptions>()?.ExchangeName
+            ?? throw new InvalidOperationException("RabbitMQ exchange name is not configured.");
     }
 
     private static string GetConnectionString(IConfiguration configuration, string moduleName)

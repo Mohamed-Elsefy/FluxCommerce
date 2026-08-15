@@ -1,4 +1,5 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
@@ -22,4 +23,6 @@ public sealed class OrdersDbContext : BaseDbContext
     public DbSet<Order> Orders { get; set; } = null!;
 
     public DbSet<CheckoutIdempotency> CheckoutIdempotencies { get; set; } = null!;
+
+    public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
 }

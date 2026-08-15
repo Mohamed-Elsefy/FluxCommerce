@@ -10,6 +10,7 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Outbox\FluxCommerce.BuildingBlocks.Outbox.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
   </ItemGroup>
 
@@ -28,5 +29,9 @@
 
   <ItemGroup>
     <Folder Include="DbContexts\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
   </ItemGroup>
 </Project>

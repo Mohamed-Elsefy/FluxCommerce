@@ -22,6 +22,75 @@ namespace FluxCommerce.Modules.Inventory.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Outbox.Messages.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id");
+
+                    b.Property<Guid?>("CausationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CausationId");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CorrelationId");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Error");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EventId");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("OccurredAtUtc");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Payload");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ProcessedAtUtc");
+
+                    b.Property<DateTime?>("RetryAfterUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("RetryAfterUtc");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int")
+                        .HasColumnName("RetryCount");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("Type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAtUtc")
+                        .HasDatabaseName("IX_OutboxMessages_Status_CreatedAtUtc");
+
+                    b.HasIndex("Status", "ProcessedAtUtc")
+                        .HasDatabaseName("IX_OutboxMessages_Status_ProcessedAtUtc");
+
+                    b.ToTable("OutboxMessages", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Inventory.Domain.Aggregates.InventoryItem", b =>
                 {
                     b.Property<string>("Id")

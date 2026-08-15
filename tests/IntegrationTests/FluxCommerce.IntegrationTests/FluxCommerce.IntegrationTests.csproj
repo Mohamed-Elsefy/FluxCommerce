@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Contracts\FluxCommerce.Modules.Inventory.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Domain\FluxCommerce.Modules.Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Inventory\FluxCommerce.Modules.Inventory.Infrastructure\FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Domain\FluxCommerce.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Identity\FluxCommerce.Modules.Identity.Infrastructure\FluxCommerce.Modules.Identity.Infrastructure.csproj" />
