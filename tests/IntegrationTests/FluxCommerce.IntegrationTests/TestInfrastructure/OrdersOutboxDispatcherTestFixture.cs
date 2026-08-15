@@ -13,11 +13,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace FluxCommerce.IntegrationTests.TestInfrastructure;
 
 /// <summary>
-/// Host for the Phase 6.7 Orders outbox dispatcher integration tests. The real SQL Server container
-/// provides the atomic claim/recover/complete semantics and the real RabbitMQ broker verifies the
-/// end-to-end publish (routing key, exchange, metadata). The dispatcher runs on the dedicated test
-/// exchange, never the production one. Tests drive <c>OrdersOutboxDispatcher.DispatchPendingAsync</c>
-/// directly; the hosted-service loop itself is thin glue over that cycle.
+/// Host for the Phase 6.7/6.8 Orders outbox dispatcher integration tests. The real SQL Server
+/// container provides the atomic claim/recover/complete semantics (including the Phase 6.8 backoff
+/// window) and the real RabbitMQ broker verifies the end-to-end publish (routing key, exchange,
+/// metadata). The dispatcher runs on the dedicated test exchange, never the production one. Tests
+/// drive <c>OrdersOutboxDispatcher.DispatchPendingAsync</c> directly; the hosted-service loop itself is
+/// thin glue over that cycle. The retry policy is tuned for fast tests: three retries with a 2-second
+/// base backoff capped at 10 seconds.
 /// </summary>
 public sealed class OrdersOutboxDispatcherTestFixture : IDisposable
 {
@@ -54,6 +56,10 @@ public sealed class OrdersOutboxDispatcherTestFixture : IDisposable
             options.BatchSize = 50;
             options.PollingInterval = TimeSpan.FromSeconds(1);
             options.ClaimTimeout = TimeSpan.FromSeconds(5);
+            options.MaxRetryCount = 3;
+            options.BaseRetryDelay = TimeSpan.FromSeconds(2);
+            options.RetryDelayMultiplier = 2;
+            options.MaxRetryDelay = TimeSpan.FromSeconds(10);
         });
 
         _provider = services.BuildServiceProvider();

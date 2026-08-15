@@ -23,18 +23,22 @@ public interface IOutboxStore
     Task<IReadOnlyList<OutboxMessage>> GetPendingAsync(int batchSize, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Atomically claims up to <paramref name="batchSize"/> pending messages for processing: a single
-    /// conditional UPDATE transitions them to <see cref="OutboxStatus.InProgress"/> (recording the claim
-    /// time in <see cref="OutboxMessage.ProcessedAtUtc"/>) and returns the claimed messages. Because the
-    /// UPDATE is guarded by <c>Status = Pending</c>, a message can be claimed by exactly one worker even
-    /// under concurrent dispatcher execution. Returns an empty list when nothing was pending.
+    /// Atomically claims up to <paramref name="batchSize"/> eligible pending messages for processing: a
+    /// single conditional UPDATE transitions them to <see cref="OutboxStatus.InProgress"/> (recording the
+    /// claim time in <see cref="OutboxMessage.ProcessedAtUtc"/>) and returns the claimed messages. A
+    /// message is eligible when it is Pending and its backoff window has elapsed (<c>RetryAfterUtc</c> is
+    /// <see langword="null"/> or not in the future), so messages scheduled for a retry are not claimed
+    /// early. Because the UPDATE is guarded by <c>Status = Pending</c>, a message can be claimed by
+    /// exactly one worker even under concurrent dispatcher execution. Returns an empty list when nothing
+    /// was eligible.
     /// </summary>
     Task<IReadOnlyList<OutboxMessage>> ClaimPendingAsync(int batchSize, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Conditionally claims a single message: Pending → InProgress (recording the claim time). Returns
-    /// <see langword="true"/> only if the message was still <see cref="OutboxStatus.Pending"/>, so a
-    /// message already claimed or processed is never re-claimed.
+    /// <see langword="true"/> only if the message was still <see cref="OutboxStatus.Pending"/> and its
+    /// backoff window had elapsed, so a message already claimed, processed, or scheduled for a future
+    /// retry is never re-claimed.
     /// </summary>
     Task<bool> MarkInProgressAsync(Guid id, CancellationToken cancellationToken = default);
 
@@ -46,10 +50,12 @@ public interface IOutboxStore
 
     /// <summary>
     /// Records a retryable publication failure: InProgress → Pending, storing the error, clearing the
-    /// claim time, and incrementing the retry count so the message becomes eligible to be claimed again.
-    /// Returns <see langword="true"/> only if the message was still <see cref="OutboxStatus.InProgress"/>.
+    /// claim time, incrementing the retry count, and (when <paramref name="retryAfterUtc"/> is provided)
+    /// scheduling the earliest instant at which the message becomes eligible for re-claiming — the
+    /// exponential-backoff window. Returns <see langword="true"/> only if the message was still
+    /// <see cref="OutboxStatus.InProgress"/>.
     /// </summary>
-    Task<bool> MarkRetryableFailureAsync(Guid id, string error, CancellationToken cancellationToken = default);
+    Task<bool> MarkRetryableFailureAsync(Guid id, string error, DateTime? retryAfterUtc = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a claimed message as terminally failed: InProgress → Failed, storing the error and the

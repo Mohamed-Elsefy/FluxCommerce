@@ -62,6 +62,10 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("ProcessedAtUtc");
 
+                    b.Property<DateTime?>("RetryAfterUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("RetryAfterUtc");
+
                     b.Property<int>("RetryCount")
                         .HasColumnType("int")
                         .HasColumnName("RetryCount");

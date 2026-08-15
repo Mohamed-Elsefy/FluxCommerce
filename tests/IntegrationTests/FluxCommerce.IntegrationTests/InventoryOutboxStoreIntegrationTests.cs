@@ -297,6 +297,83 @@ public class InventoryOutboxStoreIntegrationTests
     }
 
     [Fact]
+    public async Task ClaimThenMarkRetryableFailure_WithBackoff_SchedulesRetryAfterUtc()
+    {
+        var ids = await SeedAsync(1);
+
+        try
+        {
+            using var scope = _fixture.Services.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+            var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+            var message = Assert.Single(await store.ClaimPendingAsync(batchSize: 1));
+            var retryAfterUtc = DateTime.UtcNow.AddSeconds(30);
+
+            var failed = await store.MarkRetryableFailureAsync(message.Id, "broker unavailable", retryAfterUtc);
+
+            Assert.True(failed);
+            var loaded = await context.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+            Assert.Equal(OutboxStatus.Pending, loaded.Status);
+            Assert.Equal(retryAfterUtc, loaded.RetryAfterUtc);
+
+            // While the backoff window is open the message is Pending but not claimable.
+            Assert.Empty(await store.ClaimPendingAsync(batchSize: 1));
+        }
+        finally
+        {
+            await CleanupAsync(ids);
+        }
+    }
+
+    [Fact]
+    public async Task ClaimPendingAsync_DoesNotClaimMessage_InBackoffWindow()
+    {
+        var ids = await SeedAsync(1, retryAfterUtc: DateTime.UtcNow.AddMinutes(5));
+
+        try
+        {
+            using var scope = _fixture.Services.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+
+            var claimed = await store.ClaimPendingAsync(batchSize: 10);
+
+            Assert.Empty(claimed);
+
+            var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+            var loaded = await context.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == ids.Single());
+            Assert.Equal(OutboxStatus.Pending, loaded.Status);
+            Assert.NotNull(loaded.RetryAfterUtc);
+        }
+        finally
+        {
+            await CleanupAsync(ids);
+        }
+    }
+
+    [Fact]
+    public async Task ClaimPendingAsync_ClaimsMessage_OnceBackoffWindowHasElapsed()
+    {
+        var ids = await SeedAsync(1, retryAfterUtc: DateTime.UtcNow.AddMinutes(-1));
+
+        try
+        {
+            using var scope = _fixture.Services.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+
+            var claimed = await store.ClaimPendingAsync(batchSize: 10);
+
+            var message = Assert.Single(claimed);
+            Assert.Equal(ids.Single(), message.Id);
+            Assert.Equal(OutboxStatus.InProgress, message.Status);
+        }
+        finally
+        {
+            await CleanupAsync(ids);
+        }
+    }
+
+    [Fact]
     public async Task RecoverExpiredClaimsAsync_RecoversStaleInProgressClaims_ToPending()
     {
         var ids = await SeedAsync(1, OutboxStatus.InProgress, claimedAtUtc: DateTime.UtcNow.AddMinutes(-10));
@@ -346,7 +423,8 @@ public class InventoryOutboxStoreIntegrationTests
     private async Task<List<Guid>> SeedAsync(
         int count,
         OutboxStatus status = OutboxStatus.Pending,
-        DateTime? claimedAtUtc = null)
+        DateTime? claimedAtUtc = null,
+        DateTime? retryAfterUtc = null)
     {
         using var scope = _fixture.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
@@ -370,6 +448,7 @@ public class InventoryOutboxStoreIntegrationTests
                 ProcessedAtUtc = status == OutboxStatus.Pending ? null : (claimedAtUtc ?? DateTime.UtcNow),
                 Status = status,
                 RetryCount = status == OutboxStatus.Pending ? 0 : 1,
+                RetryAfterUtc = retryAfterUtc,
                 Error = null
             })
             .ToList();

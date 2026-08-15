@@ -50,6 +50,10 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(message => message.RetryCount)
             .HasColumnName("RetryCount");
 
+        builder.Property(message => message.RetryAfterUtc)
+            .HasColumnName("RetryAfterUtc")
+            .HasColumnType("datetime2");
+
         builder.Property(message => message.Error)
             .HasColumnName("Error");
 

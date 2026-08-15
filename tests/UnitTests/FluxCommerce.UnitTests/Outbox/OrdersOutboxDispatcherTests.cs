@@ -15,10 +15,11 @@ using Xunit;
 namespace FluxCommerce.UnitTests.Outbox;
 
 /// <summary>
-/// Phase 6.7 Orders outbox dispatcher core: claim → deserialize → publish → mark. A failed
-/// publication (nack, exception, unknown type, corrupt payload) never loses the message — it is
-/// returned to Pending via a retryable-failure transition — and shutdown cancellation propagates
-/// without touching the message so stale-claim recovery completes it later.
+/// Phase 6.7/6.8 Orders outbox dispatcher core: claim → deserialize → publish → mark. A failed
+/// publication (nack, exception) never loses the message — it is returned to Pending via a retryable
+/// failure with an exponential-backoff deadline — while unknown event types, corrupt payloads, and
+/// failures that exhaust the retry budget move the message to the terminal Failed state, and shutdown
+/// cancellation propagates without touching the message so stale-claim recovery completes it later.
 /// </summary>
 public class OrdersOutboxDispatcherTests
 {
@@ -71,7 +72,7 @@ public class OrdersOutboxDispatcherTests
             It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkRetryableFailureAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -89,7 +90,7 @@ public class OrdersOutboxDispatcherTests
         await CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
 
         store.Verify(s => s.MarkRetryableFailureAsync(
-            message.Id, "The message broker did not confirm the publication.", It.IsAny<CancellationToken>()), Times.Once);
+            message.Id, "The message broker did not confirm the publication.", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -108,12 +109,12 @@ public class OrdersOutboxDispatcherTests
         await CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
 
         store.Verify(s => s.MarkRetryableFailureAsync(
-            message.Id, "broker unavailable", It.IsAny<CancellationToken>()), Times.Once);
+            message.Id, "broker unavailable", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task DispatchCoreAsync_UnknownEventType_MarksRetryableFailure_WithoutPublishing()
+    public async Task DispatchCoreAsync_UnknownEventType_MarksFailedWithoutPublishing()
     {
         var message = CreateMessage(CreateOrderCreated()) with { Type = "orders.unknown" };
         var store = new Mock<IOutboxStore>();
@@ -125,12 +126,14 @@ public class OrdersOutboxDispatcherTests
 
         publisher.Verify(p => p.PublishAsync(
             It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()), Times.Never);
-        store.Verify(s => s.MarkRetryableFailureAsync(
+        store.Verify(s => s.MarkFailedAsync(
             message.Id, "Unsupported outbox event type 'orders.unknown'.", It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkRetryableFailureAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task DispatchCoreAsync_CorruptPayload_MarksRetryableFailure_WithoutPublishing()
+    public async Task DispatchCoreAsync_CorruptPayload_MarksFailedWithoutPublishing()
     {
         var message = CreateMessage(CreateOrderCreated()) with
         {
@@ -145,8 +148,10 @@ public class OrdersOutboxDispatcherTests
 
         publisher.Verify(p => p.PublishAsync(
             It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()), Times.Never);
+        store.Verify(s => s.MarkFailedAsync(
+            message.Id, It.Is<string>(e => e.StartsWith("The outbox payload could not be deserialized:")), It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkRetryableFailureAsync(
-            message.Id, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
         store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -169,7 +174,7 @@ public class OrdersOutboxDispatcherTests
             () => CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, cts.Token));
 
         store.Verify(s => s.MarkRetryableFailureAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
         store.Verify(s => s.MarkPublishedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -190,8 +195,141 @@ public class OrdersOutboxDispatcherTests
         await CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
 
         store.Verify(s => s.MarkRetryableFailureAsync(
-            first.Id, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+            first.Id, It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkPublishedAsync(second.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_RetryableFailure_SchedulesBackoff_AtBaseRetryDelay()
+    {
+        var message = CreateMessage(CreateOrderCreated());
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        DateTime? retryAfterUtc = null;
+        store.Setup(s => s.MarkRetryableFailureAsync(
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, string, DateTime?, CancellationToken>(
+                (_, _, retryAfter, _) => retryAfterUtc = retryAfter)
+            .ReturnsAsync(true);
+
+        await CreateDispatcher(new OutboxDispatchOptions { BaseRetryDelay = TimeSpan.FromSeconds(2) })
+            .DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        // First failure (RetryCount 0) is scheduled one BaseRetryDelay (2s) from now.
+        var expected = DateTime.UtcNow.AddSeconds(2);
+        Assert.NotNull(retryAfterUtc);
+        Assert.InRange(retryAfterUtc!.Value, expected.AddSeconds(-0.5), expected.AddSeconds(1));
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_RetryableFailure_GrowsBackoffExponentially()
+    {
+        var message = CreateMessage(CreateOrderCreated()) with { RetryCount = 2 };
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        DateTime? retryAfterUtc = null;
+        store.Setup(s => s.MarkRetryableFailureAsync(
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, string, DateTime?, CancellationToken>(
+                (_, _, retryAfter, _) => retryAfterUtc = retryAfter)
+            .ReturnsAsync(true);
+
+        await CreateDispatcher(new OutboxDispatchOptions
+            {
+                BaseRetryDelay = TimeSpan.FromSeconds(1),
+                RetryDelayMultiplier = 2
+            })
+            .DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        // RetryCount 2 → delay = 1s * 2^2 = 4s.
+        var expected = DateTime.UtcNow.AddSeconds(4);
+        Assert.NotNull(retryAfterUtc);
+        Assert.InRange(retryAfterUtc!.Value, expected.AddSeconds(-0.5), expected.AddSeconds(1));
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_RetryableFailure_CapsBackoffAtMaxRetryDelay()
+    {
+        var message = CreateMessage(CreateOrderCreated()) with { RetryCount = 10 };
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        DateTime? retryAfterUtc = null;
+        store.Setup(s => s.MarkRetryableFailureAsync(
+                It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, string, DateTime?, CancellationToken>(
+                (_, _, retryAfter, _) => retryAfterUtc = retryAfter)
+            .ReturnsAsync(true);
+
+        await CreateDispatcher(new OutboxDispatchOptions
+            {
+                MaxRetryCount = 20,
+                BaseRetryDelay = TimeSpan.FromSeconds(1),
+                RetryDelayMultiplier = 2,
+                MaxRetryDelay = TimeSpan.FromSeconds(3)
+            })
+            .DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        // Unbounded growth would be 1s * 2^10 ≈ 17min; the policy caps it at 3s.
+        var expected = DateTime.UtcNow.AddSeconds(3);
+        Assert.NotNull(retryAfterUtc);
+        Assert.InRange(retryAfterUtc!.Value, expected.AddSeconds(-0.5), expected.AddSeconds(1));
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_WhenRetryBudgetRemains_LastFailureBeforeMax_IsRetryable()
+    {
+        var message = CreateMessage(CreateOrderCreated()) with { RetryCount = 4 };
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        await CreateDispatcher(new OutboxDispatchOptions { MaxRetryCount = 5 })
+            .DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        store.Verify(s => s.MarkRetryableFailureAsync(
+            message.Id, It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkFailedAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_WhenRetryBudgetExhausted_MarksTerminalFailure()
+    {
+        var message = CreateMessage(CreateOrderCreated()) with { RetryCount = 5 };
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        await CreateDispatcher(new OutboxDispatchOptions { MaxRetryCount = 5 })
+            .DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        store.Verify(s => s.MarkFailedAsync(
+            message.Id, "The message broker did not confirm the publication.", It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkRetryableFailureAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+        store.Verify(s => s.MarkPublishedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static OrdersOutboxDispatcher CreateDispatcher(OutboxDispatchOptions? options = null) =>

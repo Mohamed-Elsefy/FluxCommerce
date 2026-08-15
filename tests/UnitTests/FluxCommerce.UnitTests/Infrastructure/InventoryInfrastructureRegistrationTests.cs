@@ -233,6 +233,10 @@ public class InventoryInfrastructureRegistrationTests
         Assert.Equal(50, options.BatchSize);
         Assert.Equal(TimeSpan.FromSeconds(5), options.PollingInterval);
         Assert.Equal(TimeSpan.FromSeconds(30), options.ClaimTimeout);
+        Assert.Equal(5, options.MaxRetryCount);
+        Assert.Equal(TimeSpan.FromSeconds(1), options.BaseRetryDelay);
+        Assert.Equal(2.0, options.RetryDelayMultiplier);
+        Assert.Equal(TimeSpan.FromMinutes(1), options.MaxRetryDelay);
     }
 
     private const string ConnectionString =

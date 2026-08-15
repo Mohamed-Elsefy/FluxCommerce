@@ -24,5 +24,12 @@ public sealed record OutboxMessage
 
     public int RetryCount { get; init; }
 
+    /// <summary>
+    /// Earliest UTC instant at which the message becomes eligible for re-claiming after a retryable
+    /// publication failure (exponential backoff). <see langword="null"/> means the message is immediately
+    /// eligible. Only meaningful while the message is <see cref="OutboxStatus.Pending"/>.
+    /// </summary>
+    public DateTime? RetryAfterUtc { get; init; }
+
     public string? Error { get; init; }
 }

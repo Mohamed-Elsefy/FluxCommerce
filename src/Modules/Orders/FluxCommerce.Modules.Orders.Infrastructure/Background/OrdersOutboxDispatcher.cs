@@ -15,12 +15,15 @@ using Microsoft.Extensions.Options;
 namespace FluxCommerce.Modules.Orders.Infrastructure.Background;
 
 /// <summary>
-/// Phase 6.7 background processor that dispatches the Orders outbox to the message broker. Each
-/// cycle recovers stale InProgress claims, atomically claims a bounded batch, deserializes each
-/// payload to its integration contract, publishes it through <see cref="IRabbitMQPublisher"/>, and
-/// marks it published. A failed publication never loses the message: it is returned to Pending (with
-/// the retry count and error recorded) so a later cycle re-claims it. Shutdown cancels the current
-/// publish and leaves the claim InProgress for stale-claim recovery.
+/// Phase 6.7/6.8 background processor that dispatches the Orders outbox to the message broker. Each
+/// cycle recovers stale InProgress claims, atomically claims a bounded batch, deserializes each payload
+/// to its integration contract, publishes it through <see cref="IRabbitMQPublisher"/>, and marks it
+/// published. A failed publication never loses the message: retryable failures are returned to Pending
+/// with the retry count, error, and a backoff deadline recorded so a later cycle re-claims the message
+/// only once its backoff window has elapsed; unknown event types, corrupt payloads, and failures that
+/// exhaust the retry budget move the message to the terminal Failed state instead of being retried
+/// forever. Shutdown cancels the current publish and leaves the claim InProgress for stale-claim
+/// recovery.
 /// </summary>
 public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatcher
 {
@@ -119,11 +122,12 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
 
             if (integrationEvent is null)
             {
-                await store
-                    .MarkRetryableFailureAsync(
-                        message.Id,
-                        $"Unsupported outbox event type '{message.Type}'.",
-                        cancellationToken)
+                await HandleFailureAsync(
+                    message,
+                    store,
+                    $"Unsupported outbox event type '{message.Type}'.",
+                    retryable: false,
+                    cancellationToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -134,11 +138,12 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
 
             if (!published)
             {
-                await store
-                    .MarkRetryableFailureAsync(
-                        message.Id,
-                        "The message broker did not confirm the publication.",
-                        cancellationToken)
+                await HandleFailureAsync(
+                    message,
+                    store,
+                    "The message broker did not confirm the publication.",
+                    retryable: true,
+                    cancellationToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -151,12 +156,88 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
             // message later; a cancelled publish is never reported as a retryable failure.
             throw;
         }
-        catch (Exception exception)
+        catch (JsonException exception)
         {
-            await store
-                .MarkRetryableFailureAsync(message.Id, exception.Message, cancellationToken)
+            // A payload that cannot be deserialized can never be published, so retrying cannot help;
+            // fail it immediately rather than wasting the retry budget on a poison message.
+            await HandleFailureAsync(
+                message,
+                store,
+                $"The outbox payload could not be deserialized: {exception.Message}",
+                retryable: false,
+                cancellationToken)
                 .ConfigureAwait(false);
         }
+        catch (Exception exception)
+        {
+            await HandleFailureAsync(message, store, exception.Message, retryable: true, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Applies the Phase 6.8 failure policy to a claimed message that failed to publish. Non-retryable
+    /// failures (unknown event types, corrupt payloads) and failures that have exhausted the retry budget
+    /// move the message to the terminal Failed state. Retryable failures return the message to Pending
+    /// and schedule its next claim after an exponential backoff based on the current retry count.
+    /// </summary>
+    private async Task HandleFailureAsync(
+        OutboxMessage message,
+        IOutboxStore store,
+        string error,
+        bool retryable,
+        CancellationToken cancellationToken)
+    {
+        if (!retryable || message.RetryCount >= _options.Value.MaxRetryCount)
+        {
+            await store.MarkFailedAsync(message.Id, error, cancellationToken).ConfigureAwait(false);
+
+            if (retryable)
+                _logger.LogError(
+                    "Outbox message {MessageId} ({EventType}) exhausted its {MaxRetryCount} retries and failed terminally: {Error}",
+                    message.Id,
+                    message.Type,
+                    _options.Value.MaxRetryCount,
+                    error);
+            else
+                _logger.LogError(
+                    "Outbox message {MessageId} ({EventType}) failed and is not retryable: {Error}",
+                    message.Id,
+                    message.Type,
+                    error);
+
+            return;
+        }
+
+        var retryAfterUtc = DateTime.UtcNow.Add(ComputeRetryDelay(message.RetryCount));
+
+        await store
+            .MarkRetryableFailureAsync(message.Id, error, retryAfterUtc, cancellationToken)
+            .ConfigureAwait(false);
+
+        _logger.LogWarning(
+            "Outbox message {MessageId} ({EventType}) failed on attempt {Attempt} and will be retried after {RetryAfterUtc}: {Error}",
+            message.Id,
+            message.Type,
+            message.RetryCount + 1,
+            retryAfterUtc,
+            error);
+    }
+
+    /// <summary>
+    /// Computes the exponential backoff delay for a message that has already failed
+    /// <paramref name="retryCount"/> times: <c>BaseRetryDelay * RetryDelayMultiplier^RetryCount</c>,
+    /// capped at <see cref="OutboxDispatchOptions.MaxRetryDelay"/>.
+    /// </summary>
+    private TimeSpan ComputeRetryDelay(int retryCount)
+    {
+        var options = _options.Value;
+        var delay = options.BaseRetryDelay;
+
+        for (var attempt = 0; attempt < retryCount && delay < options.MaxRetryDelay; attempt++)
+            delay = TimeSpan.FromTicks((long)(delay.Ticks * options.RetryDelayMultiplier));
+
+        return delay > options.MaxRetryDelay ? options.MaxRetryDelay : delay;
     }
 
     private static IIntegrationEvent? Deserialize(OutboxMessage message) =>

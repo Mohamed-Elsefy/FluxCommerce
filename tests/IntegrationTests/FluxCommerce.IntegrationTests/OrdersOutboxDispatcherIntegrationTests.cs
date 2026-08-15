@@ -20,12 +20,13 @@ using Xunit;
 namespace FluxCommerce.IntegrationTests;
 
 /// <summary>
-/// Phase 6.7: the Orders outbox dispatcher against the real SQL Server engine and the real RabbitMQ
+/// Phase 6.7/6.8: the Orders outbox dispatcher against the real SQL Server engine and the real RabbitMQ
 /// broker. A dispatch cycle publishes each claimed message to the dedicated test exchange (routing
 /// key = event type, body = the deserialized payload) and marks it Published; a failed publication
-/// returns the message to Pending with a bumped retry count so a later cycle re-publishes it (never
-/// lost); stale InProgress claims are recovered before claiming; and concurrent dispatchers publish
-/// every message exactly once.
+/// returns the message to Pending with a bumped retry count and a backoff deadline so a later cycle
+/// re-publishes it only once the window has elapsed (never lost); a message that exhausts the retry
+/// budget moves to the terminal Failed state instead of being retried forever; stale InProgress claims
+/// are recovered before claiming; and concurrent dispatchers publish every message exactly once.
 /// </summary>
 [Collection(SqlServerOrdersDispatcherTestCollection.Name)]
 public class OrdersOutboxDispatcherIntegrationTests
@@ -126,7 +127,12 @@ public class OrdersOutboxDispatcherIntegrationTests
                 Assert.Equal(1, loaded.RetryCount);
                 Assert.NotNull(loaded.Error);
                 Assert.Null(loaded.ProcessedAtUtc);
+                Assert.NotNull(loaded.RetryAfterUtc);
             }
+
+            // The failure scheduled a backoff (BaseRetryDelay = 1s for this dispatcher's defaults), so
+            // the retry leg must wait for the window to elapse before the message is claimable again.
+            await WaitUntilRetryEligibleAsync(_fixture.Services, ids.Single());
 
             await dispatcher.DispatchPendingAsync(CancellationToken.None);
 
@@ -143,6 +149,158 @@ public class OrdersOutboxDispatcherIntegrationTests
             var delivered = await ReceiveAsync(channel, queueName, 1);
             Assert.Single(delivered);
             Assert.Equal(@event.OrderNumber, delivered[0].Event.OrderNumber);
+        }
+        finally
+        {
+            await channel.QueueDeleteAsync(
+                queue: queueName,
+                ifUnused: false,
+                ifEmpty: false,
+                noWait: false,
+                cancellationToken: default);
+            await CleanupAsync(ids);
+        }
+    }
+
+    [Fact]
+    public async Task Dispatch_RetryableFailure_IsNotClaimedDuringBackoffWindow_ThenRetries()
+    {
+        var @event = CreateOrderCreated("ORD-BACKOFF");
+        var ids = await SeedAsync([@event]);
+
+        await using var channel = await _fixture.Services
+            .GetRequiredService<IRabbitMQConnectionProvider>()
+            .CreateChannelAsync();
+        var queueName = await DeclareQueueAsync(channel);
+
+        try
+        {
+            var failOncePublisher = new FailOncePublisher(
+                _fixture.Services.GetRequiredService<IRabbitMQPublisher>());
+
+            // A 2-second base backoff leaves a comfortable window to prove the message is not claimed
+            // early; the retry leg then verifies a real delivery.
+            using var dispatcherProvider = BuildDispatcherProvider(
+                failOncePublisher,
+                options => options.BaseRetryDelay = TimeSpan.FromSeconds(2));
+            using var scope = dispatcherProvider.CreateScope();
+            var dispatcher = scope.ServiceProvider.GetRequiredService<OrdersOutboxDispatcher>();
+
+            await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+            using (var verifyScope = _fixture.Services.CreateScope())
+            {
+                var context = verifyScope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                var loaded = await context.OutboxMessages
+                    .AsNoTracking()
+                    .SingleAsync(message => message.Id == ids.Single());
+
+                Assert.Equal(OutboxStatus.Pending, loaded.Status);
+                Assert.Equal(1, loaded.RetryCount);
+                Assert.NotNull(loaded.RetryAfterUtc);
+            }
+
+            // A dispatch inside the backoff window must skip the message entirely: it is still Pending
+            // with the same retry count, and nothing reached the broker.
+            await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+            using (var verifyScope = _fixture.Services.CreateScope())
+            {
+                var context = verifyScope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                var loaded = await context.OutboxMessages
+                    .AsNoTracking()
+                    .SingleAsync(message => message.Id == ids.Single());
+
+                Assert.Equal(OutboxStatus.Pending, loaded.Status);
+                Assert.Equal(1, loaded.RetryCount);
+                Assert.NotNull(loaded.RetryAfterUtc);
+            }
+
+            await WaitUntilRetryEligibleAsync(_fixture.Services, ids.Single());
+
+            await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+            using (var verifyScope = _fixture.Services.CreateScope())
+            {
+                var context = verifyScope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                var loaded = await context.OutboxMessages
+                    .AsNoTracking()
+                    .SingleAsync(message => message.Id == ids.Single());
+
+                Assert.Equal(OutboxStatus.Published, loaded.Status);
+            }
+
+            var delivered = await ReceiveAsync(channel, queueName, 1);
+            Assert.Single(delivered);
+            Assert.Equal(@event.OrderNumber, delivered[0].Event.OrderNumber);
+        }
+        finally
+        {
+            await channel.QueueDeleteAsync(
+                queue: queueName,
+                ifUnused: false,
+                ifEmpty: false,
+                noWait: false,
+                cancellationToken: default);
+            await CleanupAsync(ids);
+        }
+    }
+
+    [Fact]
+    public async Task Dispatch_ExhaustedRetryBudget_MarksTerminalFailed_AndNeverDelivers()
+    {
+        var @event = CreateOrderCreated("ORD-POISON");
+        var ids = await SeedAsync([@event], retryCount: 1);
+
+        await using var channel = await _fixture.Services
+            .GetRequiredService<IRabbitMQConnectionProvider>()
+            .CreateChannelAsync();
+        var queueName = await DeclareQueueAsync(channel);
+
+        try
+        {
+            // The broker never confirms, so every attempt fails. With MaxRetryCount = 1 and a message
+            // that already failed once, the next failure is terminal — no indefinite retry loop.
+            var alwaysFailPublisher = new AlwaysFailPublisher();
+
+            using var dispatcherProvider = BuildDispatcherProvider(
+                alwaysFailPublisher,
+                options => options.MaxRetryCount = 1);
+            using var scope = dispatcherProvider.CreateScope();
+            var dispatcher = scope.ServiceProvider.GetRequiredService<OrdersOutboxDispatcher>();
+
+            await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+            using (var verifyScope = _fixture.Services.CreateScope())
+            {
+                var context = verifyScope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                var loaded = await context.OutboxMessages
+                    .AsNoTracking()
+                    .SingleAsync(message => message.Id == ids.Single());
+
+                Assert.Equal(OutboxStatus.Failed, loaded.Status);
+                Assert.Equal(1, loaded.RetryCount);
+                Assert.NotNull(loaded.Error);
+                Assert.NotNull(loaded.ProcessedAtUtc);
+            }
+
+            // A Failed message is never claimed again; another cycle changes nothing and nothing is
+            // delivered.
+            await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+            using (var verifyScope = _fixture.Services.CreateScope())
+            {
+                var context = verifyScope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+                var loaded = await context.OutboxMessages
+                    .AsNoTracking()
+                    .SingleAsync(message => message.Id == ids.Single());
+
+                Assert.Equal(OutboxStatus.Failed, loaded.Status);
+                Assert.Equal(1, loaded.RetryCount);
+            }
+
+            var delivered = await ReceiveAsync(channel, queueName, 1, attempts: 10);
+            Assert.Empty(delivered);
         }
         finally
         {
@@ -261,7 +419,8 @@ public class OrdersOutboxDispatcherIntegrationTests
     private async Task<List<Guid>> SeedAsync(
         IReadOnlyCollection<OrderCreatedIntegrationEvent> events,
         OutboxStatus status = OutboxStatus.Pending,
-        DateTime? claimedAtUtc = null)
+        DateTime? claimedAtUtc = null,
+        int retryCount = 0)
     {
         using var scope = _fixture.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
@@ -287,7 +446,7 @@ public class OrdersOutboxDispatcherIntegrationTests
                     CreatedAtUtc = baseTime.AddMinutes(index),
                     ProcessedAtUtc = status == OutboxStatus.Pending ? null : (claimedAtUtc ?? DateTime.UtcNow),
                     Status = status,
-                    RetryCount = status == OutboxStatus.Pending ? 0 : 1,
+                    RetryCount = retryCount,
                     Error = null
                 };
                 index++;
@@ -314,7 +473,30 @@ public class OrdersOutboxDispatcherIntegrationTests
             .ExecuteDeleteAsync();
     }
 
-    private static ServiceProvider BuildDispatcherProvider(IRabbitMQPublisher publisher)
+    private static async Task WaitUntilRetryEligibleAsync(IServiceProvider services, Guid id)
+    {
+        using var scope = services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            var message = await context.OutboxMessages
+                .AsNoTracking()
+                .SingleAsync(m => m.Id == id);
+
+            if (message.RetryAfterUtc is null || message.RetryAfterUtc.Value <= DateTime.UtcNow.AddSeconds(-0.5))
+                return;
+
+            await Task.Delay(100);
+        }
+
+        Assert.Fail("The outbox message did not become retry-eligible within the timeout.");
+    }
+
+    private static ServiceProvider BuildDispatcherProvider(
+        IRabbitMQPublisher publisher,
+        Action<OutboxDispatchOptions>? configure = null)
     {
         var services = new ServiceCollection();
 
@@ -327,7 +509,11 @@ public class OrdersOutboxDispatcherIntegrationTests
         services.AddLogging();
         services.AddSingleton<IRabbitMQPublisher>(publisher);
 
-        services.Configure<OutboxDispatchOptions>(options => options.ClaimTimeout = TimeSpan.FromSeconds(5));
+        services.Configure<OutboxDispatchOptions>(options =>
+        {
+            options.ClaimTimeout = TimeSpan.FromSeconds(5);
+            configure?.Invoke(options);
+        });
 
         return services.BuildServiceProvider();
     }
@@ -360,11 +546,12 @@ public class OrdersOutboxDispatcherIntegrationTests
     private static async Task<List<(string RoutingKey, string Exchange, OrderCreatedIntegrationEvent Event)>> ReceiveAsync(
         IChannel channel,
         string queueName,
-        int expectedCount)
+        int expectedCount,
+        int attempts = 100)
     {
         var delivered = new List<(string RoutingKey, string Exchange, OrderCreatedIntegrationEvent Event)>();
 
-        for (var attempt = 0; attempt < 100 && delivered.Count < expectedCount; attempt++)
+        for (var attempt = 0; attempt < attempts && delivered.Count < expectedCount; attempt++)
         {
             var result = await channel.BasicGetAsync(queue: queueName, autoAck: true, cancellationToken: default);
 
@@ -417,6 +604,15 @@ public class OrdersOutboxDispatcherIntegrationTests
 
             return _inner.PublishAsync(eventType, @event, cancellationToken);
         }
+    }
+
+    private sealed class AlwaysFailPublisher : IRabbitMQPublisher
+    {
+        public Task<bool> PublishAsync(
+            string eventType,
+            IIntegrationEvent @event,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     private sealed class AnonymousCurrentUser : ICurrentUser

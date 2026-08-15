@@ -138,6 +138,45 @@ public class OrdersOutboxStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task MarkInProgressAsync_DoesNotClaimMessage_InBackoffWindow_ReturnsFalse()
+    {
+        await using var context = CreateContext();
+        var store = new OrdersOutboxStore(context);
+        var message = CreateMessage() with
+        {
+            RetryAfterUtc = DateTime.UtcNow.AddSeconds(30)
+        };
+        context.OutboxMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var claimed = await store.MarkInProgressAsync(message.Id);
+
+        Assert.False(claimed);
+        var loaded = await context.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.Equal(OutboxStatus.Pending, loaded.Status);
+        Assert.NotNull(loaded.RetryAfterUtc);
+    }
+
+    [Fact]
+    public async Task MarkInProgressAsync_ClaimsMessage_OnceBackoffWindowHasElapsed()
+    {
+        await using var context = CreateContext();
+        var store = new OrdersOutboxStore(context);
+        var message = CreateMessage() with
+        {
+            RetryAfterUtc = DateTime.UtcNow.AddSeconds(-1)
+        };
+        context.OutboxMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var claimed = await store.MarkInProgressAsync(message.Id);
+
+        Assert.True(claimed);
+        var loaded = await context.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.Equal(OutboxStatus.InProgress, loaded.Status);
+    }
+
+    [Fact]
     public async Task MarkPublishedAsync_TransitionsInProgress_ToPublished()
     {
         await using var context = CreateContext();
@@ -193,6 +232,29 @@ public class OrdersOutboxStoreTests : IDisposable
         Assert.Equal(2, loaded.RetryCount);
         Assert.Equal("broker unavailable", loaded.Error);
         Assert.Null(loaded.ProcessedAtUtc);
+        Assert.Null(loaded.RetryAfterUtc);
+    }
+
+    [Fact]
+    public async Task MarkRetryableFailureAsync_PersistsRetryAfterUtc_WhenProvided()
+    {
+        await using var context = CreateContext();
+        var store = new OrdersOutboxStore(context);
+        var message = CreateMessage(OutboxStatus.InProgress) with
+        {
+            ProcessedAtUtc = DateTime.UtcNow
+        };
+        context.OutboxMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var retryAfterUtc = DateTime.UtcNow.AddSeconds(30);
+
+        var failed = await store.MarkRetryableFailureAsync(message.Id, "broker unavailable", retryAfterUtc);
+
+        Assert.True(failed);
+        var loaded = await context.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.Equal(OutboxStatus.Pending, loaded.Status);
+        Assert.Equal(retryAfterUtc, loaded.RetryAfterUtc);
     }
 
     [Fact]

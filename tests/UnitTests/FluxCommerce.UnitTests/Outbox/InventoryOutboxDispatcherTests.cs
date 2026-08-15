@@ -15,7 +15,7 @@ using Xunit;
 namespace FluxCommerce.UnitTests.Outbox;
 
 /// <summary>
-/// Phase 6.7 Inventory outbox dispatcher core. Mirrors the Orders dispatcher; the Inventory-specific
+/// Phase 6.7/6.8 Inventory outbox dispatcher core. Mirrors the Orders dispatcher; the Inventory-specific
 /// behavior is the event-type → contract mapping for <c>inventory.reservation_expired</c>.
 /// </summary>
 public class InventoryOutboxDispatcherTests
@@ -59,12 +59,12 @@ public class InventoryOutboxDispatcherTests
         await CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
 
         store.Verify(s => s.MarkRetryableFailureAsync(
-            message.Id, "The message broker did not confirm the publication.", It.IsAny<CancellationToken>()), Times.Once);
+            message.Id, "The message broker did not confirm the publication.", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task DispatchCoreAsync_UnknownEventType_MarksRetryableFailure_WithoutPublishing()
+    public async Task DispatchCoreAsync_UnknownEventType_MarksFailedWithoutPublishing()
     {
         var message = CreateMessage(CreateReservationExpired()) with { Type = "inventory.unknown" };
         var store = new Mock<IOutboxStore>();
@@ -76,8 +76,31 @@ public class InventoryOutboxDispatcherTests
 
         publisher.Verify(p => p.PublishAsync(
             It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()), Times.Never);
-        store.Verify(s => s.MarkRetryableFailureAsync(
+        store.Verify(s => s.MarkFailedAsync(
             message.Id, "Unsupported outbox event type 'inventory.unknown'.", It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkRetryableFailureAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_WhenRetryBudgetExhausted_MarksTerminalFailure()
+    {
+        var message = CreateMessage(CreateReservationExpired()) with { RetryCount = 5 };
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        await CreateDispatcher(new OutboxDispatchOptions { MaxRetryCount = 5 })
+            .DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        store.Verify(s => s.MarkFailedAsync(
+            message.Id, "The message broker did not confirm the publication.", It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkRetryableFailureAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -99,7 +122,7 @@ public class InventoryOutboxDispatcherTests
             () => CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, cts.Token));
 
         store.Verify(s => s.MarkRetryableFailureAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static InventoryOutboxDispatcher CreateDispatcher(OutboxDispatchOptions? options = null) =>
