@@ -55,6 +55,7 @@ public sealed class OrdersOutboxMessageFactory
             domainEvent.OrderNumber.Value,
             domainEvent.OccurredAt)
         {
+            EventId = domainEvent.EventId,
             CorrelationId = _correlationIdProvider.GetCorrelationId(),
             OccurredAtUtc = domainEvent.OccurredAtUtc
         };
@@ -84,6 +85,7 @@ public sealed class OrdersOutboxMessageFactory
             domainEvent.OrderNumber.Value,
             domainEvent.OccurredAt)
         {
+            EventId = domainEvent.EventId,
             CorrelationId = _correlationIdProvider.GetCorrelationId(),
             OccurredAtUtc = domainEvent.OccurredAtUtc
         };

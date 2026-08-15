@@ -8,7 +8,7 @@ public static class RabbitMQServiceExtensions
 {
     public static IServiceCollection AddRabbitMQ(this IServiceCollection services, string connectionString)
     {
-        services.AddSingleton<IRabbitMQConnectionProvider>(new RabbitMQConnectionProvider(connectionString));
+        services.AddSingleton<IRabbitMQConnectionProvider>(_ => new RabbitMQConnectionProvider(connectionString));
 
         return services;
     }

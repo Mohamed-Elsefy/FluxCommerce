@@ -115,6 +115,74 @@ public class RabbitMQPublisherTests
             () => publisher.PublishAsync(" ", CreateOrderCreated()));
     }
 
+    [Fact]
+    public async Task PublishAsync_ReusesTheSharedChannel_AcrossPublishes()
+    {
+        var channel = new Mock<IChannel>();
+        channel.SetupGet(c => c.IsOpen).Returns(true);
+
+        var provider = new Mock<IRabbitMQConnectionProvider>();
+        provider
+            .Setup(p => p.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(channel.Object));
+
+        var publisher = new RabbitMQPublisher(
+            provider.Object,
+            NullLogger<RabbitMQPublisher>.Instance,
+            "fluxcommerce.events");
+
+        try
+        {
+            await publisher.PublishAsync(OrderCreatedIntegrationEvent.EventType, CreateOrderCreated());
+            await publisher.PublishAsync(OrderCreatedIntegrationEvent.EventType, CreateOrderCreated());
+
+            provider.Verify(
+                p => p.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        finally
+        {
+            await publisher.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenChannelClosed_CreatesANewChannel()
+    {
+        var firstChannel = new Mock<IChannel>();
+        var isOpen = true;
+        firstChannel.SetupGet(c => c.IsOpen).Returns(() => isOpen);
+
+        var secondChannel = new Mock<IChannel>();
+        secondChannel.SetupGet(c => c.IsOpen).Returns(true);
+
+        var provider = new Mock<IRabbitMQConnectionProvider>();
+        provider
+            .SetupSequence(p => p.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(firstChannel.Object))
+            .Returns(Task.FromResult(secondChannel.Object));
+
+        var publisher = new RabbitMQPublisher(
+            provider.Object,
+            NullLogger<RabbitMQPublisher>.Instance,
+            "fluxcommerce.events");
+
+        try
+        {
+            await publisher.PublishAsync(OrderCreatedIntegrationEvent.EventType, CreateOrderCreated());
+            isOpen = false;
+            await publisher.PublishAsync(OrderCreatedIntegrationEvent.EventType, CreateOrderCreated());
+
+            provider.Verify(
+                p => p.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()),
+                Times.Exactly(2));
+        }
+        finally
+        {
+            await publisher.DisposeAsync();
+        }
+    }
+
     private static OrderCreatedIntegrationEvent CreateOrderCreated() =>
         new(
             Guid.NewGuid(),

@@ -21,7 +21,7 @@ namespace FluxCommerce.IntegrationTests.TestInfrastructure;
 /// thin glue over that cycle. The retry policy is tuned for fast tests: three retries with a 2-second
 /// base backoff capped at 10 seconds.
 /// </summary>
-public sealed class OrdersOutboxDispatcherTestFixture : IDisposable
+public sealed class OrdersOutboxDispatcherTestFixture : IAsyncDisposable
 {
     public const string ConnectionString =
         "Server=localhost,1433;Database=FluxCommerce_Orders;User Id=sa;Password=FluxCommerceDBPass3030;TrustServerCertificate=True;MultipleActiveResultSets=true";
@@ -73,9 +73,9 @@ public sealed class OrdersOutboxDispatcherTestFixture : IDisposable
 
     public IServiceProvider Services => _provider;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _provider.Dispose();
+        await _provider.DisposeAsync();
     }
 
     private void VerifyConnectivity()

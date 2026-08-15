@@ -10,25 +10,29 @@ namespace FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 /// <summary>
 /// RabbitMQ implementation of <see cref="IRabbitMQPublisher"/>.
 /// <para>
-/// Each publish runs on a freshly created channel configured with publisher confirms
-/// (<see cref="CreateChannelOptions.PublisherConfirmationsEnabled"/> + tracking). With confirmation
-/// tracking enabled, awaiting <c>BasicPublishAsync</c> completes only when the broker confirms the
-/// message and throws <see cref="PublishException"/> (nack or return) otherwise — the client waits
-/// for the broker response, so success is never reported for a mere publish attempt.
+/// Publish runs on a single lazily-created channel configured with publisher confirms
+/// (<see cref="CreateChannelOptions.PublisherConfirmationsEnabled"/> + tracking) that is reused across
+/// publishes instead of opening, declaring, and closing a channel per message. A closed channel is
+/// transparently recreated on the next publish, so the exchange stays self-healing (declared on every
+/// channel (re)creation) without a per-message topology round trip. The confirm tracking
+/// (<see cref="CreateChannelOptions.PublisherConfirmationTrackingEnabled"/>) means awaiting
+/// <c>BasicPublishAsync</c> completes only when the broker confirms the message and throws
+/// <see cref="PublishException"/> (nack or return) otherwise — the client waits for the broker response,
+/// so success is never reported for a mere publish attempt.
 /// </para>
 /// <para>
-/// The exchange is declared idempotently (durable topic exchange) on every publish so the topology
-/// self-heals and the publisher needs no external wiring. Metadata is carried both as AMQP properties
-/// (<c>MessageId</c>, <c>Type</c>, <c>CorrelationId</c>, <c>Timestamp</c>, persistent delivery) and as
-/// transport headers (<c>EventId</c>, <c>EventType</c>, <c>EventVersion</c>, <c>CorrelationId</c>,
-/// <c>CausationId</c>, <c>OccurredAtUtc</c>).
+/// Metadata is carried both as AMQP properties (<c>MessageId</c>, <c>Type</c>, <c>CorrelationId</c>,
+/// <c>Timestamp</c>, persistent delivery) and as transport headers (<c>EventId</c>, <c>EventType</c>,
+/// <c>EventVersion</c>, <c>CorrelationId</c>, <c>CausationId</c>, <c>OccurredAtUtc</c>).
 /// </para>
 /// </summary>
-public sealed class RabbitMQPublisher : IRabbitMQPublisher
+public sealed class RabbitMQPublisher : IRabbitMQPublisher, IAsyncDisposable
 {
     private readonly IRabbitMQConnectionProvider _connectionProvider;
     private readonly ILogger<RabbitMQPublisher> _logger;
     private readonly string _exchangeName;
+    private readonly SemaphoreSlim _channelLock = new(1, 1);
+    private IChannel? _channel;
 
     public RabbitMQPublisher(IRabbitMQConnectionProvider connectionProvider, ILogger<RabbitMQPublisher> logger, string exchangeName)
     {
@@ -48,22 +52,7 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher
         if (string.IsNullOrWhiteSpace(eventType))
             throw new ArgumentException("An event type must be provided.", nameof(eventType));
 
-        var channelOptions = new CreateChannelOptions(
-            publisherConfirmationsEnabled: true,
-            publisherConfirmationTrackingEnabled: true,
-            outstandingPublisherConfirmationsRateLimiter: new ThrottlingRateLimiter(1));
-
-        await using var channel = await _connectionProvider.CreateChannelAsync(channelOptions, cancellationToken);
-
-        await channel.ExchangeDeclareAsync(
-            exchange: _exchangeName,
-            type: ExchangeType.Topic,
-            durable: true,
-            autoDelete: false,
-            arguments: null!,
-            passive: false,
-            noWait: false,
-            cancellationToken: cancellationToken);
+        var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
 
         var body = SerializeBody(@event);
         var properties = BuildProperties(eventType, @event);
@@ -76,7 +65,7 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher
                 mandatory: false,
                 basicProperties: properties,
                 body: body,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (PublishException publishException)
         {
@@ -91,6 +80,49 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Lazily creates the shared confirm-enabled channel, declares the durable topic exchange, and
+    /// reuses it for every publish. A channel that the broker has closed is replaced on the next
+    /// publish (with a fresh exchange declaration), so the topology self-heals without a per-message
+    /// declaration round trip. Confirms are preserved: each publish still awaits its own broker confirm.
+    /// </summary>
+    private async Task<IChannel> GetChannelAsync(CancellationToken cancellationToken)
+    {
+        await _channelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            if (_channel is { IsOpen: true })
+                return _channel;
+
+            var channelOptions = new CreateChannelOptions(
+                publisherConfirmationsEnabled: true,
+                publisherConfirmationTrackingEnabled: true,
+                outstandingPublisherConfirmationsRateLimiter: new ThrottlingRateLimiter(1));
+
+            var channel = await _connectionProvider
+                .CreateChannelAsync(channelOptions, cancellationToken)
+                .ConfigureAwait(false);
+
+            await channel.ExchangeDeclareAsync(
+                exchange: _exchangeName,
+                type: ExchangeType.Topic,
+                durable: true,
+                autoDelete: false,
+                arguments: null!,
+                passive: false,
+                noWait: false,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            _channel = channel;
+            return channel;
+        }
+        finally
+        {
+            _channelLock.Release();
+        }
     }
 
     /// <summary>
@@ -119,5 +151,23 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher
                 ["OccurredAtUtc"] = @event.OccurredAtUtc.ToString("O")
             }
         };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _channelLock.WaitAsync().ConfigureAwait(false);
+
+        try
+        {
+            if (_channel is not null)
+            {
+                await _channel.DisposeAsync().ConfigureAwait(false);
+                _channel = null;
+            }
+        }
+        finally
+        {
+            _channelLock.Release();
+        }
     }
 }

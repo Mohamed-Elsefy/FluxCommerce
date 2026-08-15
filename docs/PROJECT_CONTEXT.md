@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1330,6 +1330,42 @@ The Orders & Checkout phase (see `docs/phases/PHASE_4_ORDERS_CHECKOUT.md` and `d
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 103/103, Unit tests 1,497/1,497, Integration tests 207/207. EF model in sync with the `InitialOrders` migration (no pending model changes).
 
 **Deferred.** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). Order cancellation currently performs no inventory/payment compensation by design. `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
+
+### 14.5 Phase 6 — Outbox + RabbitMQ — Implemented & Verified
+
+The Outbox + RabbitMQ phase (see `docs/phases/PHASE_6_OUTBOX_RABBITMQ.md` and `docs/completed/PHASE_6_COMPLETION_REPORT.md`) establishes the reliable asynchronous messaging foundation: a module persists **Business State Change + Outbox Message** in the **same database transaction** and an Outbox Dispatcher publishes the resulting Integration Event to **RabbitMQ** asynchronously, under **At-Least-Once** delivery.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 6.1 | Baseline & messaging architecture audit (doc intentionally removed) | Implemented |
+| 6.2 | Outbox persistence model (doc intentionally removed) | Implemented |
+| 6.3 | Domain Event → Outbox integration (doc intentionally removed) | Implemented |
+| 6.4 | Integration Event contracts & versioning (ADR-007) | Implemented |
+| 6.5 | Outbox store & atomic claiming semantics | Implemented |
+| 6.6 | RabbitMQ publishing infrastructure (durable topic exchange, confirms) | Implemented |
+| 6.7 | Outbox dispatcher background services (Orders + Inventory) | Implemented |
+| 6.8 | Retry & failure recovery (exponential backoff, stale-claim recovery) | Implemented |
+| 6.9 | Correlation/Causation & observability | Implemented |
+| 6.10 | End-to-end integration tests (7 scenarios, real SQL + RabbitMQ) | Implemented |
+| 6.11 | Architecture & security hardening | Implemented |
+| 6.12 | Performance & operational hardening (publisher channel reuse) | Implemented |
+| 6.13 | Documentation synchronization | Implemented |
+| 6.14 | Final verification & completion report | Implemented |
+
+**Key decisions (messaging architecture).**
+
+- **Transactional Outbox, module-per-DbContext**: `OrdersDbContext` and `InventoryDbContext` each own their `OutboxMessages` table; business state + Outbox record commit atomically in one `SaveChanges`; no distributed or cross-module transaction.
+- **Integration Events live in module Contracts** and derive from the contract-only `IntegrationEvent` base in `BuildingBlocks.Messaging` (ADR-007, G12) — no internal implementation details leak; Domain/Application never touch Messaging or the RabbitMQ client.
+- **RabbitMQ** is a durable **topic** exchange with the event `Type` as the **routing key**; publishing uses **publisher confirms**; the publisher reuses one shared confirm-enabled channel (self-healing on closure, disposed on shutdown) to avoid per-message topology round trips.
+- **Atomic claiming**: a single conditional UPDATE (CTE + `UPDLOCK, READPAST` + `OUTPUT`) transitions `Pending → InProgress`; concurrent workers claim disjoint batches; a message is only eligible once its exponential-backoff `RetryAfterUtc` has elapsed.
+- **Retry/failure**: retryable failures return to `Pending` with backoff + error metadata; unknown/corrupt/exhausted messages go to the terminal `Failed` state; stale `InProgress` claims (post-crash) are recovered to `Pending`.
+- **At-Least-Once**: a confirmed-but-never-marked publish is republished on recovery — duplicates are possible and consumer idempotency is explicitly Phase 7.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 157/157, Unit tests 1796/1796, Integration tests 300/300 (54 Phase 6 messaging-specific) against real SQL Server + RabbitMQ, including E2E (success, broker nack + recovery, atomic rollback, stale-claim recovery, batch, duplicate boundary, cancellation). Orders and Inventory EF models are in sync with migrations (no pending changes). No Phase 7 consumers/Inbox/Saga were introduced.
+
+**Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), compensation workflows (later phases).
 
 ---
 

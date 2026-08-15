@@ -45,7 +45,8 @@ public class InventoryOutboxMessageFactoryTests
         var payload = JsonSerializer.Deserialize<InventoryReservationExpiredIntegrationEvent>(message.Payload);
 
         Assert.NotNull(payload);
-        Assert.Equal(reservationId.Value, payload!.ReservationId);
+        Assert.Equal(domainEvent.EventId, payload!.EventId);
+        Assert.Equal(reservationId.Value, payload.ReservationId);
         Assert.Equal(orderId.Value, payload.OrderId);
         Assert.Equal("SKU-1", payload.Sku);
         Assert.Equal(3, payload.Quantity);

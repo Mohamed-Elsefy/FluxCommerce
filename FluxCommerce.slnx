@@ -22,6 +22,7 @@
     <File Path="docs/completed/PHASE_3_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_4_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_5_COMPLETION_REPORT.md" />
+    <File Path="docs/completed/PHASE_6_COMPLETION_REPORT.md" />
   </Folder>
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
@@ -35,9 +36,6 @@
     <File Path="docs/phases/PHASE_3_CART_MODULE.md" />
     <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
     <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
-    <File Path="docs/phases/PHASE_6_1_MESSAGING_AUDIT.md" />
-    <File Path="docs/phases/PHASE_6_2_OUTBOX_PERSISTENCE.md" />
-    <File Path="docs/phases/PHASE_6_3_OUTBOX_INTEGRATION.md" />
     <File Path="docs/phases/PHASE_6_OUTBOX_RABBITMQ.md" />
   </Folder>
   <Folder Name="/docs/refactoring/">

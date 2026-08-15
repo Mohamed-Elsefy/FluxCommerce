@@ -52,6 +52,7 @@ public sealed class InventoryOutboxMessageFactory
             domainEvent.Quantity,
             domainEvent.OccurredAt)
         {
+            EventId = domainEvent.EventId,
             CorrelationId = _correlationIdProvider.GetCorrelationId(),
             OccurredAtUtc = domainEvent.OccurredAtUtc
         };
