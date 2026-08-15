@@ -82,9 +82,10 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher
         {
             _logger.LogError(
                 publishException,
-                "RabbitMQ did not confirm the {EventType} event {EventId}; the broker nacked or returned the message.",
+                "RabbitMQ did not confirm the {EventType} event {EventId} (correlation {CorrelationId}); the broker nacked or returned the message.",
                 eventType,
-                @event.EventId);
+                @event.EventId,
+                @event.CorrelationId);
 
             return false;
         }

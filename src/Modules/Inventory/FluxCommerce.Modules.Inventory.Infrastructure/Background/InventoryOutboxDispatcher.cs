@@ -149,6 +149,14 @@ public sealed class InventoryOutboxDispatcher : BackgroundService, IOutboxDispat
             }
 
             await store.MarkPublishedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Outbox message {MessageId} published {EventType} event {EventId} (correlation {CorrelationId}) on attempt {Attempt}.",
+                message.Id,
+                message.Type,
+                message.EventId,
+                message.CorrelationId,
+                message.RetryCount + 1);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -194,16 +202,20 @@ public sealed class InventoryOutboxDispatcher : BackgroundService, IOutboxDispat
 
             if (retryable)
                 _logger.LogError(
-                    "Outbox message {MessageId} ({EventType}) exhausted its {MaxRetryCount} retries and failed terminally: {Error}",
+                    "Outbox message {MessageId} ({EventType}) exhausted its {MaxRetryCount} retries publishing event {EventId} (correlation {CorrelationId}) and failed terminally: {Error}",
                     message.Id,
                     message.Type,
                     _options.Value.MaxRetryCount,
+                    message.EventId,
+                    message.CorrelationId,
                     error);
             else
                 _logger.LogError(
-                    "Outbox message {MessageId} ({EventType}) failed and is not retryable: {Error}",
+                    "Outbox message {MessageId} ({EventType}) failed publishing event {EventId} (correlation {CorrelationId}) and is not retryable: {Error}",
                     message.Id,
                     message.Type,
+                    message.EventId,
+                    message.CorrelationId,
                     error);
 
             return;
@@ -216,9 +228,11 @@ public sealed class InventoryOutboxDispatcher : BackgroundService, IOutboxDispat
             .ConfigureAwait(false);
 
         _logger.LogWarning(
-            "Outbox message {MessageId} ({EventType}) failed on attempt {Attempt} and will be retried after {RetryAfterUtc}: {Error}",
+            "Outbox message {MessageId} ({EventType}) failed publishing event {EventId} (correlation {CorrelationId}) on attempt {Attempt} and will be retried after {RetryAfterUtc}: {Error}",
             message.Id,
             message.Type,
+            message.EventId,
+            message.CorrelationId,
             message.RetryCount + 1,
             retryAfterUtc,
             error);

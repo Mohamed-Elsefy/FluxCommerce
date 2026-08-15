@@ -1,8 +1,11 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
+using FluxCommerce.BuildingBlocks.Messaging.Versioning;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
@@ -27,6 +30,8 @@ namespace FluxCommerce.IntegrationTests;
 /// re-publishes it only once the window has elapsed (never lost); a message that exhausts the retry
 /// budget moves to the terminal Failed state instead of being retried forever; stale InProgress claims
 /// are recovered before claiming; and concurrent dispatchers publish every message exactly once.
+/// Phase 6.9 adds end-to-end metadata correlation: the event identifiers and the correlation/causation
+/// ids stored in the Outbox are preserved all the way to the RabbitMQ properties and transport headers.
 /// </summary>
 [Collection(SqlServerOrdersDispatcherTestCollection.Name)]
 public class OrdersOutboxDispatcherIntegrationTests
@@ -360,6 +365,87 @@ public class OrdersOutboxDispatcherIntegrationTests
     }
 
     [Fact]
+    public async Task Dispatch_PropagatesCorrelationMetadata_FromOutboxToRabbitMQ()
+    {
+        var correlationId = new Guid("99999999-9999-9999-9999-999999999999");
+        var causationId = new Guid("88888888-8888-8888-8888-888888888888");
+        var @event = new OrderCreatedIntegrationEvent(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "ORD-CORR",
+            new DateTimeOffset(2026, 8, 14, 15, 30, 0, TimeSpan.Zero))
+        {
+            CorrelationId = correlationId,
+            CausationId = causationId
+        };
+        var ids = await SeedAsync([@event]);
+
+        await using var channel = await _fixture.Services
+            .GetRequiredService<IRabbitMQConnectionProvider>()
+            .CreateChannelAsync();
+        var queueName = await DeclareQueueAsync(channel);
+
+        try
+        {
+            using var scope = _fixture.Services.CreateScope();
+            var dispatcher = scope.ServiceProvider.GetRequiredService<OrdersOutboxDispatcher>();
+
+            await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+            using var verifyScope = _fixture.Services.CreateScope();
+            var context = verifyScope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+            var seeded = await context.OutboxMessages
+                .AsNoTracking()
+                .SingleAsync(message => message.Id == ids.Single());
+
+            Assert.Equal(OutboxStatus.Published, seeded.Status);
+
+            var delivered = await ReceiveAsync(channel, queueName, 1);
+            var message = Assert.Single(delivered);
+            var properties = message.BasicProperties;
+
+            // The metadata stored in the Outbox row is what reaches the broker: the same EventId (as the
+            // AMQP message id and the EventId header), the same event type, and the same correlation and
+            // causation ids, both as AMQP properties and as transport headers.
+            Assert.Equal(seeded.EventId.ToString(), properties.MessageId);
+            Assert.Equal(OrderCreatedIntegrationEvent.EventType, properties.Type);
+            Assert.Equal(seeded.CorrelationId.ToString(), properties.CorrelationId);
+            Assert.True(properties.Persistent);
+
+            Assert.Equal(seeded.EventId.ToString(), Header(properties, "EventId"));
+            Assert.Equal(OrderCreatedIntegrationEvent.EventType, Header(properties, "EventType"));
+            Assert.Equal(EventVersion.V1.ToString(), Header(properties, "EventVersion"));
+            Assert.Equal(seeded.CorrelationId.ToString(), Header(properties, "CorrelationId"));
+            Assert.Equal(seeded.CausationId.ToString(), Header(properties, "CausationId"));
+
+            // The SQL row reads back with Kind=Unspecified while the header is round-tripped through
+            // the wire with a "Z"; compare them as the same UTC instant.
+            var headerOccurredAtUtc = DateTimeOffset.Parse(
+                Header(properties, "OccurredAtUtc"),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind);
+            Assert.Equal(
+                new DateTimeOffset(seeded.OccurredAtUtc, TimeSpan.Zero).UtcTicks,
+                headerOccurredAtUtc.UtcTicks);
+
+            // And the deserialized body round-trips the same identifiers from the Outbox metadata.
+            Assert.Equal(seeded.EventId, message.Event.EventId);
+            Assert.Equal(seeded.CorrelationId, message.Event.CorrelationId);
+            Assert.Equal(seeded.CausationId, message.Event.CausationId);
+        }
+        finally
+        {
+            await channel.QueueDeleteAsync(
+                queue: queueName,
+                ifUnused: false,
+                ifEmpty: false,
+                noWait: false,
+                cancellationToken: default);
+            await CleanupAsync(ids);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentDispatches_PublishEachMessageExactlyOnce()
     {
         var events = Enumerable.Range(0, 20)
@@ -543,13 +629,13 @@ public class OrdersOutboxDispatcherIntegrationTests
         return queueName;
     }
 
-    private static async Task<List<(string RoutingKey, string Exchange, OrderCreatedIntegrationEvent Event)>> ReceiveAsync(
+    private static async Task<List<(string RoutingKey, string Exchange, OrderCreatedIntegrationEvent Event, IReadOnlyBasicProperties BasicProperties)>> ReceiveAsync(
         IChannel channel,
         string queueName,
         int expectedCount,
         int attempts = 100)
     {
-        var delivered = new List<(string RoutingKey, string Exchange, OrderCreatedIntegrationEvent Event)>();
+        var delivered = new List<(string RoutingKey, string Exchange, OrderCreatedIntegrationEvent Event, IReadOnlyBasicProperties BasicProperties)>();
 
         for (var attempt = 0; attempt < attempts && delivered.Count < expectedCount; attempt++)
         {
@@ -560,7 +646,8 @@ public class OrdersOutboxDispatcherIntegrationTests
                 delivered.Add((
                     result.RoutingKey,
                     result.Exchange,
-                    JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(result.Body.Span)!));
+                    JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(result.Body.Span)!,
+                    result.BasicProperties));
             }
             else
             {
@@ -569,6 +656,12 @@ public class OrdersOutboxDispatcherIntegrationTests
         }
 
         return delivered;
+    }
+
+    private static string Header(IReadOnlyBasicProperties properties, string name)
+    {
+        var value = properties.Headers![name];
+        return value is byte[] bytes ? Encoding.UTF8.GetString(bytes) : value?.ToString() ?? string.Empty;
     }
 
     private static OrderCreatedIntegrationEvent CreateOrderCreated(string orderNumber) =>

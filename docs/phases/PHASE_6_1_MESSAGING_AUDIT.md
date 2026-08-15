@@ -409,6 +409,21 @@ carrier; or (b) relax/refine the architecture rule with an explicit decision. Th
 > `Pending`. Verified by 38 focused unit tests (SQLite) and 26 real SQL Server integration tests per-module
 > surface including concurrent claim workers. See the Phase 6.5 report.
 
+> **Phase 6.9 delta (not a historical rewrite).** G9 is **resolved** by the Phase 6.9 implementation.
+> Correlation/Causation now flows the full path: the outbox factories inject the request `CorrelationId`
+> from `ICorrelationIdProvider` at mapping time (Phase 6.3); the Outbox rows persist it (Phase 6.2/6.5);
+> the dispatcher re-reads it from the claimed message and logs it; and the publisher carries it on the
+> wire — the event's `EventId`/`CorrelationId`/`CausationId` (with `EventType`/`EventVersion`/`OccurredAtUtc`)
+> are written as both AMQP properties and transport headers (Phase 6.6), preserved unchanged from the
+> Outbox row. Every dispatcher outcome log now carries the identifiers an operator needs to correlate an
+> attempt back to a business operation (MessageId, EventId, EventType, CorrelationId) plus the
+> attempt/outcome/error detail, a successful publish logs a structured Information entry, and no
+> serialized business payload is ever logged. `CausationId` is preserved end-to-end but remains null for
+> now: no consumers exist yet (Phase 7), so nothing produces a causal chain — it becomes populated once
+> message-driven handlers publish follow-up events. Verified by focused unit tests on the dispatcher
+> logging contract (both modules) and by an integration test proving an Outbox row's metadata reaches the
+> RabbitMQ properties and transport headers unchanged. See the Phase 6.9 report.
+
 ---
 
 ## 13. Existing Abstractions to Reuse (do not reinvent)
