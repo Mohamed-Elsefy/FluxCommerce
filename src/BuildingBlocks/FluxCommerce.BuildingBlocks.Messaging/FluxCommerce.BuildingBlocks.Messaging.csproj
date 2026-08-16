@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Consuming\" />
     <Folder Include="Contracts\" />
     <Folder Include="Events\" />
     <Folder Include="Versioning\" />

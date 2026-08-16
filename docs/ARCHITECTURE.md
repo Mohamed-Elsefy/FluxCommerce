@@ -500,6 +500,81 @@ Use asynchronous messaging where it provides architectural value.
 
 ---
 
+## 14.1 Consumer Contract & Processing Model
+
+Integration event handlers are transport-agnostic contracts owned by the consuming module. A handler
+implements `IIntegrationEventHandler<TEvent>` (in `BuildingBlocks.Messaging`) and receives the
+deserialized contract plus an `IntegrationEventEnvelope` carrying the canonical processing context
+(EventId, EventType, EventVersion, CorrelationId, CausationId, OccurredAtUtc) — never a broker message.
+
+Handlers are resolved through an explicit consumer registry that maps a wire `EventType` to a contract
+type and a DI-registered handler type (no reflection-based activation), mirroring the Phase 6
+publisher's switch-on-Type deserialization. An unknown event type resolves to `null` and is skipped.
+
+### 14.1.1 ProcessedMessage Persistence (Inbox)
+
+The idempotency identity is `EventId + HandlerName`, composed as
+`ProcessedMessage.Create(eventId, handler.HandlerName)` (see ADR-008). Processed-message persistence is
+**module-local**: the canonical `ProcessedMessage` record (a shared `BuildingBlocks.Idempotency`
+contract, following the `OutboxMessage` precedent) is mapped into each *consuming* module's DbContext —
+there is no global/shared idempotency database or DbContext, and one module never touches another
+module's `ProcessedMessages`. The **Inventory module** owns the first `ProcessedMessages` boundary:
+
+```text
+InventoryDbContext
+    ├── Inventory State
+    ├── OutboxMessages
+    └── ProcessedMessages     ← UNIQUE(Key, Handler)
+```
+
+The composite `(Key, Handler)` is the table's primary key, so the SQL unique constraint is the final
+concurrency protection: `(E1, H1)` can be claimed once, `(E1, H2)` is an independent consumer, and a
+duplicate `(E1, H1)` race is resolved by the database and reported as already-processed (never an
+application failure). The record stays lightweight: `Key` (EventId, 36 chars), `Handler` (128 chars),
+`ProcessedAtUtc`.
+
+The SQL-backed implementations of the canonical idempotency contracts live in the consuming module's
+Infrastructure (`FluxCommerce.Modules.Inventory.Infrastructure.Idempotency`): `IIdempotencyStore`
+(`GetAsync`/`AddAsync`, the check-then-act surface) and `IDuplicateDetector` (`TryClaimAsync`
+atomic claim + `IsProcessedAsync`). `GetAsync` is for querying only and is not sufficient concurrency
+protection.
+
+### 14.1.2 Atomic Idempotent Processing
+
+Business state changes and processed-message recording are **atomic** whenever they share the same
+persistence boundary. The `IIdempotentProcessor` contract (in `BuildingBlocks.Idempotency`) is the
+transport-agnostic processing boundary: it claims a `ProcessedMessage` and runs the business operation
+(`Func<Task>`) inside ONE module-local transaction, then commits once. A successful processing commits
+Business State + ProcessedMessage together; a business failure rolls both back (the message stays
+retryable); a known duplicate is detected up front and acknowledged WITHOUT re-executing the business
+operation; a concurrent duplicate race is resolved by the composite `(Key, Handler)` primary key — the
+losing attempt rolls back, re-reads the winner and reports `AlreadyProcessed` (exactly one business
+effect, exactly one processed message). The Inventory implementation
+(`InventoryIdempotentProcessor`) runs the transaction through the retrying execution strategy
+(`InventoryStore.TryReserveAsync` precedent) and reuses `IDuplicateDetector.IsProcessedAsync` and
+`IIdempotencyStore.GetAsync` for the fast-path check and winner re-read. The future consumer
+infrastructure invokes any application handler through this boundary; no second idempotency abstraction
+exists.
+
+```text
+IIdempotentProcessor.TryProcessAsync(message, businessOperation)
+    │
+    ├─ already processed? ──► AlreadyProcessed (business logic NOT executed)
+    │
+    ▼
+begin transaction (execution strategy)
+    │
+    ▼
+Business Operation  +  ProcessedMessage  ──►  COMMIT (atomic)
+```
+
+### 14.1.3 Background Identity
+
+Consumer/background scopes resolve a non-request `ICurrentUser` (unauthenticated), matching the test
+`AnonymousCurrentUser` precedent — no request identity is available on the broker path (ADR-008).
+
+---
+
 # 15. Saga Architecture
 
 The system will eventually implement distributed business workflows using Saga Orchestration.

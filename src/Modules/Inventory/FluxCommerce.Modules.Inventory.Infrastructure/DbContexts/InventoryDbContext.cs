@@ -1,4 +1,5 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Idempotency.Messages;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
@@ -24,4 +25,6 @@ public sealed class InventoryDbContext : BaseDbContext
     public DbSet<InventoryReservation> InventoryReservations { get; set; } = null!;
 
     public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+
+    public DbSet<ProcessedMessage> ProcessedMessages { get; set; } = null!;
 }

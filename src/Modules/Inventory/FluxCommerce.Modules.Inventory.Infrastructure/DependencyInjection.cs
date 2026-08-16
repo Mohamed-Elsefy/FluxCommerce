@@ -1,5 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Idempotency.Detection;
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
+using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
@@ -16,6 +19,7 @@ using FluxCommerce.Modules.Inventory.Application.Queries.GetInventoryReservation
 using FluxCommerce.Modules.Inventory.Application.ReadModels;
 using FluxCommerce.Modules.Inventory.Infrastructure.Background;
 using FluxCommerce.Modules.Inventory.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Inventory.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Inventory.Infrastructure.Outbox;
 using FluxCommerce.Modules.Inventory.Infrastructure.Persistence.Stores;
 using Microsoft.EntityFrameworkCore;
@@ -53,6 +57,9 @@ public static class DependencyInjection
             .AddInterceptors(serviceProvider.GetRequiredService<InventoryOutboxSaveChangesInterceptor>()));
 
         services.AddScoped<IInventoryStore, InventoryStore>();
+        services.AddScoped<IIdempotencyStore, InventoryIdempotencyStore>();
+        services.AddScoped<IDuplicateDetector, InventoryDuplicateDetector>();
+        services.AddScoped<IIdempotentProcessor, InventoryIdempotentProcessor>();
         services.AddScoped<ICommandHandler<CreateInventoryItemCommand, Result<InventoryItemReadModel>>, CreateInventoryItemCommandHandler>();
         services.AddScoped<ICommandHandler<AdjustStockCommand, Result<InventoryItemReadModel>>, AdjustStockCommandHandler>();
         services.AddScoped<IQueryHandler<GetInventoryItemQuery, Result<InventoryItemReadModel>>, GetInventoryItemQueryHandler>();

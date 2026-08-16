@@ -4,6 +4,7 @@
     <Folder Include="Messages\" />
     <Folder Include="Stores\" />
     <Folder Include="Detection\" />
+    <Folder Include="Processing\" />
   </ItemGroup>
 
 </Project>

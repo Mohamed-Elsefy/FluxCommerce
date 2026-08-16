@@ -22,6 +22,27 @@ namespace FluxCommerce.Modules.Inventory.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Idempotency.Messages.ProcessedMessage", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)")
+                        .HasColumnName("Key");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("Handler");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ProcessedAtUtc");
+
+                    b.HasKey("Key", "Handler");
+
+                    b.ToTable("ProcessedMessages", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.BuildingBlocks.Outbox.Messages.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")

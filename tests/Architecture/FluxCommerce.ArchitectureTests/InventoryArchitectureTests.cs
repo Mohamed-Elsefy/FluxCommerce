@@ -106,6 +106,38 @@ public class InventoryArchitectureTests
             "Inventory.Infrastructure must reference the Outbox abstraction to map the module Outbox persistence entity.");
     }
 
+    // ---- Phase 7.3: Idempotency persistence stays in Infrastructure ----
+
+    [Fact]
+    public void Inventory_ShouldNot_ReferenceIdempotency_OutsideInfrastructure()
+    {
+        // Phase 7.3: the ProcessedMessage persistence model (entity configuration, DbSet, store, and
+        // duplicate detector) is owned by Inventory.Infrastructure. Domain, Application and Contracts
+        // must stay free of the idempotency abstraction, mirroring the Outbox rule.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain, InventoryApplication, InventoryContracts],
+            ["FluxCommerce.BuildingBlocks.Idempotency"],
+            "Inventory -> Idempotency",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Infrastructure_IsAllowedToReferenceIdempotency()
+    {
+        var referencingTypes = Types.InAssembly(InventoryInfrastructure)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Idempotency")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Inventory.Infrastructure must reference the Idempotency abstraction to map the ProcessedMessage persistence entity.");
+    }
+
     [Fact]
     public void Inventory_ShouldNot_IntroduceSagaOrOrchestratorTypes()
     {

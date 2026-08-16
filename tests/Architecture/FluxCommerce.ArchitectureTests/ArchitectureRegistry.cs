@@ -18,6 +18,8 @@ internal static class ArchitectureRegistry
 
     public static Assembly Api { get; } = GetAssembly("FluxCommerce.Api");
 
+    public static Assembly Messaging { get; } = GetAssembly($"{BuildingBlocksRoot}.Messaging");
+
     public static IReadOnlyList<Assembly> BuildingBlocks { get; } = GetAssemblies(BuildingBlockProjects.Select(p => $"{BuildingBlocksRoot}.{p}"));
 
     public static IReadOnlyList<Assembly> DomainAssemblies { get; } = GetAssemblies(Modules.Select(m => $"{ModulesRoot}.{m}.Domain"));
