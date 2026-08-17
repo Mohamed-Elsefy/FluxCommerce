@@ -1,10 +1,12 @@
 # Phase 7 --- Idempotent Consumers
 
-> **Status:** Planned\
+> **Status:** Implemented & Verified (Phases 7.1–7.14)\
 > **Phase:** 7\
 > **Primary Goal:** Build reliable RabbitMQ consumers with idempotent
 > message processing, Inbox / ProcessedMessage persistence,
 > retry/failure handling, and production-oriented observability.
+> **Completion:** See `docs/completed/PHASE_7_COMPLETION_REPORT.md` for the
+> final verification results.
 
 ------------------------------------------------------------------------
 

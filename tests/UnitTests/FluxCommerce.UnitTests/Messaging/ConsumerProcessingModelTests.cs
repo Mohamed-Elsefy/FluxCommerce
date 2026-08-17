@@ -1,4 +1,5 @@
 using FluxCommerce.BuildingBlocks.Idempotency.Messages;
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
 using FluxCommerce.BuildingBlocks.Messaging.Versioning;
@@ -80,6 +81,7 @@ public class ConsumerProcessingModelTests
         Assert.Equal(OrderCreatedIntegrationEvent.EventType, descriptor.EventType);
         Assert.Equal(typeof(OrderCreatedIntegrationEvent), descriptor.EventContractType);
         Assert.Equal(typeof(OrderCreatedHandler), descriptor.HandlerType);
+        Assert.Equal(typeof(TestIdempotentProcessor), descriptor.ProcessorType);
     }
 
     [Fact]
@@ -146,8 +148,18 @@ public class ConsumerProcessingModelTests
                 {
                     EventType = eventType,
                     EventContractType = typeof(OrderCreatedIntegrationEvent),
-                    HandlerType = typeof(OrderCreatedHandler)
+                    HandlerType = typeof(OrderCreatedHandler),
+                    ProcessorType = typeof(TestIdempotentProcessor)
                 }
                 : null;
+    }
+
+    private sealed class TestIdempotentProcessor : IIdempotentProcessor
+    {
+        public Task<IdempotencyResult> TryProcessAsync(
+            ProcessedMessage message,
+            Func<Task> businessOperation,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(IdempotencyResult.NotProcessed());
     }
 }

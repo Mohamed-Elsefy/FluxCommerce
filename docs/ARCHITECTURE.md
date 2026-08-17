@@ -507,6 +507,10 @@ implements `IIntegrationEventHandler<TEvent>` (in `BuildingBlocks.Messaging`) an
 deserialized contract plus an `IntegrationEventEnvelope` carrying the canonical processing context
 (EventId, EventType, EventVersion, CorrelationId, CausationId, OccurredAtUtc) — never a broker message.
 
+The handler **implementation** lives in the consuming module's `Infrastructure` layer (beside the module
+DbContext and `IIdempotentProcessor` it shares), so consumer transport stays in Infrastructure and
+Domain/Application never reference `IIntegrationEventHandler` or the Messaging consumer contracts.
+
 Handlers are resolved through an explicit consumer registry that maps a wire `EventType` to a contract
 type and a DI-registered handler type (no reflection-based activation), mirroring the Phase 6
 publisher's switch-on-Type deserialization. An unknown event type resolves to `null` and is skipped.
@@ -518,7 +522,11 @@ The idempotency identity is `EventId + HandlerName`, composed as
 **module-local**: the canonical `ProcessedMessage` record (a shared `BuildingBlocks.Idempotency`
 contract, following the `OutboxMessage` precedent) is mapped into each *consuming* module's DbContext —
 there is no global/shared idempotency database or DbContext, and one module never touches another
-module's `ProcessedMessages`. The **Inventory module** owns the first `ProcessedMessages` boundary:
+module's `ProcessedMessages`. The **Inventory module** owns the first `ProcessedMessages` boundary
+(established in Phase 7.3 and exercised by the Phase 7.5–7.10 consumer integration tests); the
+**Orders module** maps the same canonical record into its own `OrdersDbContext` for the Phase 7.9 Order
+Summary projection consumer — the first real production consumer. Each module's table is strictly
+module-local:
 
 ```text
 InventoryDbContext
@@ -539,6 +547,17 @@ Infrastructure (`FluxCommerce.Modules.Inventory.Infrastructure.Idempotency`): `I
 atomic claim + `IsProcessedAsync`). `GetAsync` is for querying only and is not sufficient concurrency
 protection.
 
+**Retention.** Processed-message records are currently retained indefinitely and there is deliberately
+NO automatic cleanup/retention job. Under at-least-once delivery the broker may redeliver a message at
+any time with no expiry bound, so deleting the idempotency record after a time window would reopen the
+duplicate window: a late redelivery would no longer be recognized as a duplicate and would re-execute
+the business operation (e.g., a duplicate inventory reservation or a duplicate projection). A
+controlled purge is only safe when the workflow has a confirmed end-of-life — a point after which no
+further deliveries for the event can occur (for example a completed saga in Phase 8+). Until such a
+bound exists, indefinite retention is the safe default and any future cleanup must be gated on it. The
+composite `(Key, Handler)` primary key is the only index needed by the current access paths (single-row
+PK seeks); no additional indexes are justified.
+
 ### 14.1.2 Atomic Idempotent Processing
 
 Business state changes and processed-message recording are **atomic** whenever they share the same
@@ -552,9 +571,10 @@ losing attempt rolls back, re-reads the winner and reports `AlreadyProcessed` (e
 effect, exactly one processed message). The Inventory implementation
 (`InventoryIdempotentProcessor`) runs the transaction through the retrying execution strategy
 (`InventoryStore.TryReserveAsync` precedent) and reuses `IDuplicateDetector.IsProcessedAsync` and
-`IIdempotencyStore.GetAsync` for the fast-path check and winner re-read. The future consumer
-infrastructure invokes any application handler through this boundary; no second idempotency abstraction
-exists.
+`IIdempotencyStore.GetAsync` for the fast-path check and winner re-read. The consumer infrastructure
+(`IntegrationEventMessageProcessor`) invokes any application handler through this boundary — always
+resolving each module's own processor declared on the consumer's descriptor (§14.1.4) — so no second
+idempotency abstraction exists.
 
 ```text
 IIdempotentProcessor.TryProcessAsync(message, businessOperation)
@@ -680,9 +700,18 @@ host, the singleton `IIntegrationEventFailureClassifier`, the singleton `IIntegr
 `RabbitMQConsumerOptions` (QueueName, ExchangeName, PrefetchCount, Concurrency, Durable, AutoDelete,
 Retry, DeadLetterExchangeName, DeadLetterQueueName — with `ResolvedDeadLetterExchangeName`/
 `ResolvedDeadLetterQueueName` deriving `{QueueName}.dlx`/`{QueueName}.dlq` when not configured), and
-`AddIntegrationEventConsumer<TEvent, THandler>()` registers each handler and its
-`IntegrationEventConsumerDescriptor` (EventType via the contract's stable `public const string
-EventType`, contract type, handler type). Note that `BasicDeliverEventArgs.CancellationToken` is never
+`AddIntegrationEventConsumer<TEvent, THandler, TProcessor>()` registers each handler (scoped), its
+module-owned `IIdempotentProcessor` implementation (scoped), and an
+`IntegrationEventConsumerDescriptor` carrying `EventType` (via the contract's stable `public const string
+EventType`), the contract type, the handler type, and the processor type. The message processor resolves
+BOTH the handler and the processor by the concrete types declared on the descriptor — never by the
+container-wide `IIdempotentProcessor` interface, which every module registers and which would resolve
+last-registration-wins across modules. Each module registers its concrete
+`IIdempotencyStore`/`IDuplicateDetector`/`IIdempotentProcessor` and forwards the shared interfaces to
+them for single-module internal use; a consumer therefore always executes through its owning module's
+processor and DbContext (Orders consumers through `OrdersIdempotentProcessor`/`OrdersDbContext`,
+Inventory consumers through `InventoryIdempotentProcessor`/`InventoryDbContext`). Note that
+`BasicDeliverEventArgs.CancellationToken` is never
 cancelled by RabbitMQ.Client 7.x, so the consumer drives cancellation from its own shutdown token only.
 
 ---

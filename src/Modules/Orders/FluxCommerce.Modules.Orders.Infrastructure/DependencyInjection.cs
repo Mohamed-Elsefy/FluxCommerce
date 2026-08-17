@@ -56,9 +56,19 @@ public static class DependencyInjection
         services.AddScoped<IOrderStore, OrderStore>();
         services.AddScoped<IOrderSummaryProjectionStore, OrderSummaryProjectionStore>();
         services.AddScoped<IOrderSummaryProjectionService, OrderSummaryProjectionService>();
-        services.AddScoped<IIdempotencyStore, OrdersIdempotencyStore>();
-        services.AddScoped<IDuplicateDetector, OrdersDuplicateDetector>();
-        services.AddScoped<IIdempotentProcessor, OrdersIdempotentProcessor>();
+
+        // Idempotency: the concrete, module-owned implementations are registered (so the consumer
+        // infrastructure can resolve them by concrete type — each consumer carries its module's
+        // processor on its descriptor) and the shared interfaces are forwarded to them. The interfaces
+        // stay resolvable for this module's internal use and single-module tests; when several modules
+        // are composed in one container the consumer infrastructure NEVER resolves the interfaces (they
+        // would be last-registration-wins across modules) and always uses the concrete types instead.
+        services.AddScoped<OrdersIdempotencyStore>();
+        services.AddScoped<OrdersDuplicateDetector>();
+        services.AddScoped<OrdersIdempotentProcessor>();
+        services.AddScoped<IIdempotencyStore>(serviceProvider => serviceProvider.GetRequiredService<OrdersIdempotencyStore>());
+        services.AddScoped<IDuplicateDetector>(serviceProvider => serviceProvider.GetRequiredService<OrdersDuplicateDetector>());
+        services.AddScoped<IIdempotentProcessor>(serviceProvider => serviceProvider.GetRequiredService<OrdersIdempotentProcessor>());
         services.AddScoped<ICommandHandler<CheckoutCommand, Result<Order>>, CheckoutCommandHandler>();
         services.AddScoped<IQueryHandler<GetMyOrdersQuery, Result<PagedResult<OrderSummaryResponse>>>, GetMyOrdersQueryHandler>();
         services.AddScoped<IQueryHandler<GetOrderQuery, Result<OrderDetailsResponse>>, GetOrderQueryHandler>();

@@ -57,9 +57,19 @@ public static class DependencyInjection
             .AddInterceptors(serviceProvider.GetRequiredService<InventoryOutboxSaveChangesInterceptor>()));
 
         services.AddScoped<IInventoryStore, InventoryStore>();
-        services.AddScoped<IIdempotencyStore, InventoryIdempotencyStore>();
-        services.AddScoped<IDuplicateDetector, InventoryDuplicateDetector>();
-        services.AddScoped<IIdempotentProcessor, InventoryIdempotentProcessor>();
+
+        // Idempotency: the concrete, module-owned implementations are registered (so the consumer
+        // infrastructure can resolve them by concrete type — each consumer carries its module's
+        // processor on its descriptor) and the shared interfaces are forwarded to them. The interfaces
+        // stay resolvable for this module's internal use and single-module tests; when several modules
+        // are composed in one container the consumer infrastructure NEVER resolves the interfaces (they
+        // would be last-registration-wins across modules) and always uses the concrete types instead.
+        services.AddScoped<InventoryIdempotencyStore>();
+        services.AddScoped<InventoryDuplicateDetector>();
+        services.AddScoped<InventoryIdempotentProcessor>();
+        services.AddScoped<IIdempotencyStore>(serviceProvider => serviceProvider.GetRequiredService<InventoryIdempotencyStore>());
+        services.AddScoped<IDuplicateDetector>(serviceProvider => serviceProvider.GetRequiredService<InventoryDuplicateDetector>());
+        services.AddScoped<IIdempotentProcessor>(serviceProvider => serviceProvider.GetRequiredService<InventoryIdempotentProcessor>());
         services.AddScoped<ICommandHandler<CreateInventoryItemCommand, Result<InventoryItemReadModel>>, CreateInventoryItemCommandHandler>();
         services.AddScoped<ICommandHandler<AdjustStockCommand, Result<InventoryItemReadModel>>, AdjustStockCommandHandler>();
         services.AddScoped<IQueryHandler<GetInventoryItemQuery, Result<InventoryItemReadModel>>, GetInventoryItemQueryHandler>();

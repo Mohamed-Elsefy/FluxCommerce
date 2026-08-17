@@ -1,3 +1,5 @@
+using FluxCommerce.BuildingBlocks.Idempotency.Messages;
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
@@ -24,6 +26,7 @@ public class IntegrationEventConsumerRegistryTests
         Assert.Equal(OrderCreatedIntegrationEvent.EventType, descriptor.EventType);
         Assert.Equal(typeof(OrderCreatedIntegrationEvent), descriptor.EventContractType);
         Assert.Equal(typeof(TestOrderCreatedHandler), descriptor.HandlerType);
+        Assert.Equal(typeof(TestIdempotentProcessor), descriptor.ProcessorType);
     }
 
     [Fact]
@@ -54,6 +57,33 @@ public class IntegrationEventConsumerRegistryTests
         Assert.Empty(registry.GetDescriptors());
     }
 
+    [Fact]
+    public void Registry_DuplicateEventTypeRegistration_Throws()
+    {
+        IntegrationEventConsumerDescriptorRegistration[] registrations =
+        [
+            new IntegrationEventConsumerDescriptorRegistration(
+                new IntegrationEventConsumerDescriptor
+                {
+                    EventType = OrderCreatedIntegrationEvent.EventType,
+                    EventContractType = typeof(OrderCreatedIntegrationEvent),
+                    HandlerType = typeof(TestOrderCreatedHandler),
+                    ProcessorType = typeof(TestIdempotentProcessor)
+                }),
+            new IntegrationEventConsumerDescriptorRegistration(
+                new IntegrationEventConsumerDescriptor
+                {
+                    EventType = OrderCreatedIntegrationEvent.EventType,
+                    EventContractType = typeof(OrderCreatedIntegrationEvent),
+                    HandlerType = typeof(TestOrderCreatedHandler),
+                    ProcessorType = typeof(TestIdempotentProcessor)
+                })
+        ];
+
+        var exception = Assert.Throws<ArgumentException>(() => new IntegrationEventConsumerRegistry(registrations));
+        Assert.Contains(OrderCreatedIntegrationEvent.EventType, exception.Message, StringComparison.Ordinal);
+    }
+
     private static IntegrationEventConsumerRegistry CreateRegistry() =>
         new(
         [
@@ -62,7 +92,8 @@ public class IntegrationEventConsumerRegistryTests
                 {
                     EventType = OrderCreatedIntegrationEvent.EventType,
                     EventContractType = typeof(OrderCreatedIntegrationEvent),
-                    HandlerType = typeof(TestOrderCreatedHandler)
+                    HandlerType = typeof(TestOrderCreatedHandler),
+                    ProcessorType = typeof(TestIdempotentProcessor)
                 })
         ]);
 
@@ -72,5 +103,14 @@ public class IntegrationEventConsumerRegistryTests
 
         public Task HandleAsync(OrderCreatedIntegrationEvent @event, IntegrationEventEnvelope envelope, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    public sealed class TestIdempotentProcessor : IIdempotentProcessor
+    {
+        public Task<IdempotencyResult> TryProcessAsync(
+            ProcessedMessage message,
+            Func<Task> businessOperation,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(IdempotencyResult.NotProcessed());
     }
 }

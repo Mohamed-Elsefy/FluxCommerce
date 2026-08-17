@@ -1,4 +1,5 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
@@ -11,9 +12,11 @@ using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace FluxCommerce.IntegrationTests.TestInfrastructure;
 
@@ -72,10 +75,13 @@ public sealed class RabbitMQOrdersConsumerTestFixture : IAsyncDisposable
     /// </summary>
     public ServiceProvider BuildConsumerProvider(
         string queueName,
-        Action<FluxCommerce.BuildingBlocks.Infrastructure.Consuming.RabbitMQConsumerOptions>? configure = null)
+        Action<FluxCommerce.BuildingBlocks.Infrastructure.Consuming.RabbitMQConsumerOptions>? configure = null,
+        IntegrationTestCapturingLogger<IntegrationEventMessageProcessor>? capturedLogger = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        if (capturedLogger is not null)
+            services.AddSingleton<ILogger<IntegrationEventMessageProcessor>>(capturedLogger);
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
         services.AddSingleton<ICurrentUser, AnonymousCurrentUser>();
         services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
@@ -83,7 +89,7 @@ public sealed class RabbitMQOrdersConsumerTestFixture : IAsyncDisposable
         services.AddRabbitMQ(RabbitMQConnectionString);
         services.AddRabbitMQPublisher(TestExchangeName);
         services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
-        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer>();
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer, OrdersIdempotentProcessor>();
         return services.BuildServiceProvider();
     }
 

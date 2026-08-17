@@ -8,7 +8,7 @@ namespace FluxCommerce.IntegrationTests;
 /// parallel with any other collection (they exercise the real broker and the shared inventory SQL
 /// schema). Each test declares a unique queue on the dedicated test exchange.
 /// </summary>
-[CollectionDefinition(Name)]
+[CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class RabbitMQConsumerTestCollection : ICollectionFixture<RabbitMQConsumerTestFixture>
 {
     public const string Name = "RabbitMQ Consumer Tests";

@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1366,6 +1366,45 @@ The Outbox + RabbitMQ phase (see `docs/phases/PHASE_6_OUTBOX_RABBITMQ.md` and `d
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 157/157, Unit tests 1796/1796, Integration tests 300/300 (54 Phase 6 messaging-specific) against real SQL Server + RabbitMQ, including E2E (success, broker nack + recovery, atomic rollback, stale-claim recovery, batch, duplicate boundary, cancellation). Orders and Inventory EF models are in sync with migrations (no pending changes). No Phase 7 consumers/Inbox/Saga were introduced.
 
 **Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), compensation workflows (later phases).
+
+### 14.6 Phase 7 — Idempotent Consumers — Implemented & Verified
+
+The Idempotent Consumers phase (see `docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md` and `docs/completed/PHASE_7_COMPLETION_REPORT.md`) completes the reliable messaging foundation with real RabbitMQ consumers, Inbox / ProcessedMessage persistence, atomic idempotent processing, bounded in-process retry with backoff, dead-lettering of terminal failures, correlation/causation propagation, structured consumer observability, and the first real production consumer — the Order Summary projection.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 7.1 | Baseline & consumer architecture audit | Implemented |
+| 7.2 | Consumer contract & processing model | Implemented |
+| 7.3 | Inbox / ProcessedMessage persistence | Implemented |
+| 7.4 | Atomic idempotent processing | Implemented |
+| 7.5 | RabbitMQ consumer infrastructure | Implemented |
+| 7.6 | ACK / retry / failure handling | Implemented |
+| 7.7 | Retry & dead-letter strategy | Implemented |
+| 7.8 | Correlation / causation & observability | Implemented |
+| 7.9 | First real integration consumer (Order Summary projection) | Implemented |
+| 7.10 | Duplicate / concurrency / failure tests | Implemented |
+| 7.11 | Architecture & security hardening | Implemented |
+| 7.12 | Performance & operational hardening | Implemented |
+| 7.13 | Documentation synchronization | Implemented |
+| 7.14 | Final verification & completion report | Implemented |
+
+**Key decisions (consumer architecture).**
+
+- Consumers consume from the SAME Phase 6 durable topic exchange (no parallel messaging architecture); delivery is manual ACK — a message is acknowledged only after Business State + ProcessedMessage commit.
+- The idempotency identity is `EventId + HandlerName`, stored as the canonical `ProcessedMessage` in each consuming module's own DbContext; the composite `(Key, Handler)` PRIMARY KEY is the SQL concurrency arbiter (module-local, never cross-module).
+- `IIdempotentProcessor.TryProcessAsync` is the single atomic processing boundary: Business State + ProcessedMessage commit in ONE module-local transaction; a business failure rolls both back (message stays retryable); a duplicate is acknowledged without re-execution; a concurrent duplicate race is resolved by the database (exactly one effect).
+- **Module-owned processors (critical):** each consumer resolves BOTH its handler and its `IIdempotentProcessor` by the concrete type declared on its descriptor via `AddIntegrationEventConsumer<TEvent, THandler, TProcessor>` — never the container-wide `IIdempotentProcessor` interface (last-registration-wins across modules). Orders consumers always use `OrdersIdempotentProcessor`/`OrdersDbContext`; Inventory consumers always use `InventoryIdempotentProcessor`/`InventoryDbContext`.
+- Retry is in-process, bounded (`MaxAttempts`, exponential backoff capped by `MaxDelay`, attempt counter seeded from the broker `x-death` count), and deliberately separate from the Phase 6 outbox publication retry.
+- Terminal failures (malformed, permanent, exhausted) reach a durable DLX/DLQ topology; permanent/exhausted failures are dead-lettered as enriched copies with failure metadata, malformed ones verbatim.
+- Consumer observability uses a consistent structured field set (MessageId, EventId, EventType, EventVersion, CorrelationId, CausationId, Consumer, Attempt, Result, FailureClassification, DeadLetterReason, DurationMs); business payloads are never logged.
+- Graceful shutdown cancels in-flight processing (leaving uncommitted deliveries unacknowledged so the broker redelivers them, at-least-once), then disposes channels.
+- `ProcessedMessage` records are retained indefinitely with no automated cleanup by design (documented constraint in `docs/ARCHITECTURE.md` §14.1.1); a controlled purge is only safe once a workflow has a confirmed end-of-life.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 163/163, Unit tests 1910/1910, Integration tests 343/343 (real SQL Server + RabbitMQ), including Phase 6 outbox/publisher regression 47/47 and Phase 7 consumer/idempotency/ProcessedMessage scenarios 40/40. Module isolation is proven by dedicated integration tests (Orders consumer writes only the Orders database, Inventory consumer writes only the Inventory database, regardless of container registration order).
+
+**Deferred.** Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Phase 8 is the next phase.
 
 ---
 
@@ -1933,6 +1972,8 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_3_CART_MODULE.md
         PHASE_4_ORDERS_CHECKOUT.md
         PHASE_5_INVENTORY_CONCURRENCY.md
+        PHASE_6_OUTBOX_RABBITMQ.md
+        PHASE_7_IDEMPOTENT_CONSUMERS.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md
@@ -1941,6 +1982,8 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_3_COMPLETION_REPORT.md
         PHASE_4_COMPLETION_REPORT.md
         PHASE_5_COMPLETION_REPORT.md
+        PHASE_6_COMPLETION_REPORT.md
+        PHASE_7_COMPLETION_REPORT.md
     current/
         EF_CORE_COMMANDS.md
         LOCAL_DEVELOPMENT.md

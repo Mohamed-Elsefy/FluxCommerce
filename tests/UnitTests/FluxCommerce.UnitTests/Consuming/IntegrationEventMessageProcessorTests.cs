@@ -865,6 +865,83 @@ public class IntegrationEventMessageProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_InvalidEventIdHeader_IsRejected()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+        var @event = CreateOrderCreated();
+
+        var properties = BuildProperties(@event);
+        properties.Headers!["EventId"] = "not-a-guid";
+
+        using var scope = BuildProcessorScope(handler, processorMock.Object);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            properties,
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Reject, action);
+        Assert.Equal(0, handler.InvocationCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_EventVersionMismatchingPayload_IsRejected()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+        var @event = CreateOrderCreated();
+
+        var properties = BuildProperties(@event);
+        properties.Headers!["EventVersion"] = new EventVersion(2, 0).ToString();
+
+        using var scope = BuildProcessorScope(handler, processorMock.Object);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            properties,
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Reject, action);
+        Assert.Equal(0, handler.InvocationCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_UntrustedCausationId_IsTreatedAsNullAndProcessedSafely()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ProcessedMessage message, Func<Task> operation, CancellationToken token) =>
+            {
+                await operation();
+                return IdempotencyResult.NotProcessed();
+            });
+
+        var @event = CreateOrderCreated();
+        var properties = BuildProperties(@event);
+        properties.Headers!["CorrelationId"] = "not-a-guid";
+        properties.Headers!["CausationId"] = "not-a-guid";
+
+        using var scope = BuildProcessorScope(handler, processorMock.Object);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            properties,
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+        Assert.Equal(1, handler.InvocationCount);
+        Assert.Equal(Guid.Empty, handler.LastEnvelope!.CorrelationId);
+        Assert.Null(handler.LastEnvelope.CausationId);
+    }
+
+    [Fact]
     public async Task ProcessAsync_StructuredLog_NeverLogsBusinessPayloads()
     {
         var handler = new RecordingOrderCreatedHandler();
@@ -901,6 +978,47 @@ public class IntegrationEventMessageProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_ResolvesProcessorByDescriptorType_NotByContainerWideInterface()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var rightProcessorMock = new Mock<IIdempotentProcessor>();
+        var wrongProcessorMock = new Mock<IIdempotentProcessor>();
+
+        rightProcessorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ProcessedMessage message, Func<Task> operation, CancellationToken token) =>
+            {
+                await operation();
+                return IdempotencyResult.NotProcessed();
+            });
+
+        var @event = CreateOrderCreated();
+
+        using var scope = BuildProcessorScope(
+            handler,
+            rightProcessorMock.Object,
+            retry: new ConsumerRetryOptions { InitialDelay = TimeSpan.Zero },
+            interfaceProcessor: wrongProcessorMock.Object);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            BuildProperties(@event),
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+        Assert.Equal(1, handler.InvocationCount);
+
+        // The container-wide IIdempotentProcessor resolves to another registration (as when a second
+        // module is registered last), but the message processor must execute through the concrete
+        // processor declared on the consumer's descriptor — the module that owns the handler.
+        rightProcessorMock.Verify(
+            p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        wrongProcessorMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public void Envelope_ExposesProducedEventPropagationContract()
     {
         var @event = CreateOrderCreated();
@@ -924,14 +1042,27 @@ public class IntegrationEventMessageProcessorTests
         bool registerOrderCreated = true,
         ConsumerRetryOptions? retry = null,
         Mock<IIntegrationEventDeadLetterer>? deadLetterer = null,
-        CapturingLogger<IntegrationEventMessageProcessor>? capturedLogger = null)
+        CapturingLogger<IntegrationEventMessageProcessor>? capturedLogger = null,
+        IIdempotentProcessor? interfaceProcessor = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         if (capturedLogger is not null)
             services.AddSingleton<ILogger<IntegrationEventMessageProcessor>>(capturedLogger);
         services.AddScoped(_ => handler);
-        services.AddScoped(_ => processor);
+        services.AddScoped<IIdempotentProcessor>(_ => processor);
+
+        // Simulates a composed container where another module registered an IIdempotentProcessor last:
+        // the container-wide interface then resolves to the wrong processor, while the descriptor's
+        // concrete ProcessorType must still win. Only used by the resolution-isolation test.
+        if (interfaceProcessor is not null)
+            services.AddScoped<IIdempotentProcessor>(_ => interfaceProcessor);
+
+        // The concrete processor type declared on the descriptor wraps the test processor explicitly
+        // (never resolved through the container-wide IIdempotentProcessor interface), so the message
+        // processor — which resolves the descriptor's ProcessorType — always invokes the intended test
+        // processor even when the interface resolves to a different registration.
+        services.AddScoped<DelegatingIdempotentProcessor>(_ => new DelegatingIdempotentProcessor(processor));
 
         var registrations = new List<IntegrationEventConsumerDescriptorRegistration>();
         if (registerOrderCreated)
@@ -941,7 +1072,8 @@ public class IntegrationEventMessageProcessorTests
                 {
                     EventType = OrderCreatedIntegrationEvent.EventType,
                     EventContractType = typeof(OrderCreatedIntegrationEvent),
-                    HandlerType = typeof(RecordingOrderCreatedHandler)
+                    HandlerType = typeof(RecordingOrderCreatedHandler),
+                    ProcessorType = typeof(DelegatingIdempotentProcessor)
                 }));
         }
 
@@ -1026,5 +1158,27 @@ public class IntegrationEventMessageProcessorTests
                 ? Task.FromException(new InvalidOperationException("Business processing failed."))
                 : Task.CompletedTask;
         }
+    }
+
+    /// <summary>
+    /// The concrete processor type carried on the consumer descriptor: it forwards every invocation to
+    /// the wrapped test processor. The message processor resolves the descriptor's
+    /// <c>ProcessorType</c> and casts to <see cref="IIdempotentProcessor"/>, so this wrapper proves the
+    /// resolution path is the concrete type, not the container-wide interface.
+    /// </summary>
+    public sealed class DelegatingIdempotentProcessor : IIdempotentProcessor
+    {
+        private readonly IIdempotentProcessor _inner;
+
+        public DelegatingIdempotentProcessor(IIdempotentProcessor inner)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        }
+
+        public Task<IdempotencyResult> TryProcessAsync(
+            ProcessedMessage message,
+            Func<Task> businessOperation,
+            CancellationToken cancellationToken = default)
+            => _inner.TryProcessAsync(message, businessOperation, cancellationToken);
     }
 }

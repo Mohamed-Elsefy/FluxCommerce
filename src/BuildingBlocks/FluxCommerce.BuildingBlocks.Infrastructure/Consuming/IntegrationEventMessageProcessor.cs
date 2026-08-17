@@ -213,7 +213,15 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
             {
                 var handler = attemptScope.ServiceProvider.GetRequiredService(descriptor.HandlerType);
                 handlerName = GetHandlerName(descriptor, handler);
-                var processor = attemptScope.ServiceProvider.GetRequiredService<IIdempotentProcessor>();
+
+                // The processor is resolved by the concrete type declared on the descriptor (the module
+                // that owns the handler), never by the container-wide IIdempotentProcessor interface:
+                // every module registers its own processor, and interface resolution would be
+                // last-registration-wins — executing a consumer through another module's processor and
+                // writing its ProcessedMessage records (and committing its business state) into the
+                // wrong module's database. Each module registers its processor on the descriptor via
+                // AddIntegrationEventConsumer<TEvent, THandler, TProcessor>.
+                var processor = (IIdempotentProcessor)attemptScope.ServiceProvider.GetRequiredService(descriptor.ProcessorType);
 
                 var result = await processor
                     .TryProcessAsync(

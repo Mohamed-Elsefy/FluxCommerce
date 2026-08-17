@@ -1,3 +1,5 @@
+using FluxCommerce.BuildingBlocks.Idempotency.Messages;
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
@@ -94,13 +96,13 @@ public class RabbitMQServiceExtensionsTests
     }
 
     [Fact]
-    public void AddIntegrationEventConsumer_RegistersHandlerAndConsumerDescriptor()
+    public void AddIntegrationEventConsumer_RegistersHandlerProcessorAndConsumerDescriptor()
     {
         var services = new ServiceCollection();
 
         services.AddRabbitMQ("amqp://localhost:5672/");
         services.AddRabbitMQConsumer("fluxcommerce.events", "q.orders");
-        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, TestOrderCreatedHandler>();
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, TestOrderCreatedHandler, TestIdempotentProcessor>();
 
         using var provider = services.BuildServiceProvider();
 
@@ -111,10 +113,15 @@ public class RabbitMQServiceExtensionsTests
         Assert.Equal(OrderCreatedIntegrationEvent.EventType, descriptor.EventType);
         Assert.Equal(typeof(OrderCreatedIntegrationEvent), descriptor.EventContractType);
         Assert.Equal(typeof(TestOrderCreatedHandler), descriptor.HandlerType);
+        Assert.Equal(typeof(TestIdempotentProcessor), descriptor.ProcessorType);
         Assert.Contains(registry.GetDescriptors(), d => d.EventType == OrderCreatedIntegrationEvent.EventType);
 
         var handlerDescriptor = Assert.Single(services, d => d.ServiceType == typeof(TestOrderCreatedHandler));
         Assert.Equal(ServiceLifetime.Scoped, handlerDescriptor.Lifetime);
+
+        var processorDescriptor = Assert.Single(services, d => d.ServiceType == typeof(TestIdempotentProcessor));
+        Assert.Equal(ServiceLifetime.Scoped, processorDescriptor.Lifetime);
+        Assert.NotNull(provider.GetService<TestIdempotentProcessor>());
     }
 
     public sealed class TestOrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
@@ -123,5 +130,14 @@ public class RabbitMQServiceExtensionsTests
 
         public Task HandleAsync(OrderCreatedIntegrationEvent @event, IntegrationEventEnvelope envelope, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    public sealed class TestIdempotentProcessor : IIdempotentProcessor
+    {
+        public Task<IdempotencyResult> TryProcessAsync(
+            ProcessedMessage message,
+            Func<Task> businessOperation,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(IdempotencyResult.NotProcessed());
     }
 }

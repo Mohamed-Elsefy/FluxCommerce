@@ -1,7 +1,5 @@
-using FluxCommerce.BuildingBlocks.Idempotency.Detection;
 using FluxCommerce.BuildingBlocks.Idempotency.Messages;
 using FluxCommerce.BuildingBlocks.Idempotency.Processing;
-using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,13 +20,13 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 public sealed class OrdersIdempotentProcessor : IIdempotentProcessor
 {
     private readonly OrdersDbContext _context;
-    private readonly IDuplicateDetector _duplicateDetector;
-    private readonly IIdempotencyStore _idempotencyStore;
+    private readonly OrdersDuplicateDetector _duplicateDetector;
+    private readonly OrdersIdempotencyStore _idempotencyStore;
 
     public OrdersIdempotentProcessor(
         OrdersDbContext context,
-        IDuplicateDetector duplicateDetector,
-        IIdempotencyStore idempotencyStore)
+        OrdersDuplicateDetector duplicateDetector,
+        OrdersIdempotencyStore idempotencyStore)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _duplicateDetector = duplicateDetector ?? throw new ArgumentNullException(nameof(duplicateDetector));

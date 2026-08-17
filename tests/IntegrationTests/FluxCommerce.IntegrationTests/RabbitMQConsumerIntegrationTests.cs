@@ -34,6 +34,13 @@ namespace FluxCommerce.IntegrationTests;
 /// count, and graceful shutdown that stops consuming before the host stops. Phase 7.8: the envelope
 /// advertises the produced-event correlation/causation propagation contract, and deliveries without
 /// correlation/causation metadata are processed safely with the documented defaults.
+///
+/// Phase 7.10 hardening scenarios: a deterministic concurrent duplicate (two deliveries synchronized
+/// inside the handler so both business operations provably overlap) converges on exactly one business
+/// effect through the database composite (EventId, Handler) primary key — the sole arbiter, never an
+/// in-memory lock; a permanent handler failure dead-letters without blocking a healthy message on the
+/// same queue; and a retryable failure follows the configured retry policy (two failures then success
+/// across three invocations).
 /// </summary>
 [Collection(RabbitMQConsumerTestCollection.Name)]
 public class RabbitMQConsumerIntegrationTests
@@ -754,6 +761,129 @@ public class RabbitMQConsumerIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Consumer_ConcurrentDuplicateDelivery_DatabaseArbiterProducesExactlyOneEffect()
+    {
+        var recorder = new TestConsumerRecorder();
+        var queueName = UniqueQueueName();
+        var @event = CreateOrderCreated();
+        var sku = EffectSku(@event.EventId);
+        var gate = new ConcurrentDeliveryGate(2);
+        await using var provider = _fixture.BuildConsumerProvider<BarrierInventoryEffectOrderCreatedHandler>(
+            queueName,
+            recorder,
+            options => options.Concurrency = 2,
+            services => services.AddSingleton(gate));
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+            await WaitForConsumerCountAsync(provider, queueName, 2);
+
+            await PublishAsync(provider, @event);
+            await PublishAsync(provider, @event);
+
+            // Both deliveries synchronize inside the handler, so the two business operations are
+            // provably in flight simultaneously before either commits; the database composite
+            // (EventId, Handler) primary key decides the single winner. No in-memory lock protects
+            // the effect — the gate only arranges the overlap.
+            await WaitForInvocationsAsync(recorder, 2);
+            await WaitForQueueEmptyAsync(provider, queueName);
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal(2, recorder.InvocationCount);
+            Assert.Equal(1, await CountItemsAsync(sku));
+            Assert.Equal(1, await CountProcessedAsync(@event.EventId, BarrierInventoryEffectOrderCreatedHandler.StableHandlerName));
+            Assert.Equal(0u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, [@event.EventId], [sku]);
+        }
+    }
+
+    [Fact]
+    public async Task Consumer_PermanentFailure_DoesNotBlockOtherMessages()
+    {
+        var recorder = new TestConsumerRecorder();
+        var queueName = UniqueQueueName();
+        var failing = CreateOrderCreated();
+        var good = CreateOrderCreated();
+        var failingEventIds = new HashSet<Guid> { failing.EventId };
+        await using var provider = _fixture.BuildConsumerProvider<SelectiveFailureOrderCreatedHandler>(
+            queueName,
+            recorder,
+            options => options.Retry.NonRetryableExceptionTypes.Add(typeof(InvalidOperationException)),
+            services => services.AddSingleton(failingEventIds));
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+
+            await PublishAsync(provider, failing);
+            await PublishAsync(provider, good);
+
+            await WaitForProcessedAsync(good.EventId, SelectiveFailureOrderCreatedHandler.StableHandlerName);
+            await WaitForMessageCountAsync(provider, DeadLetterQueueName(queueName), 1);
+            await WaitForQueueEmptyAsync(provider, queueName);
+            await consumer.StopAsync(CancellationToken.None);
+
+            // The permanently failing message dead-lettered immediately and did not block the healthy
+            // message delivered right after it on the same queue.
+            Assert.Equal(2, recorder.InvocationCount);
+            Assert.Equal(1, await CountProcessedAsync(good.EventId, SelectiveFailureOrderCreatedHandler.StableHandlerName));
+            Assert.Equal(0, await CountProcessedAsync(failing.EventId, SelectiveFailureOrderCreatedHandler.StableHandlerName));
+            Assert.Equal(0u, await GetMessageCountAsync(provider, queueName));
+            Assert.Equal(1u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, [good.EventId, failing.EventId], []);
+        }
+    }
+
+    [Fact]
+    public async Task Consumer_RetryableFailure_FollowsConfiguredRetryPolicy()
+    {
+        var recorder = new TestConsumerRecorder { FailuresRemaining = 2 };
+        var queueName = UniqueQueueName();
+        var @event = CreateOrderCreated();
+        await using var provider = _fixture.BuildConsumerProvider<RecordingOrderCreatedHandler>(
+            queueName,
+            recorder,
+            options =>
+            {
+                options.Retry.MaxAttempts = 4;
+                options.Retry.BackoffType = ConsumerBackoffType.Fixed;
+                options.Retry.InitialDelay = TimeSpan.FromMilliseconds(100);
+            });
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+
+            await PublishAsync(provider, @event);
+
+            // Two business failures followed by success: three invocations under the bounded policy,
+            // acknowledged with exactly one effect and nothing dead-lettered.
+            await WaitForInvocationsAsync(recorder, 3);
+            await WaitForProcessedAsync(@event.EventId, RecordingOrderCreatedHandler.StableHandlerName);
+            await AckSettleAsync();
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal(3, recorder.InvocationCount);
+            Assert.Equal(1, await CountProcessedAsync(@event.EventId, RecordingOrderCreatedHandler.StableHandlerName));
+            Assert.Equal(0u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, [@event.EventId], []);
+        }
+    }
+
     private static async Task<RabbitMQConsumerBackgroundService> StartConsumerAsync(ServiceProvider provider)
     {
         var consumer = provider.GetServices<IHostedService>()
@@ -1174,5 +1304,99 @@ public sealed class InventoryEffectOrderCreatedHandler : IIntegrationEventHandle
             10,
             DateTimeOffset.UtcNow));
         return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Phase 7.10 deterministic-concurrency gate: the first participants block until all participants have
+/// arrived, then the gate opens. It only arranges that concurrent deliveries provably overlap inside
+/// the handler — it never arbitrates the business effect, which the database remains solely
+/// responsible for.
+/// </summary>
+public sealed class ConcurrentDeliveryGate
+{
+    private readonly int _participants;
+    private int _arrived;
+    private readonly TaskCompletionSource _open = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public ConcurrentDeliveryGate(int participants)
+    {
+        if (participants < 2)
+            throw new ArgumentOutOfRangeException(nameof(participants), "At least two participants are required.");
+        _participants = participants;
+    }
+
+    public Task EnterAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Increment(ref _arrived) >= _participants)
+            _open.TrySetResult();
+
+        return _open.Task.WaitAsync(cancellationToken);
+    }
+}
+
+/// <summary>
+/// Phase 7.10 handler that produces a real inventory effect (like
+/// <see cref="InventoryEffectOrderCreatedHandler"/>) but synchronizes concurrent deliveries on a
+/// <see cref="ConcurrentDeliveryGate"/>, so the overlapping business operations are proven concurrent
+/// before either commits and the database composite primary key decides the single winner.
+/// </summary>
+public sealed class BarrierInventoryEffectOrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
+{
+    public const string StableHandlerName = "IntegrationTests.ConcurrentBarrierEffect";
+
+    private readonly TestConsumerRecorder _recorder;
+    private readonly InventoryDbContext _context;
+    private readonly ConcurrentDeliveryGate _gate;
+
+    public BarrierInventoryEffectOrderCreatedHandler(
+        TestConsumerRecorder recorder,
+        InventoryDbContext context,
+        ConcurrentDeliveryGate gate)
+    {
+        _recorder = recorder;
+        _context = context;
+        _gate = gate;
+    }
+
+    public string HandlerName => StableHandlerName;
+
+    public async Task HandleAsync(OrderCreatedIntegrationEvent @event, IntegrationEventEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        _recorder.Record(StableHandlerName, @event, envelope);
+        await _gate.EnterAsync(cancellationToken);
+        _context.InventoryItems.Add(InventoryItem.Create(
+            new InventorySku(RabbitMQConsumerIntegrationTests.EffectSku(envelope.EventId)),
+            10,
+            DateTimeOffset.UtcNow));
+    }
+}
+
+/// <summary>
+/// Phase 7.10 handler that records every invocation but permanently fails only for a pre-configured set
+/// of event ids, so a poisoned message can be interleaved with a healthy one to prove message isolation.
+/// </summary>
+public sealed class SelectiveFailureOrderCreatedHandler : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
+{
+    public const string StableHandlerName = "IntegrationTests.SelectiveFailure";
+
+    private readonly TestConsumerRecorder _recorder;
+    private readonly HashSet<Guid> _failingEventIds;
+
+    public SelectiveFailureOrderCreatedHandler(TestConsumerRecorder recorder, HashSet<Guid> failingEventIds)
+    {
+        _recorder = recorder;
+        _failingEventIds = failingEventIds;
+    }
+
+    public string HandlerName => StableHandlerName;
+
+    public Task HandleAsync(OrderCreatedIntegrationEvent @event, IntegrationEventEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        _recorder.Record(StableHandlerName, @event, envelope);
+
+        return _failingEventIds.Contains(@event.EventId)
+            ? Task.FromException(new InvalidOperationException("Simulated permanent business failure."))
+            : Task.CompletedTask;
     }
 }

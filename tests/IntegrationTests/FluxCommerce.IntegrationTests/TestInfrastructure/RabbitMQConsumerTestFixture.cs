@@ -6,6 +6,7 @@ using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.Modules.Inventory.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Inventory.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -68,7 +69,8 @@ public sealed class RabbitMQConsumerTestFixture : IAsyncDisposable
     public ServiceProvider BuildConsumerProvider<THandler>(
         string queueName,
         TestConsumerRecorder recorder,
-        Action<FluxCommerce.BuildingBlocks.Infrastructure.Consuming.RabbitMQConsumerOptions>? configure = null)
+        Action<FluxCommerce.BuildingBlocks.Infrastructure.Consuming.RabbitMQConsumerOptions>? configure = null,
+        Action<IServiceCollection>? customize = null)
         where THandler : class, IIntegrationEventHandler<OrderCreatedIntegrationEvent>
     {
         var services = new ServiceCollection();
@@ -80,8 +82,9 @@ public sealed class RabbitMQConsumerTestFixture : IAsyncDisposable
         services.AddRabbitMQ(RabbitMQConnectionString);
         services.AddRabbitMQPublisher(TestExchangeName);
         services.AddSingleton(recorder);
+        customize?.Invoke(services);
         services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
-        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, THandler>();
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, THandler, InventoryIdempotentProcessor>();
         return services.BuildServiceProvider();
     }
 

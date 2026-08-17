@@ -1,3 +1,4 @@
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
@@ -80,24 +81,38 @@ public static class RabbitMQServiceExtensions
     /// <summary>
     /// Declares that the <see cref="IIntegrationEventHandler{TEvent}"/> implementation
     /// <typeparamref name="THandler"/> consumes <typeparamref name="TEvent"/> from the message broker.
-    /// The handler is registered in the container (scoped, so it shares the module DbContext and
-    /// <c>IIdempotentProcessor</c> of the per-delivery scope), and a consumer descriptor is contributed
-    /// to the consumer registry so the consumer host binds its queue to the event's routing key and the
-    /// message processor resolves and invokes the handler.
+    /// The handler is registered in the container (scoped, so it shares the module DbContext of the
+    /// per-delivery scope), and a consumer descriptor is contributed to the consumer registry so the
+    /// consumer host binds its queue to the event's routing key and the message processor resolves and
+    /// invokes the handler.
+    /// <para>
+    /// <typeparamref name="TProcessor"/> is the module-owned <see cref="IIdempotentProcessor"/>
+    /// implementation that owns the same DbContext as <typeparamref name="THandler"/>; it is registered
+    /// in the container (scoped) and carried on the descriptor so the message processor always executes
+    /// the handler through the module's own idempotent-processing boundary — never through a
+    /// container-wide <c>IIdempotentProcessor</c>, which several modules each register and which would
+    /// resolve last-registration-wins. Each module declares its own processor for its consumers; a
+    /// module's <c>ProcessedMessage</c> records and business state therefore always land in that
+    /// module's own database.
+    /// </para>
     /// </summary>
-    public static IServiceCollection AddIntegrationEventConsumer<TEvent, THandler>(this IServiceCollection services)
+    public static IServiceCollection AddIntegrationEventConsumer<TEvent, THandler, TProcessor>(
+        this IServiceCollection services)
         where TEvent : class, IIntegrationEvent
         where THandler : class, IIntegrationEventHandler<TEvent>
+        where TProcessor : class, IIdempotentProcessor
     {
         var eventType = IntegrationEventTypeResolver.Get(typeof(TEvent));
 
         services.AddScoped<THandler>();
+        services.AddScoped<TProcessor>();
         services.AddSingleton(new IntegrationEventConsumerDescriptorRegistration(
             new IntegrationEventConsumerDescriptor
             {
                 EventType = eventType,
                 EventContractType = typeof(TEvent),
-                HandlerType = typeof(THandler)
+                HandlerType = typeof(THandler),
+                ProcessorType = typeof(TProcessor)
             }));
 
         return services;
