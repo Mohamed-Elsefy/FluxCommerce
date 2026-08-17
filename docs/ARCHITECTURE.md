@@ -500,6 +500,222 @@ Use asynchronous messaging where it provides architectural value.
 
 ---
 
+## 14.1 Consumer Contract & Processing Model
+
+Integration event handlers are transport-agnostic contracts owned by the consuming module. A handler
+implements `IIntegrationEventHandler<TEvent>` (in `BuildingBlocks.Messaging`) and receives the
+deserialized contract plus an `IntegrationEventEnvelope` carrying the canonical processing context
+(EventId, EventType, EventVersion, CorrelationId, CausationId, OccurredAtUtc) — never a broker message.
+
+The handler **implementation** lives in the consuming module's `Infrastructure` layer (beside the module
+DbContext and `IIdempotentProcessor` it shares), so consumer transport stays in Infrastructure and
+Domain/Application never reference `IIntegrationEventHandler` or the Messaging consumer contracts.
+
+Handlers are resolved through an explicit consumer registry that maps a wire `EventType` to a contract
+type and a DI-registered handler type (no reflection-based activation), mirroring the Phase 6
+publisher's switch-on-Type deserialization. An unknown event type resolves to `null` and is skipped.
+
+### 14.1.1 ProcessedMessage Persistence (Inbox)
+
+The idempotency identity is `EventId + HandlerName`, composed as
+`ProcessedMessage.Create(eventId, handler.HandlerName)` (see ADR-008). Processed-message persistence is
+**module-local**: the canonical `ProcessedMessage` record (a shared `BuildingBlocks.Idempotency`
+contract, following the `OutboxMessage` precedent) is mapped into each *consuming* module's DbContext —
+there is no global/shared idempotency database or DbContext, and one module never touches another
+module's `ProcessedMessages`. The **Inventory module** owns the first `ProcessedMessages` boundary
+(established in Phase 7.3 and exercised by the Phase 7.5–7.10 consumer integration tests); the
+**Orders module** maps the same canonical record into its own `OrdersDbContext` for the Phase 7.9 Order
+Summary projection consumer — the first real production consumer. Each module's table is strictly
+module-local:
+
+```text
+InventoryDbContext
+    ├── Inventory State
+    ├── OutboxMessages
+    └── ProcessedMessages     ← UNIQUE(Key, Handler)
+```
+
+The composite `(Key, Handler)` is the table's primary key, so the SQL unique constraint is the final
+concurrency protection: `(E1, H1)` can be claimed once, `(E1, H2)` is an independent consumer, and a
+duplicate `(E1, H1)` race is resolved by the database and reported as already-processed (never an
+application failure). The record stays lightweight: `Key` (EventId, 36 chars), `Handler` (128 chars),
+`ProcessedAtUtc`.
+
+The SQL-backed implementations of the canonical idempotency contracts live in the consuming module's
+Infrastructure (`FluxCommerce.Modules.Inventory.Infrastructure.Idempotency`): `IIdempotencyStore`
+(`GetAsync`/`AddAsync`, the check-then-act surface) and `IDuplicateDetector` (`TryClaimAsync`
+atomic claim + `IsProcessedAsync`). `GetAsync` is for querying only and is not sufficient concurrency
+protection.
+
+**Retention.** Processed-message records are currently retained indefinitely and there is deliberately
+NO automatic cleanup/retention job. Under at-least-once delivery the broker may redeliver a message at
+any time with no expiry bound, so deleting the idempotency record after a time window would reopen the
+duplicate window: a late redelivery would no longer be recognized as a duplicate and would re-execute
+the business operation (e.g., a duplicate inventory reservation or a duplicate projection). A
+controlled purge is only safe when the workflow has a confirmed end-of-life — a point after which no
+further deliveries for the event can occur (for example a completed saga in Phase 8+). Until such a
+bound exists, indefinite retention is the safe default and any future cleanup must be gated on it. The
+composite `(Key, Handler)` primary key is the only index needed by the current access paths (single-row
+PK seeks); no additional indexes are justified.
+
+### 14.1.2 Atomic Idempotent Processing
+
+Business state changes and processed-message recording are **atomic** whenever they share the same
+persistence boundary. The `IIdempotentProcessor` contract (in `BuildingBlocks.Idempotency`) is the
+transport-agnostic processing boundary: it claims a `ProcessedMessage` and runs the business operation
+(`Func<Task>`) inside ONE module-local transaction, then commits once. A successful processing commits
+Business State + ProcessedMessage together; a business failure rolls both back (the message stays
+retryable); a known duplicate is detected up front and acknowledged WITHOUT re-executing the business
+operation; a concurrent duplicate race is resolved by the composite `(Key, Handler)` primary key — the
+losing attempt rolls back, re-reads the winner and reports `AlreadyProcessed` (exactly one business
+effect, exactly one processed message). The Inventory implementation
+(`InventoryIdempotentProcessor`) runs the transaction through the retrying execution strategy
+(`InventoryStore.TryReserveAsync` precedent) and reuses `IDuplicateDetector.IsProcessedAsync` and
+`IIdempotencyStore.GetAsync` for the fast-path check and winner re-read. The consumer infrastructure
+(`IntegrationEventMessageProcessor`) invokes any application handler through this boundary — always
+resolving each module's own processor declared on the consumer's descriptor (§14.1.4) — so no second
+idempotency abstraction exists.
+
+```text
+IIdempotentProcessor.TryProcessAsync(message, businessOperation)
+    │
+    ├─ already processed? ──► AlreadyProcessed (business logic NOT executed)
+    │
+    ▼
+begin transaction (execution strategy)
+    │
+    ▼
+Business Operation  +  ProcessedMessage  ──►  COMMIT (atomic)
+```
+
+### 14.1.3 Background Identity
+
+Consumer/background scopes resolve a non-request `ICurrentUser` (unauthenticated), matching the test
+`AnonymousCurrentUser` precedent — no request identity is available on the broker path (ADR-008).
+
+### 14.1.4 RabbitMQ Consumer Infrastructure
+
+The consumer infrastructure lives in `BuildingBlocks.Infrastructure.Consuming` and consumes from the
+SAME Phase 6 topology (the durable topic exchange) — it does not create a parallel messaging
+architecture. `RabbitMQConsumerBackgroundService` (an `IHostedService`) declares the exchange and the
+configured queue, binds the queue to each registered event type's routing key, applies per-channel
+prefetch, and starts `RabbitMQConsumerOptions.Concurrency` consumers against the queue (the broker
+round-robins deliveries across them, giving bounded in-flight concurrency). Every delivery is processed
+in its own DI scope:
+
+```text
+delivery ─► resolve EventType (header, fallback AMQP Type)
+              ├─ unregistered EventType ──► ACK + skip (ADR-008, never poison)
+              ├─ invalid metadata / corrupt payload / metadata mismatch ──► REJECT ──► DLQ (terminal)
+              ▼
+         build envelope from transport headers (authoritative metadata)
+              ▼
+         deserialize contract (switch-on-Type registry, no reflection activation)
+              ▼
+         retry loop (fresh DI scope per attempt; attempt = 1 + broker x-death count)
+              ▼
+          IIdempotentProcessor.TryProcessAsync(ProcessedMessage.Create(EventId, HandlerName),
+                                               () => handler.HandleAsync(...))
+              ├─ fresh ──► ACK
+              ├─ duplicate ──► ACK (business logic NOT re-executed)
+              └─ failure ──► classify (IIntegrationEventFailureClassifier)
+                                ├─ permanent (NonRetryableExceptionTypes) ──► enrich + publish DLX ──► ACK
+                                ├─ retryable, attempts < MaxAttempts ──► in-process backoff, retry
+                                └─ retryable, attempts exhausted ──► enrich + publish DLX ──► ACK
+                                      (if the enriched DLX publish is not confirmed ──► DEAD-LETTER ──► Nack(requeue:false) ──► broker DLQ verbatim)
+```
+
+Phase 7.6 retry/failure model. Retry is IN-PROCESS and bounded — it does not requeue to the broker, and
+it is deliberately separate from the Phase 6 outbox publication retry (`OutboxDispatchOptions`): the
+consumer retry handles processing a delivery; the outbox retry handles publishing an event. The policy
+lives in `RabbitMQConsumerOptions.Retry` (`ConsumerRetryOptions`): `MaxAttempts` total processing
+attempts (default 3; 1 disables retries), `BackoffType` (Fixed / Linear / Exponential),
+`InitialDelay` (default 1s), `DelayMultiplier` (default 2.0) and `MaxDelay` (default 30s) via the pure
+`ConsumerRetryPolicy` math. The attempt counter is seeded from the broker's `x-death` redelivery count —
+the MAXIMUM count across `x-death` entries (the message lives in exactly one queue at a time, so summing
+across hops for different dead-letter reasons/exchanges would over-count a single message) — so attempts
+stay bounded even across crashes/requeues/dead-letter hops. Every attempt runs in a FRESH DI scope — the
+scoped `InventoryDbContext`/`IIdempotentProcessor` is only safe to use once, because after a business
+failure rolls the transaction back EF Core considers the context poisoned. Failures are classified by
+the singleton `IIntegrationEventFailureClassifier`: an exception whose type (or any inner exception) is
+listed in `ConsumerRetryOptions.NonRetryableExceptionTypes` is permanent and dead-lettered immediately;
+everything else is retryable. A failed attempt never creates a `ProcessedMessage` (the transaction
+rolls back), and a message is only ACKed after the business operation AND the idempotency record have
+committed.
+
+Phase 7.7 terminal dead-lettering. Terminal failures are never dropped and never retried forever, and
+the dead-letter queue is a recoverable, diagnosable record. The main queue is declared with an
+`x-dead-letter-exchange` pointing at a dedicated dead-letter topology — a durable topic exchange
+(`{QueueName}.dlx` by default, configurable via `DeadLetterExchangeName`) bound with `#` to a durable
+dead-letter queue (`{QueueName}.dlq` by default, configurable via `DeadLetterQueueName`). Two distinct
+terminal paths keep the original delivery (body + headers) in the DLQ in every case:
+
+- **Reject (malformed/invalid deliveries)** is applied verbatim: Nack(requeue:false) and the broker
+  dead-letters the ORIGINAL message unchanged (only adding the standard `x-death`/`x-first-death-*`
+  headers). No metadata is injected — the poison message is preserved byte-for-byte for diagnosis.
+- **Permanent failure / exhausted retries** are ENRICHED: the processor publishes a copy of the
+  original body and headers plus failure metadata — `x-dead-letter-reason`
+  (`processing-failure-permanent` | `processing-failure-exhausted`), `x-dead-lettered-at`,
+  `x-consumer` (stable handler name), `x-attempt`, `x-error-type`, `x-error-message` — to the DLX via
+  the `IIntegrationEventDeadLetterer` (a singleton that mirrors the publisher: lazy confirm-enabled
+  channel, `ThrottlingRateLimiter(1)`, declares the durable topic DLX, returns success only on broker
+  confirm). When the enriched copy is confirmed the ORIGINAL is ACKed (exactly one DLQ record); when the
+  publish cannot be confirmed the processor returns DeadLetter and the host Nacks the original
+  (requeue:false) so the broker still dead-letters it verbatim. A terminal failure therefore always
+  ends in the DLQ exactly once, never silently, never back in the processing loop.
+
+Phase 7.8 consumer observability. Every consumer log is structured with a CONSISTENT field set —
+`MessageId`, `EventId`, `EventType`, `EventVersion`, `CorrelationId`, `CausationId`, `Consumer`,
+`Attempt`, `Result`, `DurationMs`, `FailureClassification`, `DeadLetterReason` — written as explicit
+template fields on each log call (no `BeginScope`, so the fields are directly assertable and survive
+any sink). `Result` is one of the stable values `processed` | `duplicate` | `rejected` |
+`dead-lettered` | `retrying` | `skipped`; a per-attempt `Stopwatch` logs `DurationMs` for every
+outcome, and the consumer is logged via the handler's stable `HandlerName` on every path (no more
+`HandlerType.Name` in catch logs). Business payloads are never logged. Correlation/causation ride the
+envelope (`IntegrationEventEnvelope`) unchanged from the delivery: the incoming `CorrelationId` is
+preserved and the consumed `EventId` becomes the causation. A consumer that PRODUCES an integration
+event must stamp the produced event's metadata from `envelope.ProducedEventCorrelationId` (the incoming
+`CorrelationId`) and `envelope.ProducedEventCausationId` (the consumed `EventId`) — no new metadata
+model, no consumer context service. Missing metadata is safe: an absent/invalid `CorrelationId` header
+yields `Guid.Empty` and an absent `CausationId` yields `null` in the envelope and logs; malformed
+deliveries that never build an envelope log only the transport identifiers (`EventType`, `MessageId`).
+
+`RabbitMQConsumerOptions.Validate()` runs on host startup and fails fast on misconfiguration: queue and
+exchange required, PrefetchCount/Concurrency ≥ 1, `ConsumerRetryOptions.Validate()` (MaxAttempts ≥ 1,
+defined BackoffType, InitialDelay ≥ 0, DelayMultiplier ≥ 1.0, MaxDelay ≥ 0 and ≥ InitialDelay,
+NonRetryableExceptionTypes non-null), and the resolved dead-letter topology must not alias the main
+topology (a DLX equal to the main exchange or a DLQ equal to the main queue would route terminal
+failures straight back into processing — an endless retry). Cancellation (shutdown) propagates through
+the retry loop and leaves the delivery unacknowledged so the broker redelivers it once the channel
+closes (at-least-once; the redelivery is then counted via `x-death`).
+
+Consumer scopes invoke handlers through the `IIdempotentProcessor` boundary (§14.1.2) — no second
+idempotency abstraction. Shutdown cancels in-flight processing (leaving uncommitted deliveries
+unacknowledged so the broker redelivers them, at-least-once), cancels the consumers, awaits in-flight
+work, and then disposes the channels.
+
+Wiring is explicit DI: `AddRabbitMQConsumer(exchangeName, queueName, configure)` registers the consumer
+host, the singleton `IIntegrationEventFailureClassifier`, the singleton `IIntegrationEventDeadLetterer`
+(factory reading `IOptions<RabbitMQConsumerOptions>` for the resolved DLX name), plus
+`RabbitMQConsumerOptions` (QueueName, ExchangeName, PrefetchCount, Concurrency, Durable, AutoDelete,
+Retry, DeadLetterExchangeName, DeadLetterQueueName — with `ResolvedDeadLetterExchangeName`/
+`ResolvedDeadLetterQueueName` deriving `{QueueName}.dlx`/`{QueueName}.dlq` when not configured), and
+`AddIntegrationEventConsumer<TEvent, THandler, TProcessor>()` registers each handler (scoped), its
+module-owned `IIdempotentProcessor` implementation (scoped), and an
+`IntegrationEventConsumerDescriptor` carrying `EventType` (via the contract's stable `public const string
+EventType`), the contract type, the handler type, and the processor type. The message processor resolves
+BOTH the handler and the processor by the concrete types declared on the descriptor — never by the
+container-wide `IIdempotentProcessor` interface, which every module registers and which would resolve
+last-registration-wins across modules. Each module registers its concrete
+`IIdempotencyStore`/`IDuplicateDetector`/`IIdempotentProcessor` and forwards the shared interfaces to
+them for single-module internal use; a consumer therefore always executes through its owning module's
+processor and DbContext (Orders consumers through `OrdersIdempotentProcessor`/`OrdersDbContext`,
+Inventory consumers through `InventoryIdempotentProcessor`/`InventoryDbContext`). Note that
+`BasicDeliverEventArgs.CancellationToken` is never
+cancelled by RabbitMQ.Client 7.x, so the consumer drives cancellation from its own shutdown token only.
+
+---
+
 # 15. Saga Architecture
 
 The system will eventually implement distributed business workflows using Saga Orchestration.
@@ -650,6 +866,14 @@ The system uses:
 Every request should be traceable.
 
 Every asynchronous message should preserve correlation information where possible.
+
+Consumers (Phase 7.8) preserve the business-operation trace: the incoming `CorrelationId` is carried
+into the processing envelope unchanged and the consumed event's `EventId` becomes the `CausationId`;
+an event produced by a consumer must reuse `envelope.ProducedEventCorrelationId` /
+`envelope.ProducedEventCausationId` so publisher → consumer → next publisher stays linked. Consumer
+outcomes are logged with a consistent structured field set (MessageId, EventId, EventType,
+EventVersion, CorrelationId, CausationId, Consumer, Attempt, Result, DurationMs,
+FailureClassification, DeadLetterReason); payloads are never logged.
 
 A future distributed workflow should be traceable across:
 

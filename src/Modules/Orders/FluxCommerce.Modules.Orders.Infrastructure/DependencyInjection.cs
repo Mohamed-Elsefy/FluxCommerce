@@ -1,5 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Idempotency.Detection;
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
+using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
@@ -13,6 +16,7 @@ using FluxCommerce.Modules.Orders.Contracts.Responses;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +54,21 @@ public static class DependencyInjection
         services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
         services.AddScoped<ICheckoutStore, CheckoutStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOrderSummaryProjectionStore, OrderSummaryProjectionStore>();
+        services.AddScoped<IOrderSummaryProjectionService, OrderSummaryProjectionService>();
+
+        // Idempotency: the concrete, module-owned implementations are registered (so the consumer
+        // infrastructure can resolve them by concrete type — each consumer carries its module's
+        // processor on its descriptor) and the shared interfaces are forwarded to them. The interfaces
+        // stay resolvable for this module's internal use and single-module tests; when several modules
+        // are composed in one container the consumer infrastructure NEVER resolves the interfaces (they
+        // would be last-registration-wins across modules) and always uses the concrete types instead.
+        services.AddScoped<OrdersIdempotencyStore>();
+        services.AddScoped<OrdersDuplicateDetector>();
+        services.AddScoped<OrdersIdempotentProcessor>();
+        services.AddScoped<IIdempotencyStore>(serviceProvider => serviceProvider.GetRequiredService<OrdersIdempotencyStore>());
+        services.AddScoped<IDuplicateDetector>(serviceProvider => serviceProvider.GetRequiredService<OrdersDuplicateDetector>());
+        services.AddScoped<IIdempotentProcessor>(serviceProvider => serviceProvider.GetRequiredService<OrdersIdempotentProcessor>());
         services.AddScoped<ICommandHandler<CheckoutCommand, Result<Order>>, CheckoutCommandHandler>();
         services.AddScoped<IQueryHandler<GetMyOrdersQuery, Result<PagedResult<OrderSummaryResponse>>>, GetMyOrdersQueryHandler>();
         services.AddScoped<IQueryHandler<GetOrderQuery, Result<OrderDetailsResponse>>, GetOrderQueryHandler>();

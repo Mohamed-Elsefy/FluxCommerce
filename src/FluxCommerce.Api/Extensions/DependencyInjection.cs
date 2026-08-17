@@ -15,7 +15,10 @@ using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure.Background;
+using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure;
+using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
+using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Payments.Infrastructure;
 using FluxCommerce.Modules.Identity.Infrastructure;
 
@@ -99,6 +102,15 @@ public static class DependencyInjection
         services.AddRedis(GetRedisConnectionString(configuration));
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));
         services.AddRabbitMQPublisher(GetRabbitMQExchangeName(configuration));
+
+        // Phase 7.9: the first real integration event consumer. The Order Summary projection consumer
+        // consumes orders.order_created from the same Phase 6 topic exchange through the dedicated
+        // module queue, inside the Orders idempotent-processing boundary (Business State + ProcessedMessage
+        // commit atomically). The processor is declared explicitly on the consumer so it always executes
+        // through the Orders boundary — never through a container-wide IIdempotentProcessor, which
+        // Inventory (registered last) also registers.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.summary");
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer, OrdersIdempotentProcessor>();
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])

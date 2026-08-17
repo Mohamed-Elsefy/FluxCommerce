@@ -8,7 +8,7 @@ namespace FluxCommerce.IntegrationTests;
 /// broker on the dedicated <see cref="RabbitMQTestFixture.TestExchangeName"/> exchange; each test
 /// uses a unique exclusive queue so parallel runs cannot interfere.
 /// </summary>
-[CollectionDefinition(Name)]
+[CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class RabbitMQTestCollection : ICollectionFixture<RabbitMQTestFixture>
 {
     public const string Name = "RabbitMQ Publisher Tests";

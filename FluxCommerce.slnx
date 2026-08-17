@@ -13,6 +13,7 @@
     <File Path="docs/adr/005-observability.md" />
     <File Path="docs/adr/006-catalog-variant-unit-price.md" />
     <File Path="docs/adr/007-integration-event-contract-placement.md" />
+    <File Path="docs/adr/008-consumer-contract-and-idempotency.md" />
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
@@ -23,6 +24,7 @@
     <File Path="docs/completed/PHASE_4_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_5_COMPLETION_REPORT.md" />
     <File Path="docs/completed/PHASE_6_COMPLETION_REPORT.md" />
+    <File Path="docs/completed/PHASE_7_COMPLETION_REPORT.md" />
   </Folder>
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
@@ -37,6 +39,7 @@
     <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
     <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
     <File Path="docs/phases/PHASE_6_OUTBOX_RABBITMQ.md" />
+    <File Path="docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md" />
   </Folder>
   <Folder Name="/docs/refactoring/">
     <File Path="docs/refactoring/REFACTORING_1_BASELINE.md" />

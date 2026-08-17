@@ -33,6 +33,24 @@ public class ArchitectureTests
     }
 
     [Fact]
+    public void Messaging_ShouldNot_ReferenceInfrastructureOrRabbitMqOrEfCore()
+    {
+        var forbidden = new[]
+        {
+            "FluxCommerce.BuildingBlocks.Infrastructure",
+            "FluxCommerce.BuildingBlocks.Outbox",
+            "FluxCommerce.BuildingBlocks.Idempotency",
+            "RabbitMQ.Client",
+            "Microsoft.EntityFrameworkCore",
+        };
+
+        AssertNoDependencies(
+            [ArchitectureRegistry.Messaging],
+            forbidden,
+            "Messaging -> transport/persistence");
+    }
+
+    [Fact]
     public void Modules_ShouldNot_ReferenceAnotherModulesInfrastructure()
     {
         var failures = new List<string>();
