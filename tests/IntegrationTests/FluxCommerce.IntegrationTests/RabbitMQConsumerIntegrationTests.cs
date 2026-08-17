@@ -31,7 +31,9 @@ namespace FluxCommerce.IntegrationTests;
 /// x-dead-letter-reason/x-attempt/x-error-type/x-error-message/x-consumer metadata), x-death-seeded
 /// attempt accounting across dead-letter hops, poison-message isolation, duplicate deliveries
 /// acknowledged with exactly one business effect, bounded concurrency via a configurable channel
-/// count, and graceful shutdown that stops consuming before the host stops.
+/// count, and graceful shutdown that stops consuming before the host stops. Phase 7.8: the envelope
+/// advertises the produced-event correlation/causation propagation contract, and deliveries without
+/// correlation/causation metadata are processed safely with the documented defaults.
 /// </summary>
 [Collection(RabbitMQConsumerTestCollection.Name)]
 public class RabbitMQConsumerIntegrationTests
@@ -104,6 +106,13 @@ public class RabbitMQConsumerIntegrationTests
             Assert.Equal(EventVersion.V1, invocation.Envelope.EventVersion);
             Assert.Equal(@event.CorrelationId, invocation.Envelope.CorrelationId);
             Assert.Equal(@event.OccurredAtUtc, invocation.Envelope.OccurredAtUtc);
+            Assert.Null(invocation.Envelope.CausationId);
+
+            // Phase 7.8 propagation contract: a consumer that produces an integration event from this
+            // delivery must reuse these — the incoming CorrelationId preserved and the consumed EventId
+            // as causation — so the whole business-operation trace stays linked.
+            Assert.Equal(invocation.Envelope.CorrelationId, invocation.Envelope.ProducedEventCorrelationId);
+            Assert.Equal(invocation.Envelope.EventId, invocation.Envelope.ProducedEventCausationId);
 
             await WaitForProcessedAsync(@event.EventId, RecordingOrderCreatedHandler.StableHandlerName);
             await AckSettleAsync();
@@ -409,6 +418,55 @@ public class RabbitMQConsumerIntegrationTests
         finally
         {
             await DeleteQueueAsync(provider, queueName);
+        }
+    }
+
+    [Fact]
+    public async Task Consumer_EventWithoutCorrelationCausation_IsProcessedSafely()
+    {
+        var recorder = new TestConsumerRecorder();
+        var queueName = UniqueQueueName();
+        var @event = CreateOrderCreated() with { CorrelationId = Guid.Empty };
+        await using var provider = _fixture.BuildConsumerProvider<RecordingOrderCreatedHandler>(queueName, recorder);
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+
+            var properties = BuildRawProperties(
+                @event.EventId.ToString(),
+                OrderCreatedIntegrationEvent.EventType,
+                EventVersion.V1.ToString(),
+                correlationId: null,
+                @event.OccurredAtUtc.ToString("O"));
+            await PublishRawAsync(
+                provider,
+                OrderCreatedIntegrationEvent.EventType,
+                properties,
+                JsonSerializer.SerializeToUtf8Bytes(@event));
+
+            await WaitForInvocationsAsync(recorder, 1);
+            var invocation = recorder.Invocations.Single();
+
+            // Missing correlation/causation metadata is never fatal: the consumer processes the event
+            // with the safe defaults (Guid.Empty / null) and the propagation contract still holds.
+            Assert.Equal(Guid.Empty, invocation.Envelope.CorrelationId);
+            Assert.Null(invocation.Envelope.CausationId);
+            Assert.Equal(Guid.Empty, invocation.Envelope.ProducedEventCorrelationId);
+            Assert.Equal(@event.EventId, invocation.Envelope.ProducedEventCausationId);
+
+            await WaitForProcessedAsync(@event.EventId, RecordingOrderCreatedHandler.StableHandlerName);
+            await AckSettleAsync();
+            await consumer.StopAsync(CancellationToken.None);
+
+            var connectionProvider = provider.GetRequiredService<IRabbitMQConnectionProvider>();
+            await using var channel = await connectionProvider.CreateChannelAsync();
+            Assert.Null(await channel.BasicGetAsync(queueName, autoAck: true, CancellationToken.None));
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, [@event.EventId], []);
         }
     }
 

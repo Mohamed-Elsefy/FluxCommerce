@@ -1,5 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Idempotency.Detection;
+using FluxCommerce.BuildingBlocks.Idempotency.Processing;
+using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
@@ -13,6 +16,7 @@ using FluxCommerce.Modules.Orders.Contracts.Responses;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +54,11 @@ public static class DependencyInjection
         services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
         services.AddScoped<ICheckoutStore, CheckoutStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOrderSummaryProjectionStore, OrderSummaryProjectionStore>();
+        services.AddScoped<IOrderSummaryProjectionService, OrderSummaryProjectionService>();
+        services.AddScoped<IIdempotencyStore, OrdersIdempotencyStore>();
+        services.AddScoped<IDuplicateDetector, OrdersDuplicateDetector>();
+        services.AddScoped<IIdempotentProcessor, OrdersIdempotentProcessor>();
         services.AddScoped<ICommandHandler<CheckoutCommand, Result<Order>>, CheckoutCommandHandler>();
         services.AddScoped<IQueryHandler<GetMyOrdersQuery, Result<PagedResult<OrderSummaryResponse>>>, GetMyOrdersQueryHandler>();
         services.AddScoped<IQueryHandler<GetOrderQuery, Result<OrderDetailsResponse>>, GetOrderQueryHandler>();

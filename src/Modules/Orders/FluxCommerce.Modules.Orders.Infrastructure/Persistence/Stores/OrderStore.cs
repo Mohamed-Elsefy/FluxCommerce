@@ -85,6 +85,14 @@ public sealed class OrderStore : IOrderStore
             .ConfigureAwait(false);
     }
 
+    public async Task<Order?> GetByIdAsync(OrderId orderId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Orders
+            .Include(order => order.LineItems)
+            .FirstOrDefaultAsync(order => order.Id == orderId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
         await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

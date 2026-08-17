@@ -644,6 +644,22 @@ terminal paths keep the original delivery (body + headers) in the DLQ in every c
   (requeue:false) so the broker still dead-letters it verbatim. A terminal failure therefore always
   ends in the DLQ exactly once, never silently, never back in the processing loop.
 
+Phase 7.8 consumer observability. Every consumer log is structured with a CONSISTENT field set —
+`MessageId`, `EventId`, `EventType`, `EventVersion`, `CorrelationId`, `CausationId`, `Consumer`,
+`Attempt`, `Result`, `DurationMs`, `FailureClassification`, `DeadLetterReason` — written as explicit
+template fields on each log call (no `BeginScope`, so the fields are directly assertable and survive
+any sink). `Result` is one of the stable values `processed` | `duplicate` | `rejected` |
+`dead-lettered` | `retrying` | `skipped`; a per-attempt `Stopwatch` logs `DurationMs` for every
+outcome, and the consumer is logged via the handler's stable `HandlerName` on every path (no more
+`HandlerType.Name` in catch logs). Business payloads are never logged. Correlation/causation ride the
+envelope (`IntegrationEventEnvelope`) unchanged from the delivery: the incoming `CorrelationId` is
+preserved and the consumed `EventId` becomes the causation. A consumer that PRODUCES an integration
+event must stamp the produced event's metadata from `envelope.ProducedEventCorrelationId` (the incoming
+`CorrelationId`) and `envelope.ProducedEventCausationId` (the consumed `EventId`) — no new metadata
+model, no consumer context service. Missing metadata is safe: an absent/invalid `CorrelationId` header
+yields `Guid.Empty` and an absent `CausationId` yields `null` in the envelope and logs; malformed
+deliveries that never build an envelope log only the transport identifiers (`EventType`, `MessageId`).
+
 `RabbitMQConsumerOptions.Validate()` runs on host startup and fails fast on misconfiguration: queue and
 exchange required, PrefetchCount/Concurrency ≥ 1, `ConsumerRetryOptions.Validate()` (MaxAttempts ≥ 1,
 defined BackoffType, InitialDelay ≥ 0, DelayMultiplier ≥ 1.0, MaxDelay ≥ 0 and ≥ InitialDelay,
@@ -821,6 +837,14 @@ The system uses:
 Every request should be traceable.
 
 Every asynchronous message should preserve correlation information where possible.
+
+Consumers (Phase 7.8) preserve the business-operation trace: the incoming `CorrelationId` is carried
+into the processing envelope unchanged and the consumed event's `EventId` becomes the `CausationId`;
+an event produced by a consumer must reuse `envelope.ProducedEventCorrelationId` /
+`envelope.ProducedEventCausationId` so publisher → consumer → next publisher stays linked. Consumer
+outcomes are logged with a consistent structured field set (MessageId, EventId, EventType,
+EventVersion, CorrelationId, CausationId, Consumer, Attempt, Result, DurationMs,
+FailureClassification, DeadLetterReason); payloads are never logged.
 
 A future distributed workflow should be traceable across:
 

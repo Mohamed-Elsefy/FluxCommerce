@@ -6,7 +6,9 @@ using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Messaging.Versioning;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
+using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using RabbitMQ.Client;
@@ -27,6 +29,11 @@ namespace FluxCommerce.UnitTests.Consuming;
 /// and adding reason/attempt/error metadata) and acknowledges the original; if the dead-letter publish
 /// cannot be confirmed, the original is rejected (Nack requeue:false) so the broker dead-letters it
 /// verbatim — a terminal failure is never silently lost and never retried endlessly.
+/// Phase 7.8: every consumer outcome is logged with a consistent structured field set (MessageId,
+/// EventId, EventType, EventVersion, CorrelationId, CausationId, Consumer, Attempt, Result, DurationMs,
+/// FailureClassification, DeadLetterReason); business payloads are never logged; missing correlation/
+/// causation metadata is processed safely; the envelope advertises the produced-event correlation/
+/// causation propagation contract.
 /// </summary>
 public class IntegrationEventMessageProcessorTests
 {
@@ -602,15 +609,327 @@ public class IntegrationEventMessageProcessorTests
         Assert.Null(handler.LastEnvelope.CausationId);
     }
 
+    [Fact]
+    public async Task ProcessAsync_StructuredLog_OnSuccess_IncludesFullTelemetryFieldSet()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ProcessedMessage message, Func<Task> operation, CancellationToken token) =>
+            {
+                await operation();
+                return IdempotencyResult.NotProcessed();
+            });
+
+        var @event = CreateOrderCreated();
+        var properties = BuildProperties(@event);
+        properties.MessageId = "test-message-1";
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(handler, processorMock.Object, capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            properties,
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+
+        var entry = captured.Single(LogLevel.Information);
+        Assert.NotNull(entry);
+        Assert.Equal(IntegrationEventMessageProcessor.ResultProcessed, entry["Result"]);
+        Assert.Equal(RecordingOrderCreatedHandler.StableHandlerName, entry["Consumer"]);
+        Assert.Equal(OrderCreatedIntegrationEvent.EventType, entry["EventType"]);
+        Assert.Equal(@event.EventId, entry["EventId"]);
+        Assert.Equal("test-message-1", entry["MessageId"]);
+        Assert.Equal(EventVersion.V1, entry["EventVersion"]);
+        Assert.Equal(CorrelationId, entry["CorrelationId"]);
+        Assert.Null(entry["CausationId"]);
+        Assert.Equal(1, entry["Attempt"]);
+        Assert.IsType<long>(entry["DurationMs"]);
+        Assert.True((long)entry["DurationMs"]! >= 0);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_StructuredLog_OnDuplicate_RecordsDuplicateResult()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(IdempotencyResult.AlreadyProcessed(DateTime.UtcNow.AddMinutes(-1))));
+
+        var @event = CreateOrderCreated();
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(handler, processorMock.Object, capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            BuildProperties(@event),
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+        Assert.Equal(0, handler.InvocationCount);
+
+        var entry = captured.Single(LogLevel.Information);
+        Assert.NotNull(entry);
+        Assert.Equal(IntegrationEventMessageProcessor.ResultDuplicate, entry["Result"]);
+        Assert.Equal(1, entry["Attempt"]);
+        Assert.NotNull(entry["ProcessedAtUtc"]);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_StructuredLog_OnRetryableFailure_IncludesAttemptAndMaxAttempts()
+    {
+        var handler = new RecordingOrderCreatedHandler { RemainingFailures = 1 };
+        var processorMock = new Mock<IIdempotentProcessor>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ProcessedMessage message, Func<Task> operation, CancellationToken token) =>
+            {
+                await operation();
+                return IdempotencyResult.NotProcessed();
+            });
+
+        var @event = CreateOrderCreated();
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(
+            handler,
+            processorMock.Object,
+            retry: new ConsumerRetryOptions { MaxAttempts = 3, InitialDelay = TimeSpan.Zero },
+            capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            BuildProperties(@event),
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+        Assert.Equal(2, handler.InvocationCount);
+
+        var retrying = captured.Entries.Single(entry => entry.Level == LogLevel.Warning);
+        Assert.Equal(IntegrationEventMessageProcessor.ResultRetrying, retrying["Result"]);
+        Assert.Equal(1, retrying["Attempt"]);
+        Assert.Equal(3, retrying["MaxAttempts"]);
+        Assert.Equal(ConsumerFailureClassification.Retryable, retrying["FailureClassification"]);
+        Assert.IsType<TimeSpan>(retrying["Delay"]);
+
+        var processed = captured.Entries.Single(entry => entry.Level == LogLevel.Information);
+        Assert.Equal(IntegrationEventMessageProcessor.ResultProcessed, processed["Result"]);
+        Assert.Equal(2, processed["Attempt"]);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_StructuredLog_OnPermanentFailure_RecordsDeadLetterClassificationAndReason()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+        var deadLettererMock = new Mock<IIntegrationEventDeadLetterer>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Permanent failure."));
+
+        deadLettererMock
+            .Setup(d => d.PublishAsync(
+                It.IsAny<IReadOnlyBasicProperties>(),
+                It.IsAny<ReadOnlyMemory<byte>>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, object?>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var @event = CreateOrderCreated();
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(
+            handler,
+            processorMock.Object,
+            retry: new ConsumerRetryOptions
+            {
+                MaxAttempts = 3,
+                InitialDelay = TimeSpan.Zero,
+                NonRetryableExceptionTypes = new() { typeof(InvalidOperationException) }
+            },
+            deadLetterer: deadLettererMock,
+            capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            BuildProperties(@event),
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+
+        var entry = captured.Single(LogLevel.Error);
+        Assert.NotNull(entry);
+        Assert.Equal(IntegrationEventMessageProcessor.ResultDeadLettered, entry["Result"]);
+        Assert.Equal(IntegrationEventMessageProcessor.PermanentFailureReason, entry["DeadLetterReason"]);
+        Assert.Equal(1, entry["Attempt"]);
+        Assert.Equal(ConsumerFailureClassification.Permanent, entry["FailureClassification"]);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_StructuredLog_OnExhaustedRetries_RecordsDeadLetterReason()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+        var deadLettererMock = new Mock<IIntegrationEventDeadLetterer>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Business processing failed."));
+
+        deadLettererMock
+            .Setup(d => d.PublishAsync(
+                It.IsAny<IReadOnlyBasicProperties>(),
+                It.IsAny<ReadOnlyMemory<byte>>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, object?>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var @event = CreateOrderCreated();
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(
+            handler,
+            processorMock.Object,
+            retry: new ConsumerRetryOptions { MaxAttempts = 3, InitialDelay = TimeSpan.Zero },
+            deadLetterer: deadLettererMock,
+            capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            BuildProperties(@event),
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+
+        var entry = captured.Entries.Single(logged => logged.Level == LogLevel.Error);
+        Assert.NotNull(entry);
+        Assert.Equal(IntegrationEventMessageProcessor.ResultDeadLettered, entry["Result"]);
+        Assert.Equal(IntegrationEventMessageProcessor.ExhaustedReason, entry["DeadLetterReason"]);
+        Assert.Equal(3, entry["Attempt"]);
+        Assert.Equal(ConsumerFailureClassification.Retryable, entry["FailureClassification"]);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MissingCorrelationMetadata_IsProcessedSafely()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ProcessedMessage message, Func<Task> operation, CancellationToken token) =>
+            {
+                await operation();
+                return IdempotencyResult.NotProcessed();
+            });
+
+        var @event = CreateOrderCreated() with { CorrelationId = Guid.Empty };
+        var properties = BuildProperties(@event);
+        properties.Headers!["CorrelationId"] = string.Empty;
+        properties.Headers!["CausationId"] = string.Empty;
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(handler, processorMock.Object, capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(
+            properties,
+            JsonSerializer.SerializeToUtf8Bytes(@event),
+            CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+        Assert.Equal(1, handler.InvocationCount);
+        Assert.Equal(Guid.Empty, handler.LastEnvelope!.CorrelationId);
+        Assert.Null(handler.LastEnvelope.CausationId);
+
+        var entry = captured.Single(LogLevel.Information);
+        Assert.NotNull(entry);
+        Assert.Equal(Guid.Empty, entry["CorrelationId"]);
+        Assert.Null(entry["CausationId"]);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_StructuredLog_NeverLogsBusinessPayloads()
+    {
+        var handler = new RecordingOrderCreatedHandler();
+        var processorMock = new Mock<IIdempotentProcessor>();
+
+        processorMock
+            .Setup(p => p.TryProcessAsync(It.IsAny<ProcessedMessage>(), It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (ProcessedMessage message, Func<Task> operation, CancellationToken token) =>
+            {
+                await operation();
+                return IdempotencyResult.NotProcessed();
+            });
+
+        var @event = CreateOrderCreated();
+        var payload = JsonSerializer.SerializeToUtf8Bytes(@event);
+        var payloadJson = JsonSerializer.Serialize(@event);
+
+        var captured = new CapturingLogger<IntegrationEventMessageProcessor>();
+        using var scope = BuildProcessorScope(handler, processorMock.Object, capturedLogger: captured);
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationEventMessageProcessor>();
+
+        var action = await processor.ProcessAsync(BuildProperties(@event), payload, CancellationToken.None);
+
+        Assert.Equal(ConsumerMessageAction.Ack, action);
+        Assert.NotEmpty(captured.Entries);
+        Assert.All(
+            captured.Entries,
+            logged =>
+            {
+                Assert.DoesNotContain("ORD-100", logged.Message);
+                Assert.DoesNotContain(payloadJson, logged.Message);
+                Assert.DoesNotContain(payloadJson, (string?)logged.Properties.FirstOrDefault(pair => pair.Key == "Payload").Value);
+            });
+    }
+
+    [Fact]
+    public void Envelope_ExposesProducedEventPropagationContract()
+    {
+        var @event = CreateOrderCreated();
+        var envelope = new IntegrationEventEnvelope
+        {
+            EventId = @event.EventId,
+            EventType = OrderCreatedIntegrationEvent.EventType,
+            EventVersion = EventVersion.V1,
+            CorrelationId = CorrelationId,
+            CausationId = null,
+            OccurredAtUtc = @event.OccurredAtUtc
+        };
+
+        Assert.Equal(CorrelationId, envelope.ProducedEventCorrelationId);
+        Assert.Equal(@event.EventId, envelope.ProducedEventCausationId);
+    }
+
     private static IServiceScope BuildProcessorScope(
         RecordingOrderCreatedHandler handler,
         IIdempotentProcessor processor,
         bool registerOrderCreated = true,
         ConsumerRetryOptions? retry = null,
-        Mock<IIntegrationEventDeadLetterer>? deadLetterer = null)
+        Mock<IIntegrationEventDeadLetterer>? deadLetterer = null,
+        CapturingLogger<IntegrationEventMessageProcessor>? capturedLogger = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        if (capturedLogger is not null)
+            services.AddSingleton<ILogger<IntegrationEventMessageProcessor>>(capturedLogger);
         services.AddScoped(_ => handler);
         services.AddScoped(_ => processor);
 

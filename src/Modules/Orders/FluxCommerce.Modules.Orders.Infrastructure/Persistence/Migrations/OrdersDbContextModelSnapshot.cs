@@ -22,6 +22,27 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Idempotency.Messages.ProcessedMessage", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)")
+                        .HasColumnName("Key");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("Handler");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ProcessedAtUtc");
+
+                    b.HasKey("Key", "Handler");
+
+                    b.ToTable("ProcessedMessages", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.BuildingBlocks.Outbox.Messages.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -169,6 +190,68 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_CheckoutIdempotency_UserId_IdempotencyKey");
 
                     b.ToTable("CheckoutIdempotency", (string)null);
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Orders.Infrastructure.Persistence.Entities.OrderSummaryProjectionEntity", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OrderId");
+
+                    b.Property<Guid?>("CausationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CausationId");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CorrelationId");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CustomerId");
+
+                    b.Property<decimal>("GrandTotalAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasColumnName("GrandTotalAmount");
+
+                    b.Property<string>("GrandTotalCurrency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasColumnName("GrandTotalCurrency");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("int")
+                        .HasColumnName("ItemCount");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("OrderNumber");
+
+                    b.Property<DateTimeOffset>("ProjectedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("ProjectedAtUtc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasColumnName("Status");
+
+                    b.HasKey("OrderId");
+
+                    b.HasIndex("CustomerId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_OrderSummaryProjections_CustomerId_CreatedAtUtc");
+
+                    b.ToTable("OrderSummaryProjections", (string)null);
                 });
 
             modelBuilder.Entity("FluxCommerce.Modules.Orders.Domain.Aggregates.Order", b =>

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -57,6 +58,16 @@ namespace FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 /// <see cref="ConsumerMessageAction.Reject"/>. Cancellation (shutdown) propagates and leaves the
 /// delivery unacknowledged for redelivery.
 /// </para>
+/// <para>
+/// Phase 7.8 consumer observability: every consumer log is structured with a consistent field set
+/// (MessageId, EventId, EventType, EventVersion, CorrelationId, CausationId, Consumer, Attempt, Result,
+/// DurationMs, FailureClassification, DeadLetterReason) so a single delivery can be traced end-to-end,
+/// retries/attempts are visible, and duplicate/terminal outcomes are identifiable. Business payloads are
+/// never logged. Correlation/causation are carried from the incoming message into the processing
+/// envelope; a consumer-produced integration event must reuse
+/// <c>envelope.ProducedEventCorrelationId</c> / <c>envelope.ProducedEventCausationId</c> (the incoming
+/// CorrelationId preserved, the consumed EventId as causation) — no new metadata model.
+/// </para>
 /// </summary>
 public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageProcessor
 {
@@ -78,6 +89,15 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
 
     internal const string PermanentFailureReason = "processing-failure-permanent";
     internal const string ExhaustedReason = "processing-failure-exhausted";
+
+    // Consistent Phase 7.8 structured-logging result values, so every consumer outcome is filterable
+    // and identifiable across the system.
+    internal const string ResultProcessed = "processed";
+    internal const string ResultDuplicate = "duplicate";
+    internal const string ResultRejected = "rejected";
+    internal const string ResultDeadLettered = "dead-lettered";
+    internal const string ResultRetrying = "retrying";
+    internal const string ResultSkipped = "skipped";
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IIntegrationEventConsumerRegistry _registry;
@@ -113,7 +133,10 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
 
         if (string.IsNullOrWhiteSpace(eventType))
         {
-            _logger.LogWarning("Rejecting a delivery without an event type: the message cannot be routed to a consumer.");
+            _logger.LogWarning(
+                "Consumer rejected delivery without an event type (message {MessageId}, result {Result}): the message cannot be routed to a consumer.",
+                properties.MessageId,
+                ResultRejected);
             return ConsumerMessageAction.Reject;
         }
 
@@ -123,15 +146,23 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
         {
             // ADR-008: this consumer does not handle the event type; it is acknowledged and skipped
             // rather than treated as poison (the queue only receives types bound to it).
-            _logger.LogInformation("Consumer skipped delivery of unhandled event type {EventType}.", eventType);
+            _logger.LogInformation(
+                "Consumer skipped {EventType} delivery (message {MessageId}, result {Result}): no registered handler for this event type (ADR-008).",
+                eventType,
+                properties.MessageId,
+                ResultSkipped);
             return ConsumerMessageAction.Ack;
         }
 
         if (!TryBuildEnvelope(properties, eventType, out var envelope, out var metadataError))
         {
+            // The envelope is not built on the failure path, so only the transport-level identifiers
+            // that are already known are logged here (the delivery is malformed).
             _logger.LogWarning(
-                "Consumer rejected malformed {EventType} delivery: {Error}",
+                "Consumer rejected {EventType} delivery (message {MessageId}, result {Result}): {Error}",
                 eventType,
+                properties.MessageId,
+                ResultRejected,
                 metadataError);
             return ConsumerMessageAction.Reject;
         }
@@ -141,18 +172,28 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
         if (integrationEvent is null)
         {
             _logger.LogWarning(
-                "Consumer rejected {EventType} delivery {EventId}: the payload could not be deserialized.",
+                "Consumer rejected {EventType} delivery (message {MessageId}, event {EventId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, result {Result}): the payload could not be deserialized.",
                 eventType,
-                envelope.EventId);
+                properties.MessageId,
+                envelope.EventId,
+                envelope.EventVersion,
+                envelope.CorrelationId,
+                envelope.CausationId,
+                ResultRejected);
             return ConsumerMessageAction.Reject;
         }
 
         if (integrationEvent.EventId != envelope.EventId || integrationEvent.Version != envelope.EventVersion)
         {
             _logger.LogWarning(
-                "Consumer rejected {EventType} delivery {EventId}: the payload metadata does not match the transport envelope.",
+                "Consumer rejected {EventType} delivery (message {MessageId}, event {EventId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, result {Result}): the payload metadata does not match the transport envelope.",
                 eventType,
-                envelope.EventId);
+                properties.MessageId,
+                envelope.EventId,
+                envelope.EventVersion,
+                envelope.CorrelationId,
+                envelope.CausationId,
+                ResultRejected);
             return ConsumerMessageAction.Reject;
         }
 
@@ -166,6 +207,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
             // owns it) is only safe to use once — after a business failure rolls the transaction back,
             // EF Core considers the context poisoned and reusing it fails before the handler runs.
             using var attemptScope = _serviceProvider.CreateScope();
+            var attemptStopwatch = Stopwatch.StartNew();
 
             try
             {
@@ -183,22 +225,33 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                 if (result.IsDuplicate)
                 {
                     _logger.LogInformation(
-                        "Consumer {Handler} acknowledged duplicate {EventType} event {EventId} (attempt {Attempt}; first processed {ProcessedAtUtc:O}).",
+                        "Consumer {Consumer} acknowledged duplicate {EventType} event {EventId} (message {MessageId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, attempt {Attempt}, result {Result}, first processed {ProcessedAtUtc:O}) in {DurationMs}ms.",
                         handlerName,
                         eventType,
                         envelope.EventId,
+                        properties.MessageId,
+                        envelope.EventVersion,
+                        envelope.CorrelationId,
+                        envelope.CausationId,
                         attempt,
-                        result.ProcessedAtUtc);
+                        ResultDuplicate,
+                        result.ProcessedAtUtc,
+                        attemptStopwatch.ElapsedMilliseconds);
                 }
                 else
                 {
                     _logger.LogInformation(
-                        "Consumer {Handler} processed {EventType} event {EventId} on attempt {Attempt} (correlation {CorrelationId}).",
+                        "Consumer {Consumer} processed {EventType} event {EventId} (message {MessageId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, attempt {Attempt}, result {Result}) in {DurationMs}ms.",
                         handlerName,
                         eventType,
                         envelope.EventId,
+                        properties.MessageId,
+                        envelope.EventVersion,
+                        envelope.CorrelationId,
+                        envelope.CausationId,
                         attempt,
-                        envelope.CorrelationId);
+                        ResultProcessed,
+                        attemptStopwatch.ElapsedMilliseconds);
                 }
 
                 return ConsumerMessageAction.Ack;
@@ -217,15 +270,24 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                 {
                     _logger.LogError(
                         exception,
-                        "Consumer {Handler} dead-lettered {EventType} event {EventId} (attempt {Attempt}): the failure is classified permanent.",
-                        descriptor.HandlerType.Name,
+                        "Consumer {Consumer} dead-lettered {EventType} event {EventId} (message {MessageId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, attempt {Attempt}, result {Result}, failure classification {FailureClassification}, dead-letter reason {DeadLetterReason}) in {DurationMs}ms: the failure is classified permanent.",
+                        handlerName,
                         eventType,
                         envelope.EventId,
-                        attempt);
+                        properties.MessageId,
+                        envelope.EventVersion,
+                        envelope.CorrelationId,
+                        envelope.CausationId,
+                        attempt,
+                        ResultDeadLettered,
+                        classification,
+                        PermanentFailureReason,
+                        attemptStopwatch.ElapsedMilliseconds);
                     return await DeadLetterAsync(
                         properties,
                         body,
                         eventType,
+                        envelope,
                         PermanentFailureReason,
                         handlerName,
                         attempt,
@@ -237,16 +299,24 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                 {
                     _logger.LogError(
                         exception,
-                        "Consumer {Handler} dead-lettered {EventType} event {EventId} after {Attempt} attempt(s) (correlation {CorrelationId}): the retry policy is exhausted.",
-                        descriptor.HandlerType.Name,
+                        "Consumer {Consumer} dead-lettered {EventType} event {EventId} after {Attempt} attempt(s) (message {MessageId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, result {Result}, failure classification {FailureClassification}, dead-letter reason {DeadLetterReason}) in {DurationMs}ms: the retry policy is exhausted.",
+                        handlerName,
                         eventType,
                         envelope.EventId,
                         attempt,
-                        envelope.CorrelationId);
+                        properties.MessageId,
+                        envelope.EventVersion,
+                        envelope.CorrelationId,
+                        envelope.CausationId,
+                        ResultDeadLettered,
+                        classification,
+                        ExhaustedReason,
+                        attemptStopwatch.ElapsedMilliseconds);
                     return await DeadLetterAsync(
                         properties,
                         body,
                         eventType,
+                        envelope,
                         ExhaustedReason,
                         handlerName,
                         attempt,
@@ -258,13 +328,19 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
 
                 _logger.LogWarning(
                     exception,
-                    "Consumer {Handler} retryable failure for {EventType} event {EventId} (attempt {Attempt} of {MaxAttempts}, correlation {CorrelationId}); retrying in {Delay}.",
-                    descriptor.HandlerType.Name,
+                    "Consumer {Consumer} retryable failure for {EventType} event {EventId} (message {MessageId}, version {EventVersion}, correlation {CorrelationId}, causation {CausationId}, attempt {Attempt} of {MaxAttempts}, result {Result}, failure classification {FailureClassification}) in {DurationMs}ms; retrying in {Delay}.",
+                    handlerName,
                     eventType,
                     envelope.EventId,
+                    properties.MessageId,
+                    envelope.EventVersion,
+                    envelope.CorrelationId,
+                    envelope.CausationId,
                     attempt,
                     retryOptions.MaxAttempts,
-                    envelope.CorrelationId,
+                    ResultRetrying,
+                    classification,
+                    attemptStopwatch.ElapsedMilliseconds,
                     delay);
 
                 // A shutdown that happens while waiting throws here and propagates (unacked → redelivery).
@@ -287,6 +363,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
         IReadOnlyBasicProperties properties,
         ReadOnlyMemory<byte> body,
         string eventType,
+        IntegrationEventEnvelope envelope,
         string reason,
         string? consumer,
         int? attempt,
@@ -320,8 +397,13 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
             return ConsumerMessageAction.Ack;
 
         _logger.LogError(
-            "Consumer could not confirm the enriched dead-letter copy for {EventType} ({Reason}); the original delivery will be dead-lettered verbatim by the broker (Nack requeue:false).",
+            "Consumer could not confirm the enriched dead-letter copy for {EventType} event {EventId} (message {MessageId}, correlation {CorrelationId}, causation {CausationId}, result {Result}, dead-letter reason {DeadLetterReason}); the original delivery will be dead-lettered verbatim by the broker (Nack requeue:false).",
             eventType,
+            envelope.EventId,
+            properties.MessageId,
+            envelope.CorrelationId,
+            envelope.CausationId,
+            ResultDeadLettered,
             reason);
         return ConsumerMessageAction.DeadLetter;
     }
