@@ -573,6 +573,102 @@ Business Operation  +  ProcessedMessage  ──►  COMMIT (atomic)
 Consumer/background scopes resolve a non-request `ICurrentUser` (unauthenticated), matching the test
 `AnonymousCurrentUser` precedent — no request identity is available on the broker path (ADR-008).
 
+### 14.1.4 RabbitMQ Consumer Infrastructure
+
+The consumer infrastructure lives in `BuildingBlocks.Infrastructure.Consuming` and consumes from the
+SAME Phase 6 topology (the durable topic exchange) — it does not create a parallel messaging
+architecture. `RabbitMQConsumerBackgroundService` (an `IHostedService`) declares the exchange and the
+configured queue, binds the queue to each registered event type's routing key, applies per-channel
+prefetch, and starts `RabbitMQConsumerOptions.Concurrency` consumers against the queue (the broker
+round-robins deliveries across them, giving bounded in-flight concurrency). Every delivery is processed
+in its own DI scope:
+
+```text
+delivery ─► resolve EventType (header, fallback AMQP Type)
+              ├─ unregistered EventType ──► ACK + skip (ADR-008, never poison)
+              ├─ invalid metadata / corrupt payload / metadata mismatch ──► REJECT ──► DLQ (terminal)
+              ▼
+         build envelope from transport headers (authoritative metadata)
+              ▼
+         deserialize contract (switch-on-Type registry, no reflection activation)
+              ▼
+         retry loop (fresh DI scope per attempt; attempt = 1 + broker x-death count)
+              ▼
+          IIdempotentProcessor.TryProcessAsync(ProcessedMessage.Create(EventId, HandlerName),
+                                               () => handler.HandleAsync(...))
+              ├─ fresh ──► ACK
+              ├─ duplicate ──► ACK (business logic NOT re-executed)
+              └─ failure ──► classify (IIntegrationEventFailureClassifier)
+                                ├─ permanent (NonRetryableExceptionTypes) ──► enrich + publish DLX ──► ACK
+                                ├─ retryable, attempts < MaxAttempts ──► in-process backoff, retry
+                                └─ retryable, attempts exhausted ──► enrich + publish DLX ──► ACK
+                                      (if the enriched DLX publish is not confirmed ──► DEAD-LETTER ──► Nack(requeue:false) ──► broker DLQ verbatim)
+```
+
+Phase 7.6 retry/failure model. Retry is IN-PROCESS and bounded — it does not requeue to the broker, and
+it is deliberately separate from the Phase 6 outbox publication retry (`OutboxDispatchOptions`): the
+consumer retry handles processing a delivery; the outbox retry handles publishing an event. The policy
+lives in `RabbitMQConsumerOptions.Retry` (`ConsumerRetryOptions`): `MaxAttempts` total processing
+attempts (default 3; 1 disables retries), `BackoffType` (Fixed / Linear / Exponential),
+`InitialDelay` (default 1s), `DelayMultiplier` (default 2.0) and `MaxDelay` (default 30s) via the pure
+`ConsumerRetryPolicy` math. The attempt counter is seeded from the broker's `x-death` redelivery count —
+the MAXIMUM count across `x-death` entries (the message lives in exactly one queue at a time, so summing
+across hops for different dead-letter reasons/exchanges would over-count a single message) — so attempts
+stay bounded even across crashes/requeues/dead-letter hops. Every attempt runs in a FRESH DI scope — the
+scoped `InventoryDbContext`/`IIdempotentProcessor` is only safe to use once, because after a business
+failure rolls the transaction back EF Core considers the context poisoned. Failures are classified by
+the singleton `IIntegrationEventFailureClassifier`: an exception whose type (or any inner exception) is
+listed in `ConsumerRetryOptions.NonRetryableExceptionTypes` is permanent and dead-lettered immediately;
+everything else is retryable. A failed attempt never creates a `ProcessedMessage` (the transaction
+rolls back), and a message is only ACKed after the business operation AND the idempotency record have
+committed.
+
+Phase 7.7 terminal dead-lettering. Terminal failures are never dropped and never retried forever, and
+the dead-letter queue is a recoverable, diagnosable record. The main queue is declared with an
+`x-dead-letter-exchange` pointing at a dedicated dead-letter topology — a durable topic exchange
+(`{QueueName}.dlx` by default, configurable via `DeadLetterExchangeName`) bound with `#` to a durable
+dead-letter queue (`{QueueName}.dlq` by default, configurable via `DeadLetterQueueName`). Two distinct
+terminal paths keep the original delivery (body + headers) in the DLQ in every case:
+
+- **Reject (malformed/invalid deliveries)** is applied verbatim: Nack(requeue:false) and the broker
+  dead-letters the ORIGINAL message unchanged (only adding the standard `x-death`/`x-first-death-*`
+  headers). No metadata is injected — the poison message is preserved byte-for-byte for diagnosis.
+- **Permanent failure / exhausted retries** are ENRICHED: the processor publishes a copy of the
+  original body and headers plus failure metadata — `x-dead-letter-reason`
+  (`processing-failure-permanent` | `processing-failure-exhausted`), `x-dead-lettered-at`,
+  `x-consumer` (stable handler name), `x-attempt`, `x-error-type`, `x-error-message` — to the DLX via
+  the `IIntegrationEventDeadLetterer` (a singleton that mirrors the publisher: lazy confirm-enabled
+  channel, `ThrottlingRateLimiter(1)`, declares the durable topic DLX, returns success only on broker
+  confirm). When the enriched copy is confirmed the ORIGINAL is ACKed (exactly one DLQ record); when the
+  publish cannot be confirmed the processor returns DeadLetter and the host Nacks the original
+  (requeue:false) so the broker still dead-letters it verbatim. A terminal failure therefore always
+  ends in the DLQ exactly once, never silently, never back in the processing loop.
+
+`RabbitMQConsumerOptions.Validate()` runs on host startup and fails fast on misconfiguration: queue and
+exchange required, PrefetchCount/Concurrency ≥ 1, `ConsumerRetryOptions.Validate()` (MaxAttempts ≥ 1,
+defined BackoffType, InitialDelay ≥ 0, DelayMultiplier ≥ 1.0, MaxDelay ≥ 0 and ≥ InitialDelay,
+NonRetryableExceptionTypes non-null), and the resolved dead-letter topology must not alias the main
+topology (a DLX equal to the main exchange or a DLQ equal to the main queue would route terminal
+failures straight back into processing — an endless retry). Cancellation (shutdown) propagates through
+the retry loop and leaves the delivery unacknowledged so the broker redelivers it once the channel
+closes (at-least-once; the redelivery is then counted via `x-death`).
+
+Consumer scopes invoke handlers through the `IIdempotentProcessor` boundary (§14.1.2) — no second
+idempotency abstraction. Shutdown cancels in-flight processing (leaving uncommitted deliveries
+unacknowledged so the broker redelivers them, at-least-once), cancels the consumers, awaits in-flight
+work, and then disposes the channels.
+
+Wiring is explicit DI: `AddRabbitMQConsumer(exchangeName, queueName, configure)` registers the consumer
+host, the singleton `IIntegrationEventFailureClassifier`, the singleton `IIntegrationEventDeadLetterer`
+(factory reading `IOptions<RabbitMQConsumerOptions>` for the resolved DLX name), plus
+`RabbitMQConsumerOptions` (QueueName, ExchangeName, PrefetchCount, Concurrency, Durable, AutoDelete,
+Retry, DeadLetterExchangeName, DeadLetterQueueName — with `ResolvedDeadLetterExchangeName`/
+`ResolvedDeadLetterQueueName` deriving `{QueueName}.dlx`/`{QueueName}.dlq` when not configured), and
+`AddIntegrationEventConsumer<TEvent, THandler>()` registers each handler and its
+`IntegrationEventConsumerDescriptor` (EventType via the contract's stable `public const string
+EventType`, contract type, handler type). Note that `BasicDeliverEventArgs.CancellationToken` is never
+cancelled by RabbitMQ.Client 7.x, so the consumer drives cancellation from its own shutdown token only.
+
 ---
 
 # 15. Saga Architecture

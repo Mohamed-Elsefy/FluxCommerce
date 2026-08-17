@@ -4,15 +4,19 @@
     <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
+    <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Idempotency\FluxCommerce.BuildingBlocks.Idempotency.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+    <InternalsVisibleTo Include="FluxCommerce.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +26,7 @@
     <Folder Include="Services\" />
     <Folder Include="Caching\" />
     <Folder Include="Messaging\" />
+    <Folder Include="Consuming\" />
   </ItemGroup>
 
 </Project>
