@@ -184,27 +184,39 @@ public class OrdersArchitectureTests
     }
 
     [Fact]
-    public void Orders_ShouldNot_IntroduceSagaOrOrchestratorTypes()
+    public void Orders_ShouldNot_IntroduceOrchestratorTypes()
     {
+        // Phase 8.2 (F3): the Saga state model (OrderSaga) is approved by ADR-009 and hosted in
+        // Orders.Domain, so only orchestrator types remain forbidden in Orders.
         var failures = new List<string>();
 
         foreach (var assembly in OrdersAssemblies)
         {
             var result = Types.InAssembly(assembly)
                 .That()
-                .HaveNameEndingWith("Saga")
-                .Or()
                 .HaveNameEndingWith("Orchestrator")
                 .GetTypes()
                 .ToArray();
 
             if (result.Length > 0)
             {
-                failures.Add($"Orders introduced saga/orchestrator types: {assembly.GetName().Name} via: {string.Join(", ", result.Select(t => t.FullName))}");
+                failures.Add($"Orders introduced orchestrator types: {assembly.GetName().Name} via: {string.Join(", ", result.Select(t => t.FullName))}");
             }
         }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Orders_Should_HostTheSagaStateModelInDomain()
+    {
+        var sagaTypes = Types.InAssembly(OrdersDomain)
+            .That()
+            .ResideInNamespace("FluxCommerce.Modules.Orders.Domain.Sagas")
+            .GetTypes()
+            .ToArray();
+
+        Assert.Contains(sagaTypes, type => type.Name == "OrderSaga");
     }
 
     // ---- Domain layer rules ----

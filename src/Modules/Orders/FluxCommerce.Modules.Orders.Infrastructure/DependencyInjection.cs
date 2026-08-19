@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
         services.AddScoped<ICheckoutStore, CheckoutStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOrderSagaStore, OrderSagaStore>();
         services.AddScoped<IOrderSummaryProjectionStore, OrderSummaryProjectionStore>();
         services.AddScoped<IOrderSummaryProjectionService, OrderSummaryProjectionService>();
 
