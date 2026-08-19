@@ -195,6 +195,84 @@ public class InventoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task TryReserveAsync_InsideAmbientTransaction_ParticipatesInIt_WithoutNestedTransaction()
+    {
+        await using (var seedContext = CreateContext())
+        {
+            var seedStore = new InventoryStore(seedContext);
+            await seedStore.AddItemAsync(InventoryItem.Create(new InventorySku("SKU-AMBIENT"), 10, UtcNow), CancellationToken.None);
+            await seedStore.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var context = CreateContext();
+        var store = new InventoryStore(context);
+
+        // The consumer idempotency boundary owns the transaction; the reservation must join it
+        // instead of opening a nested one (which EF Core/SQL Server rejects).
+        await using var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None);
+
+        var reservation = await store.TryReserveAsync(
+            new InventorySku("SKU-AMBIENT"),
+            InventoryReservationId.Create(),
+            OrderId.Create(),
+            3,
+            ExpiresAt,
+            UtcNow,
+            CancellationToken.None);
+
+        Assert.NotNull(reservation);
+
+        await transaction.CommitAsync(CancellationToken.None);
+
+        await using var reloadContext = CreateContext();
+        var reloadStore = new InventoryStore(reloadContext);
+        var item = await reloadStore.GetItemBySkuAsync(new InventorySku("SKU-AMBIENT"), CancellationToken.None);
+        Assert.Equal(3, item!.ReservedQuantity);
+        Assert.Equal(7, item.AvailableQuantity);
+
+        var persisted = await reloadStore.GetReservationByIdAsync(reservation!.Id, CancellationToken.None);
+        Assert.NotNull(persisted);
+        Assert.Equal(3, persisted!.Quantity);
+    }
+
+    [Fact]
+    public async Task TryReserveAsync_InsideAmbientTransaction_ThatRollsBack_LeavesNoReservation()
+    {
+        await using (var seedContext = CreateContext())
+        {
+            var seedStore = new InventoryStore(seedContext);
+            await seedStore.AddItemAsync(InventoryItem.Create(new InventorySku("SKU-AMBIENT-RB"), 10, UtcNow), CancellationToken.None);
+            await seedStore.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var context = CreateContext();
+        var store = new InventoryStore(context);
+
+        await using var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None);
+
+        var reservation = await store.TryReserveAsync(
+            new InventorySku("SKU-AMBIENT-RB"),
+            InventoryReservationId.Create(),
+            OrderId.Create(),
+            3,
+            ExpiresAt,
+            UtcNow,
+            CancellationToken.None);
+
+        Assert.NotNull(reservation);
+
+        await transaction.RollbackAsync(CancellationToken.None);
+
+        await using var reloadContext = CreateContext();
+        var reloadStore = new InventoryStore(reloadContext);
+        var item = await reloadStore.GetItemBySkuAsync(new InventorySku("SKU-AMBIENT-RB"), CancellationToken.None);
+        Assert.Equal(0, item!.ReservedQuantity);
+        Assert.Equal(10, item.AvailableQuantity);
+        Assert.Equal(InventoryItem.InitialVersion, item.Version);
+        Assert.Equal(0, reloadContext.InventoryReservations.Count());
+    }
+
+    [Fact]
     public async Task ExistsAsync_ReturnsTrueForExistingSku_AndFalseForUnknownSku()
     {
         await using (var seedContext = CreateContext())

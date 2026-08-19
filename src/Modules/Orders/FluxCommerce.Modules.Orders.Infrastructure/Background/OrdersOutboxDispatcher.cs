@@ -5,6 +5,7 @@ using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Dispatch;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
+using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using Microsoft.Extensions.DependencyInjection;
@@ -261,6 +262,8 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
                 JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(message.Payload),
             OrderCancelledIntegrationEvent.EventType =>
                 JsonSerializer.Deserialize<OrderCancelledIntegrationEvent>(message.Payload),
+            InventoryReservationRequestedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<InventoryReservationRequestedIntegrationEvent>(message.Payload),
             _ => null
         };
 }

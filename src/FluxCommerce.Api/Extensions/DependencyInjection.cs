@@ -13,8 +13,11 @@ using FluxCommerce.BuildingBlocks.Web.Middleware;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;
+using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Inventory.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure.Background;
+using FluxCommerce.Modules.Inventory.Infrastructure.Consuming;
+using FluxCommerce.Modules.Inventory.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
@@ -111,6 +114,14 @@ public static class DependencyInjection
         // Inventory (registered last) also registers.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.summary");
         services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 8.4: the Inventory reservation-request consumer. The Orders saga (8.3) stages one
+        // inventory.reservation_requested per order line item through the Orders outbox; the Inventory
+        // consumer executes the reservation through the Inventory idempotent-processing boundary
+        // (Business State + ProcessedMessage commit atomically), declared on the descriptor exactly
+        // like the summary consumer on the Orders side.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.inventory.reservation");
+        services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
