@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
 using FluxCommerce.BuildingBlocks.Messaging.Versioning;
+using FluxCommerce.Modules.Inventory.Contracts.Enums;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using Xunit;
@@ -80,6 +81,8 @@ public class IntegrationEventContractTests
     [InlineData(typeof(OrderCreatedIntegrationEvent), "orders.order_created")]
     [InlineData(typeof(OrderCancelledIntegrationEvent), "orders.order_cancelled")]
     [InlineData(typeof(InventoryReservationExpiredIntegrationEvent), "inventory.reservation_expired")]
+    [InlineData(typeof(InventoryReservedIntegrationEvent), "inventory.reserved")]
+    [InlineData(typeof(InventoryReservationFailedIntegrationEvent), "inventory.reservation_failed")]
     public void EventType_IsStableIdentifier(Type eventType, string expected)
     {
         var actual = eventType.GetField("EventType")!.GetRawConstantValue();
@@ -125,6 +128,30 @@ public class IntegrationEventContractTests
         Assert.Equal(original, roundTripped);
     }
 
+    [Fact]
+    public void InventoryReserved_RoundTrips_WithMetadataAndPayload()
+    {
+        var original = CreateInventoryReserved();
+
+        var roundTripped = JsonSerializer.Deserialize<InventoryReservedIntegrationEvent>(
+            JsonSerializer.Serialize(original));
+
+        Assert.NotNull(roundTripped);
+        Assert.Equal(original, roundTripped);
+    }
+
+    [Fact]
+    public void InventoryReservationFailed_RoundTrips_WithMetadataAndPayload()
+    {
+        var original = CreateInventoryReservationFailed();
+
+        var roundTripped = JsonSerializer.Deserialize<InventoryReservationFailedIntegrationEvent>(
+            JsonSerializer.Serialize(original));
+
+        Assert.NotNull(roundTripped);
+        Assert.Equal(original, roundTripped);
+    }
+
     // ---- Payload boundaries: flat primitives only, no internal types ----
 
     [Fact]
@@ -158,6 +185,28 @@ public class IntegrationEventContractTests
             json,
             "InventoryReservationExpiredIntegrationEvent",
             ["EventId", "CorrelationId", "CausationId", "Version", "OccurredAtUtc", "ReservationId", "OrderId", "Sku", "Quantity", "OccurredAt"]);
+    }
+
+    [Fact]
+    public void InventoryReserved_Payload_IsFlatPrimitives_NoInternalTypes()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(CreateInventoryReserved()))!.AsObject();
+
+        AssertFlatPrimitivePayload(
+            json,
+            "InventoryReservedIntegrationEvent",
+            ["EventId", "CorrelationId", "CausationId", "Version", "OccurredAtUtc", "ReservationId", "OrderId", "Sku", "Quantity", "ExpiresAt", "Status", "CreatedAtUtc", "UpdatedAtUtc", "ReservationVersion"]);
+    }
+
+    [Fact]
+    public void InventoryReservationFailed_Payload_IsFlatPrimitives_NoInternalTypes()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(CreateInventoryReservationFailed()))!.AsObject();
+
+        AssertFlatPrimitivePayload(
+            json,
+            "InventoryReservationFailedIntegrationEvent",
+            ["EventId", "CorrelationId", "CausationId", "Version", "OccurredAtUtc", "OrderId", "Sku", "Quantity", "Reason"]);
     }
 
     private static void AssertFlatPrimitivePayload(JsonObject json, string contract, string[] expectedProperties)
@@ -203,6 +252,27 @@ public class IntegrationEventContractTests
             "SKU-1",
             3,
             new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero))
+        {
+            CorrelationId = CorrelationId
+        };
+
+    private static InventoryReservedIntegrationEvent CreateInventoryReserved() =>
+        new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "SKU-1",
+            3,
+            new DateTimeOffset(2026, 8, 14, 12, 30, 0, TimeSpan.Zero),
+            InventoryReservationStatus.Pending,
+            new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero),
+            1)
+        {
+            CorrelationId = CorrelationId
+        };
+
+    private static InventoryReservationFailedIntegrationEvent CreateInventoryReservationFailed() =>
+        new(Guid.NewGuid(), "SKU-1", 3, "Inventory.InsufficientStock")
         {
             CorrelationId = CorrelationId
         };

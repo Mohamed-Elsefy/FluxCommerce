@@ -123,6 +123,15 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.inventory.reservation");
         services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
 
+        // Phase 8.5: the Orders consumers for the Inventory result events. Inventory publishes exactly
+        // one inventory.reserved / inventory.reservation_failed per reservation request; the Orders side
+        // receives the outcome through the dedicated result queue, inside the Orders idempotent-processing
+        // boundary (Business State + ProcessedMessage commit atomically). The saga/Order lifecycle
+        // transitions that consume these results are Phase 8.6.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.saga.results");
+        services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
+
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])

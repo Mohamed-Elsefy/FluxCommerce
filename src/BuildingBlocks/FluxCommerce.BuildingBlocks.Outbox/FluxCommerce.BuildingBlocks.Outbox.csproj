@@ -1,6 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- Phase 8.5: the shared IntegrationEventOutboxMessageFactory snapshots a fully-formed integration
+         event into an OutboxMessage, so BuildingBlocks.Outbox depends on the contract-only Messaging
+         metadata base (the reverse direction — Messaging -> Outbox — stays forbidden by architecture
+         tests). OutboxMessage itself remains a plain POCO; only the mapping factory consumes Messaging. -->
+    <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Messages\" />
     <Folder Include="Stores\" />
     <Folder Include="Dispatch\" />

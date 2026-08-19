@@ -15,7 +15,9 @@ using FluxCommerce.Modules.Orders.Domain.Entities;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure;
+using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,8 +86,11 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
     /// Builds the production-like provider for the command-flow chain: Orders infrastructure (DbContext,
     /// saga orchestrator, outbox dispatcher) + Inventory infrastructure (DbContext, reservation handler,
     /// idempotency) + RabbitMQ publishing and consuming, with the real Inventory reservation-request
-    /// consumer. The hosted <c>RabbitMQConsumerBackgroundService</c> is started per test so the outbox
-    /// hosted services never run (the dispatcher is driven directly).
+    /// consumer and the real Orders result consumers (<c>InventoryReservedConsumer</c>,
+    /// <c>InventoryReservationFailedConsumer</c>) sharing the queue — so the full
+    /// <c>Saga → Outbox → RabbitMQ → Inventory → Result Event → Orders</c> loop can be exercised end to
+    /// end. The hosted <c>RabbitMQConsumerBackgroundService</c> is started per test so the outbox hosted
+    /// services never run (the dispatchers are driven directly).
     /// </summary>
     public ServiceProvider BuildProvider(string queueName)
     {
@@ -100,6 +105,8 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
         services.AddRabbitMQPublisher(TestExchangeName);
         services.AddRabbitMQConsumer(TestExchangeName, queueName);
         services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
         return services.BuildServiceProvider();
     }
 

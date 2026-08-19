@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Inventory.Application.Commands.AdjustStock;
 using FluxCommerce.Modules.Inventory.Application.Commands.CommitReservation;
 using FluxCommerce.Modules.Inventory.Application.Commands.CreateInventoryItem;
@@ -218,6 +219,19 @@ public class InventoryInfrastructureRegistrationTests
             services,
             descriptor => descriptor.ServiceType == typeof(IHostedService)
                 && descriptor.ImplementationType == typeof(InventoryOutboxDispatcher));
+    }
+
+    [Fact]
+    public void AddInventoryInfrastructure_RegistersIntegrationEventOutboxMessageFactory_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddInventoryInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IntegrationEventOutboxMessageFactory)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
     }
 
     [Fact]

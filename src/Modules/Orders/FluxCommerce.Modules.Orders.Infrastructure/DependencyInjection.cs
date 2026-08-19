@@ -5,6 +5,7 @@ using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Orders.Application.Commands.CancelOrder;
 using FluxCommerce.Modules.Orders.Application.Commands.Checkout;
@@ -64,6 +65,7 @@ public static class DependencyInjection
         // of work; options follow the defaults-only registration pattern of OutboxDispatchOptions.
         services.AddOptions<ReservationRequestOptions>();
         services.AddSingleton<SagaOutboxMessageFactory>();
+        services.AddSingleton<IntegrationEventOutboxMessageFactory>();
         services.AddScoped<OrderSagaOrchestrator>();
 
         // Idempotency: the concrete, module-owned implementations are registered (so the consumer

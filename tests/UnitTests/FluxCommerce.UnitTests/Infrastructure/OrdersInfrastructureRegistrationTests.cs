@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
@@ -128,6 +129,19 @@ public class OrdersInfrastructureRegistrationTests
         Assert.Contains(
             services,
             descriptor => descriptor.ServiceType == typeof(SagaOutboxMessageFactory)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersIntegrationEventOutboxMessageFactory_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IntegrationEventOutboxMessageFactory)
                 && descriptor.Lifetime == ServiceLifetime.Singleton);
     }
 

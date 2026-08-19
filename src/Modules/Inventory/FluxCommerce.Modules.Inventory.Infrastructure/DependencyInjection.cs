@@ -5,6 +5,7 @@ using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Inventory.Application.Commands.AdjustStock;
 using FluxCommerce.Modules.Inventory.Application.Commands.CommitReservation;
@@ -43,6 +44,7 @@ public static class DependencyInjection
 
         services.AddSingleton<InventoryOutboxMessageFactory>();
         services.AddSingleton<InventoryOutboxSaveChangesInterceptor>();
+        services.AddSingleton<IntegrationEventOutboxMessageFactory>();
         services.AddScoped<InventoryOutboxStore>();
         services.AddScoped<IOutboxStore, InventoryOutboxStore>();
 

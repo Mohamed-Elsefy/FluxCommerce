@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
+using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Inventory.Domain.Aggregates;
 using FluxCommerce.Modules.Inventory.Domain.Enums;
@@ -79,7 +80,7 @@ public class InventoryReservationRequestedConsumerIntegrationTests
         }
         finally
         {
-            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku]);
+            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku], [@event.CorrelationId]);
         }
     }
 
@@ -115,65 +116,152 @@ public class InventoryReservationRequestedConsumerIntegrationTests
         }
         finally
         {
-            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku]);
+            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku], [@event.CorrelationId]);
         }
     }
 
     [Fact]
-    public async Task Consumer_InsufficientStock_RetriesThenDeadLetters_WithoutBusinessEffect()
+    public async Task Consumer_InsufficientStock_PublishesReservationFailed_AndAcknowledges()
     {
         var queueName = UniqueQueueName();
         var orderId = Guid.NewGuid();
-        var sku = UniqueSku("8.4-NOSTOCK").ToUpperInvariant();
+        var sku = UniqueSku("8.5-NOSTOCK").ToUpperInvariant();
         await _fixture.SeedItemAsync(sku, 1);
         var @event = CreateReservationRequested(orderId, sku, 2, DateTimeOffset.UtcNow.AddMinutes(30));
-        await using var provider = _fixture.BuildConsumerProvider(
-            queueName,
-            options =>
-            {
-                options.Retry.MaxAttempts = 2;
-                options.Retry.BackoffType = ConsumerBackoffType.Fixed;
-                options.Retry.InitialDelay = TimeSpan.FromMilliseconds(100);
-            });
+        await using var provider = _fixture.BuildConsumerProvider(queueName);
 
         try
         {
             var consumer = await StartConsumerAsync(provider);
             await WaitForConsumerAsync(provider, queueName);
 
-            // The reservation cannot be created (stock 1, requested 2): every attempt fails with a
-            // retryable business failure, then the policy is exhausted and the delivery dead-letters —
-            // with no reservation and no ProcessedMessage record left behind (never a silent ACK).
+            // The reservation cannot be created (stock 1, requested 2): the business failure is a valid
+            // outcome — the consumer stages inventory.reservation_failed (atomic with the ProcessedMessage
+            // record) and ACKs. No reservation, no retry, no dead-letter.
             await PublishAsync(provider, @event);
 
-            await WaitForMessageCountAsync(provider, DeadLetterQueueName(queueName), 1);
+            await WaitForProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName);
+            await WaitForQueueEmptyAsync(provider, queueName);
             await consumer.StopAsync(CancellationToken.None);
 
             Assert.Equal(0, await CountReservationsAsync(orderId));
-            Assert.Equal(0, await CountProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName));
+            Assert.Equal(1, await CountProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName));
+            Assert.Equal(0u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
 
             var item = await GetItemAsync(sku);
             Assert.NotNull(item);
             Assert.Equal(0, item.ReservedQuantity);
             Assert.Equal(1, item.AvailableQuantity);
 
-            var deadLettered = await GetSingleDeadLetteredMessageAsync(provider, queueName);
-            Assert.Equal(
-                IntegrationEventMessageProcessor.ExhaustedReason,
-                HeaderString(deadLettered.Headers[IntegrationEventMessageProcessor.DeadLetterReasonHeader]));
-            Assert.Equal(
-                2,
-                Convert.ToInt32(deadLettered.Headers[IntegrationEventMessageProcessor.DeadLetterAttemptHeader]));
-            Assert.Equal(
-                InventoryReservationRequestedConsumer.StableHandlerName,
-                HeaderString(deadLettered.Headers[IntegrationEventMessageProcessor.DeadLetterConsumerHeader]));
-            Assert.Equal(
-                nameof(InvalidOperationException),
-                HeaderString(deadLettered.Headers[IntegrationEventMessageProcessor.DeadLetterErrorTypeHeader]));
+            var outbox = Assert.Single(await GetOutboxByCorrelationAsync(@event.CorrelationId));
+            Assert.Equal(InventoryReservationFailedIntegrationEvent.EventType, outbox.Type);
+            Assert.Equal(@event.CorrelationId, outbox.CorrelationId);
+            Assert.Equal(@event.EventId, outbox.CausationId);
+
+            var payload = System.Text.Json.JsonSerializer.Deserialize<InventoryReservationFailedIntegrationEvent>(outbox.Payload);
+            Assert.NotNull(payload);
+            Assert.Equal(orderId, payload!.OrderId);
+            Assert.Equal(sku, payload.Sku);
+            Assert.Equal(2, payload.Quantity);
+            Assert.Equal("Inventory.InsufficientStock", payload.Reason);
+            Assert.Equal(@event.CorrelationId, payload.CorrelationId);
+            Assert.Equal(@event.EventId, payload.CausationId);
         }
         finally
         {
-            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku]);
+            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku], [@event.CorrelationId]);
+        }
+    }
+
+    [Fact]
+    public async Task Consumer_ReservesInventory_StagesReservedOutboxRecord_WithCorrelation()
+    {
+        var queueName = UniqueQueueName();
+        var orderId = Guid.NewGuid();
+        var sku = UniqueSku("8.5-RESERVE").ToUpperInvariant();
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(30);
+        await _fixture.SeedItemAsync(sku, 10);
+        var @event = CreateReservationRequested(orderId, sku, 3, expiresAt);
+        await using var provider = _fixture.BuildConsumerProvider(queueName);
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+
+            await PublishAsync(provider, @event);
+
+            await WaitForReservationAsync(orderId);
+            await WaitForProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName);
+            await WaitForQueueEmptyAsync(provider, queueName);
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal(1, await CountProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName));
+            Assert.Equal(0u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
+
+            var reservation = await GetReservationAsync(orderId);
+            Assert.NotNull(reservation);
+
+            var outbox = Assert.Single(await GetOutboxByCorrelationAsync(@event.CorrelationId));
+            Assert.Equal(InventoryReservedIntegrationEvent.EventType, outbox.Type);
+            Assert.Equal(@event.CorrelationId, outbox.CorrelationId);
+            Assert.Equal(@event.EventId, outbox.CausationId);
+
+            var payload = System.Text.Json.JsonSerializer.Deserialize<InventoryReservedIntegrationEvent>(outbox.Payload);
+            Assert.NotNull(payload);
+            Assert.Equal(reservation!.Id.Value, payload.ReservationId);
+            Assert.Equal(orderId, payload.OrderId);
+            Assert.Equal(sku, payload.Sku);
+            Assert.Equal(3, payload.Quantity);
+            Assert.Equal(expiresAt, payload.ExpiresAt);
+            Assert.Equal(FluxCommerce.Modules.Inventory.Contracts.Enums.InventoryReservationStatus.Pending, payload.Status);
+            Assert.Equal(reservation.CreatedAtUtc, payload.CreatedAtUtc);
+            Assert.Equal(reservation.UpdatedAtUtc, payload.UpdatedAtUtc);
+            Assert.Equal(reservation.Version, payload.ReservationVersion);
+            Assert.Equal(@event.CorrelationId, payload.CorrelationId);
+            Assert.Equal(@event.EventId, payload.CausationId);
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku], [@event.CorrelationId]);
+        }
+    }
+
+    [Fact]
+    public async Task Consumer_DuplicateReservationRequest_StagesExactlyOneReservedOutboxRecord()
+    {
+        var queueName = UniqueQueueName();
+        var orderId = Guid.NewGuid();
+        var sku = UniqueSku("8.5-DUP").ToUpperInvariant();
+        await _fixture.SeedItemAsync(sku, 10);
+        var @event = CreateReservationRequested(orderId, sku, 2, DateTimeOffset.UtcNow.AddMinutes(30));
+        await using var provider = _fixture.BuildConsumerProvider(queueName);
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+
+            await PublishAsync(provider, @event);
+            await PublishAsync(provider, @event);
+
+            await WaitForReservationAsync(orderId);
+            await WaitForProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName);
+            await WaitForQueueEmptyAsync(provider, queueName);
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal(1, await CountReservationsAsync(orderId));
+            Assert.Equal(1, await CountProcessedAsync(@event.EventId, InventoryReservationRequestedConsumer.StableHandlerName));
+
+            var reserved = await GetOutboxByCorrelationAsync(@event.CorrelationId);
+            Assert.Single(reserved);
+            Assert.Equal(InventoryReservedIntegrationEvent.EventType, reserved[0].Type);
+            Assert.Equal(@event.CorrelationId, reserved[0].CorrelationId);
+            Assert.Equal(@event.EventId, reserved[0].CausationId);
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, [orderId], [@event.EventId], [sku], [@event.CorrelationId]);
         }
     }
 
@@ -387,11 +475,13 @@ public class InventoryReservationRequestedConsumerIntegrationTests
         string queueName,
         IEnumerable<Guid> orderIds,
         IEnumerable<Guid> eventIds,
-        IEnumerable<string> skus)
+        IEnumerable<string> skus,
+        IEnumerable<Guid>? correlations = null)
     {
         var orderIdList = orderIds.Select(id => new OrderId(id)).ToList();
         var keyList = eventIds.Select(id => id.ToString()).ToList();
         var itemSkus = skus.Select(sku => new InventorySku(sku)).ToList();
+        var correlationList = (correlations ?? []).ToList();
 
         using (var scope = _fixture.Services.CreateScope())
         {
@@ -404,6 +494,10 @@ public class InventoryReservationRequestedConsumerIntegrationTests
                 await context.ProcessedMessages
                     .Where(message => keyList.Contains(message.Key))
                     .ExecuteDeleteAsync();
+            if (correlationList.Count > 0)
+                await context.OutboxMessages
+                    .Where(message => correlationList.Contains(message.CorrelationId))
+                    .ExecuteDeleteAsync();
             if (itemSkus.Count > 0)
                 await context.InventoryItems
                     .Where(item => itemSkus.Contains(item.Id))
@@ -411,6 +505,16 @@ public class InventoryReservationRequestedConsumerIntegrationTests
         }
 
         await DeleteQueueAsync(provider, queueName);
+    }
+
+    private async Task<IReadOnlyList<OutboxMessage>> GetOutboxByCorrelationAsync(Guid correlationId)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        return await context.OutboxMessages
+            .AsNoTracking()
+            .Where(message => message.CorrelationId == correlationId)
+            .ToListAsync();
     }
 
     private static string UniqueQueueName() => $"it.inventory.q.{Guid.NewGuid():N}";

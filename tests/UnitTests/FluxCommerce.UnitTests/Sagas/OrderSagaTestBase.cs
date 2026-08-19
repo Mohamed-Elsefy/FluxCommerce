@@ -1,4 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
+using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Entities;
@@ -10,7 +12,6 @@ using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -48,7 +49,7 @@ public abstract class OrderSagaTestBase : IDisposable
             options,
             new FakeDateTimeProvider(),
             new FakeCurrentUser(),
-            new FakeSaveChangesInterceptor());
+            new DomainEventInterceptor());
 
         context.Database.EnsureCreated();
 
@@ -65,7 +66,7 @@ public abstract class OrderSagaTestBase : IDisposable
             new OrderSagaStore(context),
             new OrderStore(context),
             context,
-            new SagaOutboxMessageFactory(),
+            new SagaOutboxMessageFactory(new IntegrationEventOutboxMessageFactory()),
             dateTimeProvider ?? new FakeDateTimeProvider(),
             Options.Create(options ?? new ReservationRequestOptions()),
             logger ?? new CapturingLogger<OrderSagaOrchestrator>());
@@ -116,9 +117,5 @@ public abstract class OrderSagaTestBase : IDisposable
         public FixedCorrelationIdProvider(Guid value) => _value = value;
 
         public Guid GetCorrelationId() => _value;
-    }
-
-    private sealed class FakeSaveChangesInterceptor : SaveChangesInterceptor
-    {
     }
 }
