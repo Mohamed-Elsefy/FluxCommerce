@@ -13,6 +13,15 @@ namespace FluxCommerce.Modules.Orders.Domain.Sagas;
 /// Duplicate requests/results on the target state are idempotent no-ops (safe under at-least-once
 /// delivery); any other transition is rejected. The <see cref="Version"/> is an optimistic concurrency
 /// token, so conflicting concurrent results cannot be applied twice at the database.
+///
+/// <para>
+/// Phase 8.7 adds <see cref="ReservationIds"/> — the identifiers of the reservations the Inventory
+/// module created for this order, recorded when <c>inventory.reserved</c> is applied. They drive the
+/// compensation release: when the order is cancelled the orchestrator issues one
+/// <c>inventory.release_requested</c> command per recorded reservation (ADR-009). The identifiers are
+/// stored as a JSON primitive collection; they are an append-only history, never a workflow state, so
+/// recording them does not advance the saga state machine or bump the concurrency version.
+/// </para>
 /// </summary>
 public sealed class OrderSaga
 {
@@ -31,6 +40,14 @@ public sealed class OrderSaga
     public DateTimeOffset UpdatedAtUtc => _updatedAtUtc;
 
     public long Version => _version;
+
+    /// <summary>
+    /// Phase 8.7 the reservations the Inventory module created for this order, in arrival order. The
+    /// collection is append-only: recording is idempotent and never advances the saga state machine.
+    /// </summary>
+    public IReadOnlyCollection<Guid> ReservationIds => _reservationIds;
+
+    private List<Guid> _reservationIds = [];
 
     private long _version;
 
@@ -125,6 +142,26 @@ public sealed class OrderSaga
             OrderSagaState.Failed => DomainResult.Success(),
             _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
         };
+    }
+
+    /// <summary>
+    /// Phase 8.7 records a reservation the Inventory module created for this order. A reservation id
+    /// already recorded is an idempotent no-op (the same <c>inventory.reserved</c> result can be
+    /// delivered more than once, and a multi-line order can report its line reservations in any order).
+    /// Recording never advances the saga state machine or bumps the concurrency version — the recorded
+    /// identifiers are an append-only history that drives the compensation release issued when the
+    /// order is cancelled. Returns <c>true</c> when the identifier was newly recorded.
+    /// </summary>
+    public bool RecordReservation(Guid reservationId)
+    {
+        if (reservationId == Guid.Empty)
+            throw new ArgumentException("A reservation id must not be an empty GUID.", nameof(reservationId));
+
+        if (_reservationIds.Contains(reservationId))
+            return false;
+
+        _reservationIds.Add(reservationId);
+        return true;
     }
 
     public static OrderSaga Hydrate(

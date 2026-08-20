@@ -39,6 +39,15 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 /// so the module idempotent-processing boundary persists them atomically with the processed-message
 /// record.
 /// </remarks>
+/// <remarks>
+/// Phase 8.7 adds the compensation leg (plan §12): when an order is cancelled after its reservations
+/// were applied, <see cref="RequestReleaseAsync"/> issues one <c>inventory.release_requested</c> command
+/// per reservation recorded on the saga (see <see cref="OrderSaga.RecordReservation"/>), so Inventory
+/// returns the reserved quantity. Release is fire-and-forget and never touches the saga — no state
+/// transition, no version bump. Known limitation (deferred to Phase 8.8 hardening): a very late
+/// <c>inventory.reserved</c> result racing the cancellation could record a reservation AFTER the release
+/// was requested, leaving that reservation unreleased until Inventory expiry (Phase 11).
+/// </remarks>
 public sealed class OrderSagaOrchestrator
 {
     private readonly IOrderSagaStore _sagaStore;
@@ -162,20 +171,35 @@ public sealed class OrderSagaOrchestrator
     /// saga is a conflicting rejection; a result for a non-terminal saga is an acknowledged anomaly. A
     /// result for an order with no saga throws (anomaly → retry/dead-letter). The transition is staged
     /// for the caller's unit of work.
+    ///
+    /// <para>
+    /// Phase 8.7: the reservation identifier is recorded on the saga whenever the result is applied
+    /// (whether the transition <see cref="OrderSagaTransitionOutcome.Applied"/> or a duplicate delivery
+    /// <see cref="OrderSagaTransitionOutcome.Duplicate"/> on an already-completed saga — a multi-line
+    /// order reports its line reservations one result at a time, so later results arrive on the
+    /// completed saga). The recorded identifiers drive the compensation release issued when the order is
+    /// cancelled. A conflicting (<see cref="OrderSagaTransitionOutcome.Conflicting"/>) result is never
+    /// recorded: a reservation created after the saga failed is not the saga's to release.
+    /// </para>
     /// </summary>
     /// <param name="orderId">The order whose reservation succeeded.</param>
+    /// <param name="reservationId">The identifier of the reservation that was created.</param>
     /// <param name="correlationId">The correlation id carried by the consumed result message.</param>
     /// <param name="causationId">The consumed result message's event id.</param>
     /// <param name="occurredAtUtc">The moment the reservation succeeded (from the consumed message).</param>
     /// <param name="cancellationToken">A token that can cancel the orchestration.</param>
     public async Task<OrderSagaTransitionResult> ApplyReservationSuccessAsync(
         OrderId orderId,
+        Guid reservationId,
         Guid correlationId,
         Guid? causationId,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderId);
+
+        if (reservationId == Guid.Empty)
+            throw new ArgumentException("A reservation id must not be an empty GUID.", nameof(reservationId));
 
         if (occurredAtUtc == default)
             throw new ArgumentException("A valid timestamp is required.", nameof(occurredAtUtc));
@@ -202,10 +226,13 @@ public sealed class OrderSagaOrchestrator
                         $"Saga for order '{orderId.Value}' could not complete: {transition.Error.Code}.");
                 }
 
+                saga.RecordReservation(reservationId);
+
                 _logger.LogInformation(
-                    "Applied inventory.reserved to saga {SagaId} for order {OrderId} (correlation {CorrelationId}, causation {CausationId}): now {SagaState}.",
+                    "Applied inventory.reserved to saga {SagaId} for order {OrderId} (reservation {ReservationId}, correlation {CorrelationId}, causation {CausationId}): now {SagaState}.",
                     saga.Id,
                     orderId.Value,
+                    reservationId,
                     correlationId,
                     causationId,
                     saga.State);
@@ -217,6 +244,10 @@ public sealed class OrderSagaOrchestrator
                     "Saga {SagaId} for order {OrderId} is already completed; duplicate inventory.reserved acknowledged.",
                     saga.Id,
                     orderId.Value);
+
+                // Phase 8.7: a later line-item reservation arrives on the completed saga; record it so the
+                // compensation release covers every reservation the Inventory module actually created.
+                saga.RecordReservation(reservationId);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id);
             case OrderSagaState.Failed:
@@ -346,5 +377,85 @@ public sealed class OrderSagaOrchestrator
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Invalid, saga.Id);
         }
+    }
+
+    /// <summary>
+    /// Phase 8.7 issues the compensation release when an order is cancelled after its reservations were
+    /// applied (ADR-009): for every reservation recorded on the saga it stages an
+    /// <see cref="InventoryReleaseRequestedIntegrationEvent"/>, so Inventory returns the reserved
+    /// quantity to available stock. Inventory owns the release — the saga only requests it through the
+    /// explicit contract and never touches reservation state. The commands are staged for the caller's
+    /// unit of work, so they commit atomically with the processed-message record; under at-least-once
+    /// delivery a redelivered cancellation is skipped by the idempotent-processing boundary and the
+    /// Inventory release consumer is itself idempotent (a repeated release of a terminal reservation is
+    /// a benign no-op). The saga is never touched: no state transition, no version bump — release is a
+    /// fire-and-forget command. A missing saga is a benign no-op (the workflow never reserved inventory
+    /// for this order, e.g. the 8.6 failure path already cancelled it); a saga with no recorded
+    /// reservations is also a no-op. Only an order with no saga AND no recorded reservations is
+    /// indistinguishable from the no-reservations case, so no throw is needed here.
+    /// </summary>
+    /// <param name="orderId">The cancelled order whose reservations must be released.</param>
+    /// <param name="correlationId">The correlation id carried by the consumed <c>orders.order_cancelled</c> message.</param>
+    /// <param name="causationId">The consumed message's event id, becoming the commands' causation id.</param>
+    /// <param name="cancellationToken">A token that can cancel the orchestration.</param>
+    public async Task<OrderSagaReleaseResult> RequestReleaseAsync(
+        OrderId orderId,
+        Guid correlationId,
+        Guid? causationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderId);
+
+        var saga = await _sagaStore
+            .GetByOrderIdAsync(orderId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (saga is null)
+        {
+            _logger.LogInformation(
+                "No saga exists for cancelled order {OrderId}; no inventory release requested (correlation {CorrelationId}).",
+                orderId.Value,
+                correlationId);
+
+            return new OrderSagaReleaseResult(SagaFound: false, ReleaseIssued: false, SagaId: null, Commands: []);
+        }
+
+        var reservationIds = saga.ReservationIds.ToList();
+
+        if (reservationIds.Count == 0)
+        {
+            _logger.LogInformation(
+                "Saga {SagaId} for cancelled order {OrderId} has no recorded reservations; no inventory release requested (correlation {CorrelationId}).",
+                saga.Id,
+                orderId.Value,
+                correlationId);
+
+            return new OrderSagaReleaseResult(SagaFound: true, ReleaseIssued: false, saga.Id, []);
+        }
+
+        var producedAtUtc = _dateTimeProvider.UtcNow;
+
+        var commands = reservationIds
+            .Select(id => new InventoryReleaseRequestedIntegrationEvent(id)
+            {
+                EventId = Guid.NewGuid(),
+                CorrelationId = correlationId,
+                CausationId = causationId,
+                OccurredAtUtc = producedAtUtc
+            })
+            .ToList();
+
+        foreach (var command in commands)
+            _context.OutboxMessages.Add(_outboxMessageFactory.Create(command));
+
+        _logger.LogInformation(
+            "Requested release of {ReservationCount} reservation(s) for cancelled order {OrderId} (saga {SagaId}, correlation {CorrelationId}, causation {CausationId}).",
+            commands.Count,
+            orderId.Value,
+            saga.Id,
+            correlationId,
+            causationId);
+
+        return new OrderSagaReleaseResult(SagaFound: true, ReleaseIssued: true, saga.Id, commands);
     }
 }

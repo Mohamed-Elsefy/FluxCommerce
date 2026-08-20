@@ -264,6 +264,8 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
                 JsonSerializer.Deserialize<OrderCancelledIntegrationEvent>(message.Payload),
             InventoryReservationRequestedIntegrationEvent.EventType =>
                 JsonSerializer.Deserialize<InventoryReservationRequestedIntegrationEvent>(message.Payload),
+            InventoryReleaseRequestedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<InventoryReleaseRequestedIntegrationEvent>(message.Payload),
             _ => null
         };
 }

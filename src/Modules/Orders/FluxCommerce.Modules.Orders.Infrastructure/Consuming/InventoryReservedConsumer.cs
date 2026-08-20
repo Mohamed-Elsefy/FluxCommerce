@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
+using FluxCommerce.Modules.Orders.Domain.Sagas;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,12 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 /// Its stable <see cref="HandlerName"/> (<c>Orders.ApplyReservationSuccess</c>) scopes the idempotency
 /// identity (<c>EventId + HandlerName</c>). The consumer never touches RabbitMQ, messaging transport
 /// types, or the DbContext directly.
+///
+/// <para>
+/// Phase 8.7: the reservation identifier is forwarded to the orchestrator, which records it on the saga
+/// (see <see cref="OrderSaga.RecordReservation"/>) so the compensation release issued when the order is
+/// cancelled covers every reservation the Inventory module actually created.
+/// </para>
 /// </summary>
 public sealed class InventoryReservedConsumer : IIntegrationEventHandler<InventoryReservedIntegrationEvent>
 {
@@ -54,6 +61,7 @@ public sealed class InventoryReservedConsumer : IIntegrationEventHandler<Invento
 
         return _orchestrator.ApplyReservationSuccessAsync(
             new OrderId(@event.OrderId),
+            @event.ReservationId,
             envelope.ProducedEventCorrelationId,
             envelope.ProducedEventCausationId,
             new DateTimeOffset(@event.OccurredAtUtc),

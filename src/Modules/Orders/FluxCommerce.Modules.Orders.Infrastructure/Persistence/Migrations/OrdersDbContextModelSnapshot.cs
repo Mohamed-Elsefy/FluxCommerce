@@ -181,6 +181,11 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("Version");
 
+                    b.PrimitiveCollection<string>("_reservationIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ReservationIds");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CorrelationId")

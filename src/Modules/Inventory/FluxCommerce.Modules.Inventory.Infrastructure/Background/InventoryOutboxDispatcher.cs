@@ -263,6 +263,8 @@ public sealed class InventoryOutboxDispatcher : BackgroundService, IOutboxDispat
                 JsonSerializer.Deserialize<InventoryReservedIntegrationEvent>(message.Payload),
             InventoryReservationFailedIntegrationEvent.EventType =>
                 JsonSerializer.Deserialize<InventoryReservationFailedIntegrationEvent>(message.Payload),
+            InventoryReleasedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<InventoryReleasedIntegrationEvent>(message.Payload),
             _ => null
         };
 }

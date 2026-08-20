@@ -123,6 +123,14 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.inventory.reservation");
         services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
 
+        // Phase 8.7: the Inventory release-request consumer. When an order is cancelled after its
+        // reservations were applied, the Orders saga stages one inventory.release_requested per recorded
+        // reservation; the Inventory consumer executes the release (and stages inventory.released) through
+        // the Inventory idempotent-processing boundary, so the release state and the ProcessedMessage
+        // record commit atomically. A repeated release of a terminal reservation is a benign no-op.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.inventory.release");
+        services.AddIntegrationEventConsumer<InventoryReleaseRequestedIntegrationEvent, InventoryReleaseRequestedConsumer, InventoryIdempotentProcessor>();
+
         // Phase 8.5: the Orders consumers for the Inventory result events. Inventory publishes exactly
         // one inventory.reserved / inventory.reservation_failed per reservation request; the Orders side
         // receives the outcome through the dedicated result queue, inside the Orders idempotent-processing
@@ -131,6 +139,14 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.saga.results");
         services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
         services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 8.7: the Orders compensation consumer. When an order is cancelled (the Order module
+        // publishes orders.order_cancelled), it requests the release of the order's recorded reservations
+        // through the saga orchestrator — the staged release commands commit atomically with the
+        // ProcessedMessage record inside the Orders idempotent-processing boundary. The release request
+        // is a no-op when the workflow never reserved inventory for the order.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.saga.compensation");
+        services.AddIntegrationEventConsumer<OrderCancelledIntegrationEvent, OrderCancelledSagaConsumer, OrdersIdempotentProcessor>();
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])

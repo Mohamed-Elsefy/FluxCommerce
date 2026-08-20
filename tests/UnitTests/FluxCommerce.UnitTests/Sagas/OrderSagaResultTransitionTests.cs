@@ -25,6 +25,8 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
 {
     private static readonly DateTimeOffset ResultAtUtc = new(2026, 8, 19, 9, 0, 0, TimeSpan.Zero);
 
+    private static readonly Guid ReservationId = Guid.NewGuid();
+
     [Fact]
     public async Task ApplyReservationSuccess_TransitionsSagaToCompleted_AndLeavesOrderPending()
     {
@@ -33,7 +35,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         var orchestrator = await CreateWaitingSagaAsync(context, order);
 
         var result = await orchestrator.ApplyReservationSuccessAsync(
-            order.Id, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+            order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
 
         await context.SaveChangesAsync();
 
@@ -41,6 +43,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
 
         var saga = await context.OrderSagas.SingleAsync();
         Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Contains(ReservationId, saga.ReservationIds);
 
         await using var freshContext = CreateContext();
         Assert.Equal(OrderStatus.Pending, (await freshContext.Orders.SingleAsync()).Status);
@@ -84,13 +87,13 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         var orchestrator = await CreateWaitingSagaAsync(context, order);
 
         var correlationId = Guid.NewGuid();
-        await orchestrator.ApplyReservationSuccessAsync(order.Id, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, ReservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
         await context.SaveChangesAsync();
 
         var versionAfterFirst = (await context.OrderSagas.SingleAsync()).Version;
 
         var duplicate = await orchestrator.ApplyReservationSuccessAsync(
-            order.Id, correlationId, Guid.NewGuid(), ResultAtUtc);
+            order.Id, ReservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
         await context.SaveChangesAsync();
 
         Assert.Equal(OrderSagaTransitionOutcome.Duplicate, duplicate.Outcome);
@@ -98,6 +101,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         var saga = await context.OrderSagas.SingleAsync();
         Assert.Equal(OrderSagaState.Completed, saga.State);
         Assert.Equal(versionAfterFirst, saga.Version);
+        Assert.Single(saga.ReservationIds);
     }
 
     [Fact]
@@ -142,13 +146,14 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         await context.SaveChangesAsync();
 
         var conflicting = await orchestrator.ApplyReservationSuccessAsync(
-            order.Id, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+            order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
         await context.SaveChangesAsync();
 
         Assert.Equal(OrderSagaTransitionOutcome.Conflicting, conflicting.Outcome);
 
         var saga = await context.OrderSagas.SingleAsync();
         Assert.Equal(OrderSagaState.Failed, saga.State);
+        Assert.Empty(saga.ReservationIds);
 
         await using var freshContext = CreateContext();
         Assert.Equal(OrderStatus.Cancelled, (await freshContext.Orders.SingleAsync()).Status);
@@ -163,7 +168,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         var order = await CreatePlacedOrderAsync(("SKU-1", 2));
         var orchestrator = await CreateWaitingSagaAsync(context, order);
 
-        await orchestrator.ApplyReservationSuccessAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
         await context.SaveChangesAsync();
 
         var conflicting = await orchestrator.ApplyReservationFailureAsync(
@@ -196,7 +201,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         var orchestrator = CreateOrchestrator(context);
 
         var result = resultKind == "success"
-            ? await orchestrator.ApplyReservationSuccessAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc)
+            ? await orchestrator.ApplyReservationSuccessAsync(order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc)
             : await orchestrator.ApplyReservationFailureAsync(
                 order.Id, Guid.NewGuid(), Guid.NewGuid(), "Inventory.InsufficientStock", ResultAtUtc);
 
@@ -218,7 +223,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
 
         var exception = resultKind == "success"
             ? await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                orchestrator.ApplyReservationSuccessAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc))
+                orchestrator.ApplyReservationSuccessAsync(order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc))
             : await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 orchestrator.ApplyReservationFailureAsync(
                     order.Id, Guid.NewGuid(), Guid.NewGuid(), "Inventory.InsufficientStock", ResultAtUtc));
@@ -297,7 +302,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         var order = await CreatePlacedOrderAsync(("SKU-1", 2));
         var orchestrator = await CreateWaitingSagaAsync(context, order);
 
-        await orchestrator.ApplyReservationSuccessAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
         await context.SaveChangesAsync();
 
         // Initial 1 → RequestReservation 2 → Complete 3: the outcome transition bumped the version once.

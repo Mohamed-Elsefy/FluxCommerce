@@ -10,7 +10,9 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 /// together inside the module's idempotent-processing unit of work, so a reservation request either
 /// commits atomically with the saga state or is not issued at all. The integration event is already
 /// fully formed (it carries the canonical metadata the saga assigned), so the mapping delegates to the
-/// shared <see cref="IntegrationEventOutboxMessageFactory"/>.
+/// shared <see cref="IntegrationEventOutboxMessageFactory"/>. Phase 8.7 adds the compensation mapping:
+/// the same factory maps the <see cref="InventoryReleaseRequestedIntegrationEvent"/> issued when a
+/// cancelled order must release its previously reserved inventory.
 /// </summary>
 public sealed class SagaOutboxMessageFactory
 {
@@ -26,5 +28,12 @@ public sealed class SagaOutboxMessageFactory
         ArgumentNullException.ThrowIfNull(integrationEvent);
 
         return _outboxMessageFactory.Create(InventoryReservationRequestedIntegrationEvent.EventType, integrationEvent);
+    }
+
+    public OutboxMessage Create(InventoryReleaseRequestedIntegrationEvent integrationEvent)
+    {
+        ArgumentNullException.ThrowIfNull(integrationEvent);
+
+        return _outboxMessageFactory.Create(InventoryReleaseRequestedIntegrationEvent.EventType, integrationEvent);
     }
 }

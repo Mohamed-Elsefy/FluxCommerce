@@ -99,6 +99,28 @@ public class OrdersOutboxDispatcherTests
     }
 
     [Fact]
+    public async Task DispatchCoreAsync_PublishesSagaReleaseRequest_AndMarksPublished()
+    {
+        var @event = CreateReleaseRequest();
+        var message = CreateMessage(@event);
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        publisher.Verify(p => p.PublishAsync(
+            InventoryReleaseRequestedIntegrationEvent.EventType,
+            It.Is<InventoryReleaseRequestedIntegrationEvent>(e => e == @event),
+            It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task DispatchCoreAsync_PublisherReturnsFalse_MarksRetryableFailure_AndDoesNotMarkPublished()
     {
         var message = CreateMessage(CreateOrderCreated());
@@ -381,6 +403,12 @@ public class OrdersOutboxDispatcherTests
             CorrelationId = CorrelationId
         };
 
+    private static InventoryReleaseRequestedIntegrationEvent CreateReleaseRequest() =>
+        new(Guid.NewGuid())
+        {
+            CorrelationId = CorrelationId
+        };
+
     private static OutboxMessage CreateMessage(OrderCreatedIntegrationEvent @event) =>
         new()
         {
@@ -404,6 +432,23 @@ public class OrdersOutboxDispatcherTests
             Id = Guid.NewGuid(),
             EventId = @event.EventId,
             Type = InventoryReservationRequestedIntegrationEvent.EventType,
+            Payload = JsonSerializer.Serialize(@event),
+            CorrelationId = @event.CorrelationId,
+            CausationId = @event.CausationId,
+            OccurredAtUtc = @event.OccurredAtUtc,
+            CreatedAtUtc = DateTime.UtcNow,
+            ProcessedAtUtc = null,
+            Status = OutboxStatus.Pending,
+            RetryCount = 0,
+            Error = null
+        };
+
+    private static OutboxMessage CreateMessage(InventoryReleaseRequestedIntegrationEvent @event) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            EventId = @event.EventId,
+            Type = InventoryReleaseRequestedIntegrationEvent.EventType,
             Payload = JsonSerializer.Serialize(@event),
             CorrelationId = @event.CorrelationId,
             CausationId = @event.CausationId,

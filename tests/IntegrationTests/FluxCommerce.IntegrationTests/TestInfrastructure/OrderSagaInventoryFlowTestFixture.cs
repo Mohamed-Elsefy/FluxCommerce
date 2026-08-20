@@ -5,11 +5,13 @@ using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Inventory.Domain.Aggregates;
+using FluxCommerce.Modules.Inventory.Domain.Enums;
 using FluxCommerce.Modules.Inventory.Domain.ValueObjects;
 using FluxCommerce.Modules.Inventory.Infrastructure;
 using FluxCommerce.Modules.Inventory.Infrastructure.Consuming;
 using FluxCommerce.Modules.Inventory.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Inventory.Infrastructure.Idempotency;
+using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Entities;
 using FluxCommerce.Modules.Orders.Domain.Enums;
@@ -22,6 +24,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using InventoryOrderId = FluxCommerce.Modules.Inventory.Domain.ValueObjects.OrderId;
 using OrdersOrderId = FluxCommerce.Modules.Orders.Domain.ValueObjects.OrderId;
 
 namespace FluxCommerce.IntegrationTests.TestInfrastructure;
@@ -111,6 +114,35 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
     }
 
     /// <summary>
+    /// Phase 8.7: the production-like provider for the compensation flow. It registers everything
+    /// <see cref="BuildProvider"/> does plus the two Phase 8.7 consumers on the same queue — the
+    /// Inventory release-request consumer (<c>inventory.release_requested</c>) and the Orders
+    /// compensation consumer (<c>orders.order_cancelled</c>) — so the full
+    /// <c>Order Cancelled → Saga → Release Command → Inventory Consumer → Reservation Released</c> leg
+    /// can be exercised end to end. The hosted <c>RabbitMQConsumerBackgroundService</c> is started per
+    /// test so the outbox hosted services never run (the dispatchers are driven directly).
+    /// </summary>
+    public ServiceProvider BuildCompensationProvider(string queueName)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+        services.AddSingleton<ICurrentUser, AnonymousCurrentUser>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
+        services.AddOrdersInfrastructure(OrdersConnectionString);
+        services.AddInventoryInfrastructure(InventoryConnectionString);
+        services.AddRabbitMQ(RabbitMQConnectionString);
+        services.AddRabbitMQPublisher(TestExchangeName);
+        services.AddRabbitMQConsumer(TestExchangeName, queueName);
+        services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReleaseRequestedIntegrationEvent, InventoryReleaseRequestedConsumer, InventoryIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<OrderCancelledIntegrationEvent, OrderCancelledSagaConsumer, OrdersIdempotentProcessor>();
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
     /// Seeds an order with a single line item (the given SKU x quantity) directly in the orders
     /// database. The aggregate is hydrated (no domain events) so seeding produces no outbox side
     /// effects — only the saga orchestrator stages reservation commands.
@@ -165,6 +197,44 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
 
         context.InventoryItems.Add(item);
         await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds an inventory item together with a Pending reservation for the given order (hydrated
+    /// aggregates, so no domain events and no outbox side effects), so a test can deterministically
+    /// produce the pre-release state the release consumer would observe: the item holds
+    /// <paramref name="quantity"/> reserved and the reservation expires at <paramref name="expiresAt"/>.
+    /// Returns the reservation's id.
+    /// </summary>
+    public async Task<Guid> SeedReservationAsync(
+        string sku,
+        Guid orderId,
+        int quantity,
+        DateTimeOffset expiresAt,
+        int onHand)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var item = InventoryItem.Create(new InventorySku(sku), onHand, now);
+        item.Reserve(quantity, now);
+
+        var reservation = InventoryReservation.Hydrate(
+            InventoryReservationId.Create(),
+            new InventoryOrderId(orderId),
+            item.Sku,
+            quantity,
+            InventoryReservationStatus.Pending,
+            expiresAt,
+            InventoryReservation.InitialVersion,
+            now,
+            now);
+
+        using var scope = _migrationProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        context.InventoryItems.Add(item);
+        context.InventoryReservations.Add(reservation);
+        await context.SaveChangesAsync();
+
+        return reservation.Id.Value;
     }
 
     public async ValueTask DisposeAsync()
