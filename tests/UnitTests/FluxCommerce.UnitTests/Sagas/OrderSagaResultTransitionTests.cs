@@ -311,6 +311,48 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         Assert.Equal(ResultAtUtc, saga.UpdatedAtUtc);
     }
 
+    [Fact]
+    public async Task ApplyReservationSuccess_ConcurrentResults_OnlyOneCommitSucceeds()
+    {
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+
+        await using (var seedContext = CreateContext())
+        {
+            var seedingOrchestrator = CreateOrchestrator(seedContext);
+            var start = await seedingOrchestrator.StartFromOrderCreatedAsync(
+                order.Id, Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc);
+            Assert.True(start.SagaCreated);
+            await seedContext.SaveChangesAsync();
+        }
+
+        // Two contexts both read the same WaitingForInventory saga at the same version and each
+        // applies the success transition with a distinct reservation id (plan §13.8.6 concurrent
+        // result scenario). The first SaveChanges commits; the second is rejected by the saga's
+        // optimistic concurrency token, so the concurrent results produce exactly one business
+        // effect: a single Completed transition and one recorded reservation.
+        await using var contextA = CreateContext();
+        await using var contextB = CreateContext();
+        var orchestratorA = CreateOrchestrator(contextA);
+        var orchestratorB = CreateOrchestrator(contextB);
+
+        var resultA = await orchestratorA.ApplyReservationSuccessAsync(
+            order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+        var resultB = await orchestratorB.ApplyReservationSuccessAsync(
+            order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, resultA.Outcome);
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, resultB.Outcome);
+
+        await contextA.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => contextB.SaveChangesAsync());
+
+        await using var freshContext = CreateContext();
+        var saga = await freshContext.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Single(saga.ReservationIds);
+    }
+
     private async Task<OrderSagaOrchestrator> CreateWaitingSagaAsync(OrdersDbContext context, Order order)
     {
         var orchestrator = CreateOrchestrator(context);

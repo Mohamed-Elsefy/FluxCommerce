@@ -17,6 +17,12 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Configurations;
 /// stored as a JSON array in a single <c>ReservationIds</c> column, so the saga stays one row with no
 /// extra table. The public read-only projection is ignored to keep the field as the mapped property.
 /// </para>
+///
+/// <para>
+/// Phase 8.8 maps <see cref="OrderSaga.ReleaseRequestedAtUtc"/> to a nullable <c>ReleaseRequestedAtUtc</c>
+/// column — the bookkeeping marker the orchestrator sets when the compensation release is requested, so
+/// a late <c>inventory.reserved</c> result racing the cancellation can be compensated immediately.
+/// </para>
 /// </summary>
 public sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSaga>
 {
@@ -46,6 +52,10 @@ public sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSaga>
 
         builder.Property(saga => saga.UpdatedAtUtc)
             .HasColumnName("UpdatedAtUtc")
+            .HasColumnType("datetimeoffset");
+
+        builder.Property(saga => saga.ReleaseRequestedAtUtc)
+            .HasColumnName("ReleaseRequestedAtUtc")
             .HasColumnType("datetimeoffset");
 
         builder.Property(saga => saga.Version)

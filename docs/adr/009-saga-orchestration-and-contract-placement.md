@@ -105,6 +105,20 @@ Negative:
 - `Order.Version` must be configured as a concurrency token and the Order Summary projection must
   learn about cancellation; both are follow-up items implemented in 8.2+ (F4, F5), not in 8.1.
 
+## Implementation & Verification
+
+Phase 8 is implemented and verified (`docs/completed/PHASE_8_COMPLETION_REPORT.md`). The baseline audit
+referenced above is recorded in the Phase 8 completion report (its standalone audit report file was not
+carried forward separately). Confirmed outcomes: the Saga and its state table live in Orders, the wire
+contracts live in `Inventory.Contracts`, the architecture tests encode the narrow
+Orders.Infrastructure → Inventory.Contracts carve-out and the `*Saga`/`*Orchestrator` exemptions,
+`Order.Version` is an EF concurrency token, the `orders.order_cancelled` projection consumer keeps the
+Order Summary projection fresh on cancellation, and all four wire event types
+(`inventory.reservation_requested`, `inventory.release_requested`, `inventory.reserved`,
+`inventory.reservation_failed`) flow through the Outbox/RabbitMQ pipeline with correlation/causation
+preserved. Full solution builds with 0 warnings/0 errors; Architecture 166/166, Unit 2022/2022,
+Integration 376/376 against real SQL Server + RabbitMQ.
+
 ## Alternatives Considered
 
 - **Hosting the Saga request/result contracts in Orders.Contracts** — rejected: the contracts describe

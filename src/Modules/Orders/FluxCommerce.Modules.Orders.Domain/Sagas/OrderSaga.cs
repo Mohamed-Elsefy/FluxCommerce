@@ -22,6 +22,15 @@ namespace FluxCommerce.Modules.Orders.Domain.Sagas;
 /// stored as a JSON primitive collection; they are an append-only history, never a workflow state, so
 /// recording them does not advance the saga state machine or bump the concurrency version.
 /// </para>
+///
+/// <para>
+/// Phase 8.8 adds <see cref="ReleaseRequestedAtUtc"/> — the moment the compensation release was
+/// requested for this order (bookkeeping, set by the orchestrator when <c>orders.order_cancelled</c> is
+/// processed). It is not a workflow state: marking it never advances the state machine or bumps the
+/// concurrency version. It lets the saga detect a late <c>inventory.reserved</c> result that races the
+/// cancellation and arrives AFTER the release was issued, so the orchestrator can compensate that
+/// reservation immediately instead of letting it leak until Inventory expiry (Phase 11).
+/// </para>
 /// </summary>
 public sealed class OrderSaga
 {
@@ -47,7 +56,17 @@ public sealed class OrderSaga
     /// </summary>
     public IReadOnlyCollection<Guid> ReservationIds => _reservationIds;
 
+    /// <summary>
+    /// Phase 8.8 the moment the compensation release was requested for this order, or <c>null</c> when
+    /// no release has been requested. Bookkeeping only: marking it never advances the state machine or
+    /// bumps the concurrency version. It distinguishes a late <c>inventory.reserved</c> result that
+    /// must still be compensated from one that was recorded before the release was issued.
+    /// </summary>
+    public DateTimeOffset? ReleaseRequestedAtUtc => _releaseRequestedAtUtc;
+
     private List<Guid> _reservationIds = [];
+
+    private DateTimeOffset? _releaseRequestedAtUtc;
 
     private long _version;
 
@@ -164,6 +183,20 @@ public sealed class OrderSaga
         return true;
     }
 
+    /// <summary>
+    /// Phase 8.8 records that the compensation release was requested for this order. The marker is
+    /// bookkeeping, not a workflow state: it never advances the saga state machine and never bumps the
+    /// concurrency version (multiple cancellations / redeliveries all observe the same release request).
+    /// The first moment is kept, so a redelivered <c>orders.order_cancelled</c> cannot shift it.
+    /// </summary>
+    public void MarkReleaseRequested(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        _releaseRequestedAtUtc ??= utcNow;
+    }
+
     public static OrderSaga Hydrate(
         Guid id,
         OrderId orderId,
@@ -171,7 +204,8 @@ public sealed class OrderSaga
         OrderSagaState state,
         long version,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc)
+        DateTimeOffset updatedAtUtc,
+        DateTimeOffset? releaseRequestedAtUtc = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("A saga id must not be an empty GUID.", nameof(id));
@@ -195,8 +229,14 @@ public sealed class OrderSaga
                 "The update timestamp must not precede the creation timestamp.",
                 nameof(updatedAtUtc));
 
+        if (releaseRequestedAtUtc is not null && releaseRequestedAtUtc.Value == default)
+            throw new ArgumentException(
+                "A valid release-requested timestamp is required.",
+                nameof(releaseRequestedAtUtc));
+
         var saga = new OrderSaga(id, orderId, correlationId, state, version, createdAtUtc);
         saga._updatedAtUtc = updatedAtUtc;
+        saga._releaseRequestedAtUtc = releaseRequestedAtUtc;
 
         return saga;
     }

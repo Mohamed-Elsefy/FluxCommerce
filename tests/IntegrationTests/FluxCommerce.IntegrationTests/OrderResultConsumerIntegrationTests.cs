@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
@@ -183,6 +185,54 @@ public class OrderResultConsumerIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task ReservedConsumer_ResultForUnknownSaga_IsRetriedAndDeadLettered()
+    {
+        var queueName = UniqueQueueName();
+        var orderId = Guid.NewGuid();
+        await _fixture.SeedOrderAsync(orderId, Guid.NewGuid());
+        var @event = CreateReservedEvent(orderId);
+        var correlationId = @event.CorrelationId;
+        await using var provider = _fixture.BuildResultConsumerProvider(queueName);
+
+        try
+        {
+            var consumer = await StartConsumerAsync(provider);
+            await WaitForConsumerAsync(provider, queueName);
+
+            // No saga exists for the order: the reserved result cannot be applied without a business
+            // effect, so the consumer throws, the infrastructure retries with bounded backoff, and the
+            // delivery is dead-lettered as exhausted — the result is never silently lost.
+            await PublishAsync(provider, @event);
+
+            await WaitForMessageCountAsync(provider, DeadLetterQueueName(queueName), 1);
+            await WaitForQueueEmptyAsync(provider, queueName);
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal(0, await CountProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName));
+            Assert.Null(await GetSagaAsync(orderId));
+            Assert.Equal(OrderStatus.Pending, (await GetOrderAsync(orderId))!.Status);
+
+            var (body, headers) = await GetSingleDeadLetteredMessageAsync(provider, queueName);
+            Assert.NotNull(body);
+            var bodyText = Encoding.UTF8.GetString(body);
+            Assert.True(
+                bodyText.Contains(orderId.ToString()),
+                $"DLQ body ({bodyText.Length} chars) did not contain '{orderId}'. Body: {bodyText}");
+            Assert.Equal(
+                IntegrationEventMessageProcessor.ExhaustedReason,
+                HeaderString(headers[IntegrationEventMessageProcessor.DeadLetterReasonHeader]));
+            Assert.True(
+                HeaderString(headers[IntegrationEventMessageProcessor.DeadLetterErrorMessageHeader])
+                    .Contains("no saga exists"),
+                "DLQ x-error-message did not indicate the missing saga.");
+        }
+        finally
+        {
+            await CleanupAsync(provider, queueName, orderId, correlationId, [@event.EventId]);
+        }
+    }
+
     private async Task<Guid> SeedSagaAsync(Guid orderId)
     {
         var correlationId = Guid.NewGuid();
@@ -318,6 +368,41 @@ public class OrderResultConsumerIntegrationTests
             return 0;
         }
     }
+
+    private static async Task WaitForMessageCountAsync(IServiceProvider provider, string queueName, uint expected)
+    {
+        var deadline = DateTime.UtcNow + Timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (await GetMessageCountAsync(provider, queueName) == expected)
+                return;
+            await Task.Delay(50);
+        }
+
+        Assert.Fail($"Queue '{queueName}' did not reach {expected} message(s) within {Timeout}.");
+    }
+
+    private static async Task<(byte[] Body, IDictionary<string, object?> Headers)> GetSingleDeadLetteredMessageAsync(
+        IServiceProvider provider,
+        string queueName)
+    {
+        var connectionProvider = provider.GetRequiredService<IRabbitMQConnectionProvider>();
+        await using var channel = await connectionProvider.CreateChannelAsync();
+        var result = await channel.BasicGetAsync(
+            queue: DeadLetterQueueName(queueName),
+            autoAck: true,
+            cancellationToken: default);
+        Assert.NotNull(result);
+        return (result.Body.ToArray(), result.BasicProperties.Headers!);
+    }
+
+    private static string HeaderString(object? value) => value switch
+    {
+        string text => text,
+        byte[] bytes => Encoding.UTF8.GetString(bytes),
+        null => string.Empty,
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+    };
 
     private static Task DeleteQueueAsync(IServiceProvider provider, string queueName) =>
         Task.Run(async () =>

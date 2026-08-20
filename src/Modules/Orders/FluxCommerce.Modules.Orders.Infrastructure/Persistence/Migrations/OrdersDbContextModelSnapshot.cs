@@ -95,6 +95,16 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("int")
                         .HasColumnName("Status");
 
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(55)
+                        .HasColumnType("nvarchar(55)")
+                        .HasColumnName("TraceParent");
+
+                    b.Property<string>("TraceState")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("TraceState");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -167,6 +177,10 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("OrderId");
+
+                    b.Property<DateTimeOffset?>("ReleaseRequestedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("ReleaseRequestedAtUtc");
 
                     b.Property<int>("State")
                         .HasColumnType("int")

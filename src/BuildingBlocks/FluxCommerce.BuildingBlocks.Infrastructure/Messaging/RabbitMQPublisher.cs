@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -23,7 +25,9 @@ namespace FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 /// <para>
 /// Metadata is carried both as AMQP properties (<c>MessageId</c>, <c>Type</c>, <c>CorrelationId</c>,
 /// <c>Timestamp</c>, persistent delivery) and as transport headers (<c>EventId</c>, <c>EventType</c>,
-/// <c>EventVersion</c>, <c>CorrelationId</c>, <c>CausationId</c>, <c>OccurredAtUtc</c>).
+/// <c>EventVersion</c>, <c>CorrelationId</c>, <c>CausationId</c>, <c>OccurredAtUtc</c>). Phase 8.9 adds the
+/// W3C Trace Context headers (<c>traceparent</c>/<c>tracestate</c>) captured from the current activity, so
+/// the distributed trace survives the RabbitMQ hop.
 /// </para>
 /// </summary>
 public sealed class RabbitMQPublisher : IRabbitMQPublisher, IAsyncDisposable
@@ -134,6 +138,27 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher, IAsyncDisposable
 
     internal static BasicProperties BuildProperties(string eventType, IIntegrationEvent @event)
     {
+        var headers = new Dictionary<string, object?>
+        {
+            ["EventId"] = @event.EventId.ToString(),
+            ["EventType"] = eventType,
+            ["EventVersion"] = @event.Version.ToString(),
+            ["CorrelationId"] = @event.CorrelationId.ToString(),
+            ["CausationId"] = @event.CausationId?.ToString() ?? string.Empty,
+            ["OccurredAtUtc"] = @event.OccurredAtUtc.ToString("O")
+        };
+
+        // Phase 8.9: propagate the W3C Trace Context of the current activity (the outbox dispatch producer
+        // span) so the consumer can continue the same trace. Only W3C ids are propagated (W3C is the
+        // default in .NET), and only a non-empty trace state is sent.
+        var traceParent = TraceContext.GetTraceParent(Activity.Current);
+        if (traceParent is not null)
+            headers[TraceContext.TraceParentHeader] = traceParent;
+
+        var traceState = TraceContext.GetTraceState(Activity.Current);
+        if (traceState is not null)
+            headers[TraceContext.TraceStateHeader] = traceState;
+
         return new BasicProperties
         {
             MessageId = @event.EventId.ToString(),
@@ -141,15 +166,7 @@ public sealed class RabbitMQPublisher : IRabbitMQPublisher, IAsyncDisposable
             CorrelationId = @event.CorrelationId.ToString(),
             Timestamp = new AmqpTimestamp(new DateTimeOffset(@event.OccurredAtUtc).ToUnixTimeSeconds()),
             Persistent = true,
-            Headers = new Dictionary<string, object?>
-            {
-                ["EventId"] = @event.EventId.ToString(),
-                ["EventType"] = eventType,
-                ["EventVersion"] = @event.Version.ToString(),
-                ["CorrelationId"] = @event.CorrelationId.ToString(),
-                ["CausationId"] = @event.CausationId?.ToString() ?? string.Empty,
-                ["OccurredAtUtc"] = @event.OccurredAtUtc.ToString("O")
-            }
+            Headers = headers
         };
     }
 

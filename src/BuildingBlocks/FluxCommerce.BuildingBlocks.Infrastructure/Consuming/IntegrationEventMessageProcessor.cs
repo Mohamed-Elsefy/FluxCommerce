@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Idempotency.Messages;
 using FluxCommerce.BuildingBlocks.Idempotency.Processing;
+using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
 using FluxCommerce.BuildingBlocks.Messaging.Versioning;
@@ -67,6 +68,13 @@ namespace FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 /// envelope; a consumer-produced integration event must reuse
 /// <c>envelope.ProducedEventCorrelationId</c> / <c>envelope.ProducedEventCausationId</c> (the incoming
 /// CorrelationId preserved, the consumed EventId as causation) — no new metadata model.
+/// </para>
+/// <para>
+/// Phase 8.9 distributed tracing: the W3C Trace Context carried by the transport
+/// <c>traceparent</c>/<c>tracestate</c> headers is extracted and becomes the parent of a
+/// <c>Consume {EventType}</c> consumer activity that wraps the whole retry loop, so the handler (and any
+/// outbox records it stages) continues the producer's trace. The activity is tagged with the envelope
+/// metadata, the resolved consumer, and the processing result.
 /// </para>
 /// </summary>
 public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageProcessor
@@ -197,6 +205,24 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
             return ConsumerMessageAction.Reject;
         }
 
+        // Phase 8.9: continue the distributed trace carried by the transport traceparent/tracestate
+        // headers. The consumer activity wraps the whole retry loop so every attempt (and anything the
+        // handler stages) stays under the producing span.
+        using var activity = TraceContext.StartActivity(
+            $"Consume {eventType}",
+            ActivityKind.Consumer,
+            ReadHeader(properties, TraceContext.TraceParentHeader),
+            ReadHeader(properties, TraceContext.TraceStateHeader));
+
+        if (activity is not null)
+        {
+            activity
+                .AddTag("event.type", eventType)
+                .AddTag("event.id", envelope.EventId)
+                .AddTag("correlation.id", envelope.CorrelationId)
+                .AddTag("causation.id", envelope.CausationId);
+        }
+
         var retryOptions = _options.Value.Retry;
         var attempt = 1 + CountRedeliveries(properties);
         string? handlerName = null;
@@ -213,6 +239,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
             {
                 var handler = attemptScope.ServiceProvider.GetRequiredService(descriptor.HandlerType);
                 handlerName = GetHandlerName(descriptor, handler);
+                activity?.AddTag("consumer", handlerName);
 
                 // The processor is resolved by the concrete type declared on the descriptor (the module
                 // that owns the handler), never by the container-wide IIdempotentProcessor interface:
@@ -245,6 +272,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                         ResultDuplicate,
                         result.ProcessedAtUtc,
                         attemptStopwatch.ElapsedMilliseconds);
+                    activity?.AddTag("result", ResultDuplicate);
                 }
                 else
                 {
@@ -260,6 +288,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                         attempt,
                         ResultProcessed,
                         attemptStopwatch.ElapsedMilliseconds);
+                    activity?.AddTag("result", ResultProcessed);
                 }
 
                 return ConsumerMessageAction.Ack;
@@ -291,6 +320,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                         classification,
                         PermanentFailureReason,
                         attemptStopwatch.ElapsedMilliseconds);
+                    activity?.AddTag("result", ResultDeadLettered);
                     return await DeadLetterAsync(
                         properties,
                         body,
@@ -320,6 +350,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                         classification,
                         ExhaustedReason,
                         attemptStopwatch.ElapsedMilliseconds);
+                    activity?.AddTag("result", ResultDeadLettered);
                     return await DeadLetterAsync(
                         properties,
                         body,
@@ -350,6 +381,7 @@ public sealed class IntegrationEventMessageProcessor : IIntegrationEventMessageP
                     classification,
                     attemptStopwatch.ElapsedMilliseconds,
                     delay);
+                activity?.AddTag("result", ResultRetrying);
 
                 // A shutdown that happens while waiting throws here and propagates (unacked → redelivery).
                 await Task.Delay(delay, cancellationToken).ConfigureAwait(false);

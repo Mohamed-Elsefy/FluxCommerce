@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
+using FluxCommerce.BuildingBlocks.Infrastructure.Consuming;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
@@ -20,6 +21,7 @@ using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
+using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,9 +95,10 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
     /// <c>InventoryReservationFailedConsumer</c>) sharing the queue — so the full
     /// <c>Saga → Outbox → RabbitMQ → Inventory → Result Event → Orders</c> loop can be exercised end to
     /// end. The hosted <c>RabbitMQConsumerBackgroundService</c> is started per test so the outbox hosted
-    /// services never run (the dispatchers are driven directly).
+    /// services never run (the dispatchers are driven directly). The optional <paramref name="configure"/>
+    /// callback tunes the consumer host (e.g. concurrency for the 8.8 concurrent-result verification).
     /// </summary>
-    public ServiceProvider BuildProvider(string queueName)
+    public ServiceProvider BuildProvider(string queueName, Action<RabbitMQConsumerOptions>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -106,7 +109,7 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
         services.AddInventoryInfrastructure(InventoryConnectionString);
         services.AddRabbitMQ(RabbitMQConnectionString);
         services.AddRabbitMQPublisher(TestExchangeName);
-        services.AddRabbitMQConsumer(TestExchangeName, queueName);
+        services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
         services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
         services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
         services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
@@ -120,9 +123,11 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
     /// compensation consumer (<c>orders.order_cancelled</c>) — so the full
     /// <c>Order Cancelled → Saga → Release Command → Inventory Consumer → Reservation Released</c> leg
     /// can be exercised end to end. The hosted <c>RabbitMQConsumerBackgroundService</c> is started per
-    /// test so the outbox hosted services never run (the dispatchers are driven directly).
+    /// test so the outbox hosted services never run (the dispatchers are driven directly). The optional
+    /// <paramref name="configure"/> callback tunes the consumer host (e.g. concurrency for the 8.8
+    /// concurrent-result verification).
     /// </summary>
-    public ServiceProvider BuildCompensationProvider(string queueName)
+    public ServiceProvider BuildCompensationProvider(string queueName, Action<RabbitMQConsumerOptions>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -133,12 +138,49 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
         services.AddInventoryInfrastructure(InventoryConnectionString);
         services.AddRabbitMQ(RabbitMQConnectionString);
         services.AddRabbitMQPublisher(TestExchangeName);
-        services.AddRabbitMQConsumer(TestExchangeName, queueName);
+        services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
         services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
         services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
         services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
         services.AddIntegrationEventConsumer<InventoryReleaseRequestedIntegrationEvent, InventoryReleaseRequestedConsumer, InventoryIdempotentProcessor>();
         services.AddIntegrationEventConsumer<OrderCancelledIntegrationEvent, OrderCancelledSagaConsumer, OrdersIdempotentProcessor>();
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Phase 8.9: the production-like provider for the distributed-trace verification. It registers
+    /// everything <see cref="BuildProvider"/> does plus the <c>orders.order_created</c> saga-boot
+    /// consumer, so the complete workflow can be driven end to end from a published OrderCreated: the
+    /// saga orchestrator boots, the Orders outbox dispatcher publishes the reservation request, the real
+    /// Inventory reservation consumer executes it, the Inventory outbox dispatcher publishes the result,
+    /// and the Orders result consumer completes the saga — all inside one distributed trace. The optional
+    /// captured loggers replace the default processor and orchestrator loggers so the test can assert on
+    /// the Phase 8.9 structured fields (<c>TraceId</c>/<c>SpanId</c>/<c>PreviousState</c>/<c>NewState</c>).
+    /// </summary>
+    public ServiceProvider BuildTraceProvider(
+        string queueName,
+        IntegrationTestCapturingLogger<IntegrationEventMessageProcessor>? processorLogger = null,
+        IntegrationTestCapturingLogger<OrderSagaOrchestrator>? orchestratorLogger = null,
+        Action<RabbitMQConsumerOptions>? configure = null)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        if (processorLogger is not null)
+            services.AddSingleton<ILogger<IntegrationEventMessageProcessor>>(processorLogger);
+        if (orchestratorLogger is not null)
+            services.AddSingleton<ILogger<OrderSagaOrchestrator>>(orchestratorLogger);
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+        services.AddSingleton<ICurrentUser, AnonymousCurrentUser>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
+        services.AddOrdersInfrastructure(OrdersConnectionString);
+        services.AddInventoryInfrastructure(InventoryConnectionString);
+        services.AddRabbitMQ(RabbitMQConnectionString);
+        services.AddRabbitMQPublisher(TestExchangeName);
+        services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderCreatedSagaConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
         return services.BuildServiceProvider();
     }
 

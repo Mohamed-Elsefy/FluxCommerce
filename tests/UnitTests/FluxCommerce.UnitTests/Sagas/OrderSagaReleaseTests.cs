@@ -4,6 +4,7 @@ using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.Sagas;
+using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using Microsoft.EntityFrameworkCore;
@@ -178,6 +179,184 @@ public class OrderSagaReleaseTests : OrderSagaTestBase
 
         Assert.False(duplicate);
         Assert.Single(saga.ReservationIds);
+    }
+
+    [Fact]
+    public async Task RequestReleaseAsync_MarksReleaseRequested_WhenReservationsExist()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = await CreateWaitingSagaAsync(context, order);
+        var reservationId = Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
+
+        await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, reservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+
+        var release = await orchestrator.RequestReleaseAsync(order.Id, correlationId, Guid.NewGuid());
+        Assert.True(release.ReleaseIssued);
+        await context.SaveChangesAsync();
+
+        var saga = await context.OrderSagas.SingleAsync();
+        Assert.NotNull(saga.ReleaseRequestedAtUtc);
+        Assert.Equal(OrderSagaState.Completed, saga.State);
+    }
+
+    [Fact]
+    public async Task RequestReleaseAsync_MarksReleaseRequested_WhenNoReservationsRecorded()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = await CreateWaitingSagaAsync(context, order);
+
+        var release = await orchestrator.RequestReleaseAsync(order.Id, Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.True(release.SagaFound);
+        Assert.False(release.ReleaseIssued);
+        await context.SaveChangesAsync();
+
+        // The saga is marked even though nothing was released: a reservation that lands later (an
+        // in-flight result racing the cancellation) must still be compensated.
+        var saga = await context.OrderSagas.SingleAsync();
+        Assert.NotNull(saga.ReleaseRequestedAtUtc);
+        Assert.Equal(OrderSagaState.WaitingForInventory, saga.State);
+    }
+
+    [Fact]
+    public async Task ApplyReservationSuccess_AfterReleaseRequested_StagesImmediateRelease()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = await CreateWaitingSagaAsync(context, order);
+        var firstReservationId = Guid.NewGuid();
+        var lateReservationId = Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
+
+        // First line-item result completes the saga and records the reservation.
+        await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, firstReservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+
+        // The order is cancelled: the release is requested for the recorded reservation and the saga
+        // is marked as release-requested.
+        var release = await orchestrator.RequestReleaseAsync(order.Id, correlationId, Guid.NewGuid());
+        Assert.True(release.ReleaseIssued);
+        await context.SaveChangesAsync();
+
+        // A late second line-item result arrives after the release: it is recorded AND compensated
+        // immediately (a new release command is staged), so it does not leak until Inventory expiry.
+        var late = await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, lateReservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Duplicate, late.Outcome);
+        var command = Assert.Single(late.Commands);
+        Assert.Equal(lateReservationId, command.ReservationId);
+        Assert.Equal(correlationId, command.CorrelationId);
+
+        var saga = await context.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(2, saga.ReservationIds.Count);
+        Assert.Contains(firstReservationId, saga.ReservationIds);
+        Assert.Contains(lateReservationId, saga.ReservationIds);
+
+        var staged = TrackedReleaseOutboxMessages(context)
+            .Where(record => record.Payload.Contains(lateReservationId.ToString()))
+            .ToList();
+        Assert.Single(staged);
+    }
+
+    [Fact]
+    public async Task ApplyReservationSuccess_OnAppliedPath_AfterReleaseRequested_StagesImmediateRelease()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = await CreateWaitingSagaAsync(context, order);
+        var reservationId = Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
+
+        // The order is cancelled before any reservation result arrived: no reservation is recorded, so
+        // no release command is issued, but the saga is marked as release-requested.
+        var release = await orchestrator.RequestReleaseAsync(order.Id, correlationId, Guid.NewGuid());
+        Assert.False(release.ReleaseIssued);
+        await context.SaveChangesAsync();
+
+        // The in-flight reservation result lands afterwards: the saga completes, the reservation is
+        // recorded, and it is compensated immediately.
+        var applied = await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, reservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, applied.Outcome);
+        var command = Assert.Single(applied.Commands);
+        Assert.Equal(reservationId, command.ReservationId);
+
+        var saga = await context.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(reservationId, Assert.Single(saga.ReservationIds));
+        Assert.NotNull(saga.ReleaseRequestedAtUtc);
+    }
+
+    [Fact]
+    public async Task ApplyReservationSuccess_RedeliveredReservation_AfterRelease_DoesNotReissueRelease()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = await CreateWaitingSagaAsync(context, order);
+        var reservationId = Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
+
+        await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, reservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+
+        await orchestrator.RequestReleaseAsync(order.Id, correlationId, Guid.NewGuid());
+        await context.SaveChangesAsync();
+
+        // The same result is redelivered after the release: the reservation is already recorded, so no
+        // second release command is staged.
+        var redelivery = await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, reservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Duplicate, redelivery.Outcome);
+        Assert.Empty(redelivery.Commands);
+
+        var saga = await context.OrderSagas.SingleAsync();
+        Assert.Single(saga.ReservationIds);
+    }
+
+    [Fact]
+    public async Task ReleaseRequestedAtUtc_PersistsAcrossContexts()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = await CreateWaitingSagaAsync(context, order);
+        var reservationId = Guid.NewGuid();
+
+        await orchestrator.ApplyReservationSuccessAsync(
+            order.Id, reservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
+        await context.SaveChangesAsync();
+        await orchestrator.RequestReleaseAsync(order.Id, Guid.NewGuid(), Guid.NewGuid());
+        await context.SaveChangesAsync();
+
+        await using var freshContext = CreateContext();
+        var reloaded = await freshContext.OrderSagas.SingleAsync();
+        Assert.NotNull(reloaded.ReleaseRequestedAtUtc);
+    }
+
+    [Fact]
+    public void MarkReleaseRequested_KeepsFirstTimestamp()
+    {
+        var saga = OrderSaga.Start(Guid.NewGuid(), OrderId.Create(), Guid.NewGuid(), PlacedAtUtc);
+        var first = new DateTimeOffset(2026, 8, 19, 10, 0, 0, TimeSpan.Zero);
+        var second = new DateTimeOffset(2026, 8, 19, 10, 5, 0, TimeSpan.Zero);
+
+        saga.MarkReleaseRequested(first);
+        saga.MarkReleaseRequested(second);
+
+        Assert.Equal(first, saga.ReleaseRequestedAtUtc);
     }
 
     private static IReadOnlyList<OutboxMessage> TrackedReleaseOutboxMessages(OrdersDbContext context) =>

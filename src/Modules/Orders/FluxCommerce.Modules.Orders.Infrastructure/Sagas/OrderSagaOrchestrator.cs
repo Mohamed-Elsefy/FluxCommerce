@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
 using FluxCommerce.Modules.Orders.Domain.Enums;
@@ -44,9 +46,22 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 /// were applied, <see cref="RequestReleaseAsync"/> issues one <c>inventory.release_requested</c> command
 /// per reservation recorded on the saga (see <see cref="OrderSaga.RecordReservation"/>), so Inventory
 /// returns the reserved quantity. Release is fire-and-forget and never touches the saga — no state
-/// transition, no version bump. Known limitation (deferred to Phase 8.8 hardening): a very late
-/// <c>inventory.reserved</c> result racing the cancellation could record a reservation AFTER the release
-/// was requested, leaving that reservation unreleased until Inventory expiry (Phase 11).
+/// transition, no version bump. Phase 8.8 hardens the race that could previously leak a reservation:
+/// the orchestrator marks the saga as release-requested (see <see cref="OrderSaga.MarkReleaseRequested"/>)
+/// so a very late <c>inventory.reserved</c> result arriving after the release was issued is compensated
+/// immediately — a new release command is staged for it — instead of being recorded and left unreleased
+/// until Inventory expiry.
+/// </remarks>
+/// <remarks>
+/// Phase 8.9 observability: every orchestration operation runs inside an <see cref="ActivityKind.Internal"/>
+/// activity (<c>Orders.Saga.Start</c>, <c>Orders.Saga.ApplyReservationSuccess</c>,
+/// <c>Orders.Saga.ApplyReservationFailure</c>, <c>Orders.Saga.RequestRelease</c>) tagged with the order,
+/// saga, correlation/causation, reservation, and previous/new saga state, and the transition logs are
+/// enriched with <c>{PreviousState}</c>, <c>{NewState}</c>, <c>{Outcome}</c>, <c>{TraceId}</c>, and
+/// <c>{SpanId}</c> — so the saga progress is reconstructable from both logs and traces. Because the
+/// orchestrator runs inside the consumer activity, its spans stay under the same distributed trace as the
+/// consuming producer, and the outbox records staged here snapshot that trace context (see
+/// <see cref="FluxCommerce.BuildingBlocks.Outbox.Mapping.IntegrationEventOutboxMessageFactory"/>).
 /// </remarks>
 public sealed class OrderSagaOrchestrator
 {
@@ -74,6 +89,64 @@ public sealed class OrderSagaOrchestrator
         _dateTimeProvider = dateTimeProvider ?? throw new ArgumentNullException(nameof(dateTimeProvider));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Starts a Phase 8.9 saga activity (kind <see cref="ActivityKind.Internal"/>) tagged with the
+    /// workflow identifiers and the previous/new saga state, so the saga progress is visible on the
+    /// distributed trace. Returns <see langword="null"/> when no listener samples the source (tracing is
+    /// then skipped without affecting orchestration).
+    /// </summary>
+    private static Activity? StartSagaActivity(
+        string operationName,
+        OrderId orderId,
+        Guid? sagaId = null,
+        OrderSagaState? previousState = null,
+        OrderSagaState? newState = null,
+        Guid? correlationId = null,
+        Guid? causationId = null,
+        Guid? reservationId = null,
+        string? outcome = null)
+    {
+        var activity = TraceContext.StartActivity(operationName, ActivityKind.Internal);
+
+        if (activity is null)
+            return null;
+
+        activity.AddTag("order.id", orderId.Value);
+
+        if (sagaId.HasValue)
+            activity.AddTag("saga.id", sagaId.Value);
+
+        if (previousState.HasValue)
+            activity.AddTag("saga.previous.state", previousState.Value.ToString());
+
+        if (newState.HasValue)
+            activity.AddTag("saga.new.state", newState.Value.ToString());
+
+        if (correlationId.HasValue)
+            activity.AddTag("correlation.id", correlationId.Value);
+
+        if (causationId.HasValue)
+            activity.AddTag("causation.id", causationId.Value);
+
+        if (reservationId.HasValue)
+            activity.AddTag("reservation.id", reservationId.Value);
+
+        if (outcome is not null)
+            activity.AddTag("saga.outcome", outcome);
+
+        return activity;
+    }
+
+    /// <summary>
+    /// Captures the current activity's trace and span ids for the enriched Phase 8.9 log fields
+    /// (<c>{TraceId}</c>, <c>{SpanId}</c>). Empty strings when no activity is current.
+    /// </summary>
+    private static (string TraceId, string SpanId) CurrentTraceIds()
+    {
+        var activity = Activity.Current;
+        return (activity?.TraceId.ToString() ?? string.Empty, activity?.SpanId.ToString() ?? string.Empty);
     }
 
     /// <summary>
@@ -121,6 +194,7 @@ public sealed class OrderSagaOrchestrator
         }
 
         var saga = OrderSaga.Start(Guid.NewGuid(), orderId, correlationId, occurredAtUtc);
+        var previousState = saga.State;
 
         var transition = saga.RequestReservation(occurredAtUtc);
 
@@ -130,6 +204,7 @@ public sealed class OrderSagaOrchestrator
                 $"Saga for order '{orderId.Value}' could not enter {OrderSagaState.WaitingForInventory}: {transition.Error.Code}.");
         }
 
+        var newState = saga.State;
         var expiresAtUtc = occurredAtUtc.Add(_options.Value.ReservationLifetime);
         var producedAtUtc = _dateTimeProvider.UtcNow;
 
@@ -147,18 +222,31 @@ public sealed class OrderSagaOrchestrator
             })
             .ToList();
 
+        using var activity = StartSagaActivity(
+            "Orders.Saga.Start",
+            orderId,
+            saga.Id,
+            previousState,
+            newState,
+            correlationId,
+            causationId);
+
         _sagaStore.Add(saga);
 
         foreach (var command in commands)
             _context.OutboxMessages.Add(_outboxMessageFactory.Create(command));
 
+        var (traceId, spanId) = CurrentTraceIds();
         _logger.LogInformation(
-            "Created saga {SagaId} for order {OrderId} ({SagaState}) and staged {CommandCount} reservation request(s) (correlation {CorrelationId}).",
+            "Created saga {SagaId} for order {OrderId} (previous state {PreviousState}, new state {NewState}) and staged {CommandCount} reservation request(s) (correlation {CorrelationId}, trace {TraceId}, span {SpanId}).",
             saga.Id,
             orderId.Value,
-            saga.State,
+            previousState,
+            newState,
             commands.Count,
-            correlationId);
+            correlationId,
+            traceId,
+            spanId);
 
         return new OrderSagaStartResult(SagaCreated: true, saga.Id, commands);
     }
@@ -180,6 +268,17 @@ public sealed class OrderSagaOrchestrator
     /// completed saga). The recorded identifiers drive the compensation release issued when the order is
     /// cancelled. A conflicting (<see cref="OrderSagaTransitionOutcome.Conflicting"/>) result is never
     /// recorded: a reservation created after the saga failed is not the saga's to release.
+    /// </para>
+    ///
+    /// <para>
+    /// Phase 8.8: a newly recorded reservation that arrives after the compensation release was already
+    /// requested (<see cref="OrderSaga.ReleaseRequestedAtUtc"/> is set — the order was cancelled while
+    /// the reservation result was still in flight) is compensated immediately: one
+    /// <c>inventory.release_requested</c> command is staged for it alongside the saga change, so the
+    /// reservation does not leak until Inventory expiry. The command is returned on
+    /// <see cref="OrderSagaTransitionResult.Commands"/> and committed atomically with the processed
+    /// message record. An already-recorded reservation (a redelivery of a result that was already
+    /// released) is never re-released.
     /// </para>
     /// </summary>
     /// <param name="orderId">The order whose reservation succeeded.</param>
@@ -214,6 +313,16 @@ public sealed class OrderSagaOrchestrator
                 $"Cannot apply a reservation success for order '{orderId.Value}': no saga exists for the order.");
         }
 
+        var previousState = saga.State;
+        using var successActivity = StartSagaActivity(
+            "Orders.Saga.ApplyReservationSuccess",
+            orderId,
+            saga.Id,
+            previousState,
+            correlationId: correlationId,
+            causationId: causationId,
+            reservationId: reservationId);
+
         switch (saga.State)
         {
             case OrderSagaState.WaitingForInventory:
@@ -226,43 +335,95 @@ public sealed class OrderSagaOrchestrator
                         $"Saga for order '{orderId.Value}' could not complete: {transition.Error.Code}.");
                 }
 
-                saga.RecordReservation(reservationId);
+                var newlyRecorded = saga.RecordReservation(reservationId);
 
+                // Phase 8.8: the order may have been cancelled while this result was in flight (the
+                // release was requested before the reservation was recorded); compensate immediately so
+                // the reservation does not leak until Inventory expiry.
+                var commands = newlyRecorded && saga.ReleaseRequestedAtUtc is not null
+                    ? StageImmediateRelease(reservationId, correlationId, causationId)
+                    : [];
+
+                successActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Applied.ToString());
+
+                var (traceId, spanId) = CurrentTraceIds();
                 _logger.LogInformation(
-                    "Applied inventory.reserved to saga {SagaId} for order {OrderId} (reservation {ReservationId}, correlation {CorrelationId}, causation {CausationId}): now {SagaState}.",
+                    "Applied inventory.reserved to saga {SagaId} for order {OrderId} (reservation {ReservationId}, correlation {CorrelationId}, causation {CausationId}): state {PreviousState} → {NewState} (outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
                     orderId.Value,
                     reservationId,
                     correlationId,
                     causationId,
-                    saga.State);
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Applied,
+                    traceId,
+                    spanId);
 
-                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Applied, saga.Id);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Applied, saga.Id, commands);
             }
             case OrderSagaState.Completed:
+                successActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Duplicate.ToString());
+
+                var (traceIdOnCompleted, spanIdOnCompleted) = CurrentTraceIds();
                 _logger.LogInformation(
-                    "Saga {SagaId} for order {OrderId} is already completed; duplicate inventory.reserved acknowledged.",
+                    "Saga {SagaId} for order {OrderId} is already completed; duplicate inventory.reserved acknowledged (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
-                    orderId.Value);
+                    orderId.Value,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Duplicate,
+                    traceIdOnCompleted,
+                    spanIdOnCompleted);
 
                 // Phase 8.7: a later line-item reservation arrives on the completed saga; record it so the
                 // compensation release covers every reservation the Inventory module actually created.
-                saga.RecordReservation(reservationId);
+                var newlyRecordedOnCompleted = saga.RecordReservation(reservationId);
 
-                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id);
+                // Phase 8.8: if the release was already requested (the order was cancelled), this late
+                // reservation must be compensated immediately rather than left to Inventory expiry.
+                var commandsOnCompleted = newlyRecordedOnCompleted && saga.ReleaseRequestedAtUtc is not null
+                    ? StageImmediateRelease(reservationId, correlationId, causationId)
+                    : [];
+
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id, commandsOnCompleted);
             case OrderSagaState.Failed:
+                successActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Conflicting.ToString());
+
+                var (traceIdOnFailed, spanIdOnFailed) = CurrentTraceIds();
                 _logger.LogWarning(
-                    "Saga {SagaId} for order {OrderId} is already failed; conflicting inventory.reserved rejected.",
+                    "Saga {SagaId} for order {OrderId} is already failed; conflicting inventory.reserved rejected (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
-                    orderId.Value);
+                    orderId.Value,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Conflicting,
+                    traceIdOnFailed,
+                    spanIdOnFailed);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Conflicting, saga.Id);
             default:
+                successActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Invalid.ToString());
+
+                var (traceIdOnInvalid, spanIdOnInvalid) = CurrentTraceIds();
                 _logger.LogWarning(
-                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; inventory.reserved cannot be applied.",
+                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; inventory.reserved cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
                     orderId.Value,
-                    saga.State);
+                    saga.State,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Invalid,
+                    traceIdOnInvalid,
+                    spanIdOnInvalid);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Invalid, saga.Id);
         }
@@ -309,6 +470,15 @@ public sealed class OrderSagaOrchestrator
                 $"Cannot apply a reservation failure for order '{orderId.Value}': no saga exists for the order.");
         }
 
+        var previousState = saga.State;
+        using var failureActivity = StartSagaActivity(
+            "Orders.Saga.ApplyReservationFailure",
+            orderId,
+            saga.Id,
+            previousState,
+            correlationId: correlationId,
+            causationId: causationId);
+
         switch (saga.State)
         {
             case OrderSagaState.WaitingForInventory:
@@ -342,38 +512,77 @@ public sealed class OrderSagaOrchestrator
                         orderId.Value);
                 }
 
+                failureActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Applied.ToString());
+
+                var (traceId, spanId) = CurrentTraceIds();
                 _logger.LogInformation(
-                    "Applied inventory.reservation_failed to saga {SagaId} for order {OrderId} (reason '{Reason}', correlation {CorrelationId}, causation {CausationId}): now {SagaState}; order is {OrderStatus}.",
+                    "Applied inventory.reservation_failed to saga {SagaId} for order {OrderId} (reason '{Reason}', correlation {CorrelationId}, causation {CausationId}): state {PreviousState} → {NewState} (outcome {Outcome}, trace {TraceId}, span {SpanId}); order is {OrderStatus}.",
                     saga.Id,
                     orderId.Value,
                     reason,
                     correlationId,
                     causationId,
+                    previousState,
                     saga.State,
+                    OrderSagaTransitionOutcome.Applied,
+                    traceId,
+                    spanId,
                     order.Status);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Applied, saga.Id);
             }
             case OrderSagaState.Failed:
+                failureActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Duplicate.ToString());
+
+                var (traceIdOnFailed, spanIdOnFailed) = CurrentTraceIds();
                 _logger.LogInformation(
-                    "Saga {SagaId} for order {OrderId} is already failed; duplicate inventory.reservation_failed acknowledged.",
+                    "Saga {SagaId} for order {OrderId} is already failed; duplicate inventory.reservation_failed acknowledged (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
-                    orderId.Value);
+                    orderId.Value,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Duplicate,
+                    traceIdOnFailed,
+                    spanIdOnFailed);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id);
             case OrderSagaState.Completed:
+                failureActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Conflicting.ToString());
+
+                var (traceIdOnCompleted, spanIdOnCompleted) = CurrentTraceIds();
                 _logger.LogWarning(
-                    "Saga {SagaId} for order {OrderId} is already completed; conflicting inventory.reservation_failed rejected.",
+                    "Saga {SagaId} for order {OrderId} is already completed; conflicting inventory.reservation_failed rejected (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
-                    orderId.Value);
+                    orderId.Value,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Conflicting,
+                    traceIdOnCompleted,
+                    spanIdOnCompleted);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Conflicting, saga.Id);
             default:
+                failureActivity?
+                    .AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Invalid.ToString());
+
+                var (traceIdOnInvalid, spanIdOnInvalid) = CurrentTraceIds();
                 _logger.LogWarning(
-                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; inventory.reservation_failed cannot be applied.",
+                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; inventory.reservation_failed cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id,
                     orderId.Value,
-                    saga.State);
+                    saga.State,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Invalid,
+                    traceIdOnInvalid,
+                    spanIdOnInvalid);
 
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Invalid, saga.Id);
         }
@@ -388,11 +597,14 @@ public sealed class OrderSagaOrchestrator
     /// unit of work, so they commit atomically with the processed-message record; under at-least-once
     /// delivery a redelivered cancellation is skipped by the idempotent-processing boundary and the
     /// Inventory release consumer is itself idempotent (a repeated release of a terminal reservation is
-    /// a benign no-op). The saga is never touched: no state transition, no version bump — release is a
-    /// fire-and-forget command. A missing saga is a benign no-op (the workflow never reserved inventory
-    /// for this order, e.g. the 8.6 failure path already cancelled it); a saga with no recorded
-    /// reservations is also a no-op. Only an order with no saga AND no recorded reservations is
-    /// indistinguishable from the no-reservations case, so no throw is needed here.
+    /// a benign no-op). The saga is never transitioned and the version is never bumped — release is a
+    /// fire-and-forget command — but the saga IS marked as release-requested (Phase 8.8), so a late
+    /// <c>inventory.reserved</c> result arriving after this point is compensated immediately. A missing
+    /// saga is a benign no-op (the workflow never reserved inventory for this order, e.g. the 8.6
+    /// failure path already cancelled it); a saga with no recorded reservations is also a no-op (no
+    /// release command), but it is still marked so a reservation that lands later is released. Only an
+    /// order with no saga AND no recorded reservations is indistinguishable from the no-reservations
+    /// case, so no throw is needed here.
     /// </summary>
     /// <param name="orderId">The cancelled order whose reservations must be released.</param>
     /// <param name="correlationId">The correlation id carried by the consumed <c>orders.order_cancelled</c> message.</param>
@@ -412,28 +624,52 @@ public sealed class OrderSagaOrchestrator
 
         if (saga is null)
         {
+            var (noSagaTraceId, noSagaSpanId) = CurrentTraceIds();
             _logger.LogInformation(
-                "No saga exists for cancelled order {OrderId}; no inventory release requested (correlation {CorrelationId}).",
+                "No saga exists for cancelled order {OrderId}; no inventory release requested (correlation {CorrelationId}, trace {TraceId}, span {SpanId}).",
                 orderId.Value,
-                correlationId);
+                correlationId,
+                noSagaTraceId,
+                noSagaSpanId);
 
             return new OrderSagaReleaseResult(SagaFound: false, ReleaseIssued: false, SagaId: null, Commands: []);
         }
+
+        var previousState = saga.State;
+        using var releaseActivity = StartSagaActivity(
+            "Orders.Saga.RequestRelease",
+            orderId,
+            saga.Id,
+            previousState,
+            previousState,
+            correlationId,
+            causationId);
+
+        var producedAtUtc = _dateTimeProvider.UtcNow;
+
+        // Phase 8.8: mark the saga as release-requested BEFORE staging the commands, so a late
+        // inventory.reserved result that races this cancellation is compensated immediately. The marker
+        // is bookkeeping (no state transition, no version bump); the first request wins and a redelivered
+        // cancellation cannot shift it.
+        saga.MarkReleaseRequested(producedAtUtc);
 
         var reservationIds = saga.ReservationIds.ToList();
 
         if (reservationIds.Count == 0)
         {
+            releaseActivity?.AddTag("saga.outcome", "release-not-issued");
+
+            var (noReservationTraceId, noReservationSpanId) = CurrentTraceIds();
             _logger.LogInformation(
-                "Saga {SagaId} for cancelled order {OrderId} has no recorded reservations; no inventory release requested (correlation {CorrelationId}).",
+                "Saga {SagaId} for cancelled order {OrderId} has no recorded reservations; no inventory release requested (correlation {CorrelationId}, trace {TraceId}, span {SpanId}).",
                 saga.Id,
                 orderId.Value,
-                correlationId);
+                correlationId,
+                noReservationTraceId,
+                noReservationSpanId);
 
             return new OrderSagaReleaseResult(SagaFound: true, ReleaseIssued: false, saga.Id, []);
         }
-
-        var producedAtUtc = _dateTimeProvider.UtcNow;
 
         var commands = reservationIds
             .Select(id => new InventoryReleaseRequestedIntegrationEvent(id)
@@ -448,14 +684,53 @@ public sealed class OrderSagaOrchestrator
         foreach (var command in commands)
             _context.OutboxMessages.Add(_outboxMessageFactory.Create(command));
 
+        releaseActivity?.AddTag("saga.outcome", "release-issued");
+
+        var (traceId, spanId) = CurrentTraceIds();
         _logger.LogInformation(
-            "Requested release of {ReservationCount} reservation(s) for cancelled order {OrderId} (saga {SagaId}, correlation {CorrelationId}, causation {CausationId}).",
+            "Requested release of {ReservationCount} reservation(s) for cancelled order {OrderId} (saga {SagaId}, correlation {CorrelationId}, causation {CausationId}, state {PreviousState} → {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
             commands.Count,
             orderId.Value,
             saga.Id,
             correlationId,
-            causationId);
+            causationId,
+            previousState,
+            saga.State,
+            "release-issued",
+            traceId,
+            spanId);
 
         return new OrderSagaReleaseResult(SagaFound: true, ReleaseIssued: true, saga.Id, commands);
+    }
+
+    /// <summary>
+    /// Phase 8.8 stages an immediate compensation release for a reservation that was recorded on a saga
+    /// whose release was already requested (the order was cancelled while the reservation result was
+    /// still in flight). The command carries the consumed result's correlation/causation ids and is
+    /// staged for the caller's unit of work, so it commits atomically with the saga change and the
+    /// processed-message record.
+    /// </summary>
+    private IReadOnlyList<InventoryReleaseRequestedIntegrationEvent> StageImmediateRelease(
+        Guid reservationId,
+        Guid correlationId,
+        Guid? causationId)
+    {
+        var command = new InventoryReleaseRequestedIntegrationEvent(reservationId)
+        {
+            EventId = Guid.NewGuid(),
+            CorrelationId = correlationId,
+            CausationId = causationId,
+            OccurredAtUtc = _dateTimeProvider.UtcNow
+        };
+
+        _context.OutboxMessages.Add(_outboxMessageFactory.Create(command));
+
+        _logger.LogInformation(
+            "Staged an immediate release for reservation {ReservationId} recorded after the compensation release was requested (correlation {CorrelationId}, causation {CausationId}); the reservation is compensated rather than left to expire.",
+            reservationId,
+            correlationId,
+            causationId);
+
+        return [command];
     }
 }

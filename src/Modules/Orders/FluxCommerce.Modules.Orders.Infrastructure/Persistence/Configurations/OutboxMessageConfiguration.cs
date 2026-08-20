@@ -57,6 +57,14 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(message => message.Error)
             .HasColumnName("Error");
 
+        builder.Property(message => message.TraceParent)
+            .HasColumnName("TraceParent")
+            .HasMaxLength(55);
+
+        builder.Property(message => message.TraceState)
+            .HasColumnName("TraceState")
+            .HasMaxLength(512);
+
         builder.HasIndex(message => new { message.Status, message.CreatedAtUtc })
             .HasDatabaseName("IX_OutboxMessages_Status_CreatedAtUtc");
 

@@ -95,6 +95,16 @@ namespace FluxCommerce.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnType("int")
                         .HasColumnName("Status");
 
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(55)
+                        .HasColumnType("nvarchar(55)")
+                        .HasColumnName("TraceParent");
+
+                    b.Property<string>("TraceState")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("TraceState");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(512)

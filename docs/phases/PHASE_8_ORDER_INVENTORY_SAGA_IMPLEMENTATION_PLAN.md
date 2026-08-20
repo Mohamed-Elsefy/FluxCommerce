@@ -3,7 +3,7 @@
 
 **Phase:** 8  
 **Name:** Order / Inventory Saga  
-**Status:** Planned  
+**Status:** Implemented — see `docs/completed/PHASE_8_COMPLETION_REPORT.md`  
 **Prerequisites:** Phase 6 — Outbox + RabbitMQ, Phase 7 — Idempotent Consumers  
 **Next Major Phase:** Phase 9 — Stripe Payments
 

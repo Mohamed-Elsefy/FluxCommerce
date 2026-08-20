@@ -80,7 +80,8 @@ public sealed class OrdersOutboxStore : IOutboxStore
                  OUTPUT INSERTED.[Id], INSERTED.[EventId], INSERTED.[Type], INSERTED.[Payload],
                         INSERTED.[CorrelationId], INSERTED.[CausationId], INSERTED.[OccurredAtUtc],
                         INSERTED.[CreatedAtUtc], INSERTED.[ProcessedAtUtc], INSERTED.[Status],
-                        INSERTED.[RetryCount], INSERTED.[RetryAfterUtc], INSERTED.[Error]
+                        INSERTED.[RetryCount], INSERTED.[RetryAfterUtc], INSERTED.[Error],
+                        INSERTED.[TraceParent], INSERTED.[TraceState]
                  FROM [OutboxMessages] O
                  INNER JOIN ToClaim ON ToClaim.[Id] = O.[Id]
                  WHERE O.[Status] = {(int)OutboxStatus.Pending}

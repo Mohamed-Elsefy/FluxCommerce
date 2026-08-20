@@ -718,9 +718,14 @@ cancelled by RabbitMQ.Client 7.x, so the consumer drives cancellation from its o
 
 # 15. Saga Architecture
 
-The system will eventually implement distributed business workflows using Saga Orchestration.
+Distributed business workflows are implemented using Saga Orchestration (Phase 8 — the Order/Inventory
+Saga; see ADR-009, `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IMPLEMENTATION_PLAN.md`, and
+`docs/completed/PHASE_8_COMPLETION_REPORT.md`).
 
-The Saga Orchestrator coordinates the workflow.
+The Saga Orchestrator coordinates the workflow. It is an Orders-owned orchestration component (in
+`Orders.Infrastructure`, beside the module DbContext, idempotency store, and consumers) whose state is
+persisted in the Orders database in a dedicated Saga state table holding only workflow progress (Id,
+OrderId, CorrelationId, State, timestamps, concurrency Version).
 
 The Saga does NOT own:
 
@@ -728,7 +733,10 @@ The Saga does NOT own:
 - Inventory state
 - Payment state
 
-Each module owns its own state.
+Each module owns its own state. The Saga never reads another module's database and never uses
+distributed transactions; coordination flows only through explicit Integration Event contracts over
+RabbitMQ, published reliably through each module's Outbox and consumed by the idempotent consumer
+infrastructure (Phase 6/7).
 
 Conceptually:
 
@@ -754,9 +762,15 @@ If a later step fails:
       +--> Refund Payment
       +--> Cancel / Compensate Order
 
-Saga orchestration belongs to later implementation phases.
-
-Phase 0 only establishes the architectural foundation required to support it.
+Phase 8 implements the Order + Inventory segment: on `orders.order_created` the Saga starts
+(`WaitingForInventory`), publishes `inventory.reservation_requested`, and consumes `inventory.reserved`
+/ `inventory.reservation_failed`. A success completes the Saga (`Completed`) while the Order stays
+Pending; a failure transitions the Saga to `Failed`, cancels the Order, and publishes
+`orders.order_cancelled`. A cancellation with an active reservation publishes
+`inventory.release_requested`, whose release is compensated by the Inventory module. Saga transitions
+are guarded by the Saga row's optimistic concurrency token (duplicate or conflicting results apply at
+most once), and every consumer runs inside its module's idempotent-processing boundary. Payment
+(Phase 9) and refund compensation (Phase 10) extend this pattern in later phases.
 
 ---
 
