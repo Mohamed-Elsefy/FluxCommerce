@@ -104,6 +104,16 @@ public sealed class InventoryStore : IInventoryStore
         ArgumentNullException.ThrowIfNull(reservationId);
         ArgumentNullException.ThrowIfNull(orderId);
 
+        // When the caller has already established a transaction (for example the consumer idempotency
+        // boundary), the reservation participates in that ambient transaction instead of opening a
+        // nested one: the atomic gate UPDATE and the reservation insert then commit atomically with
+        // the ProcessedMessage, and a business failure rolls the whole unit back with it.
+        if (_context.Database.CurrentTransaction is not null)
+        {
+            return ReserveCoreAsync(
+                sku, reservationId, orderId, quantity, expiresAt, utcNow, cancellationToken);
+        }
+
         // The execution strategy is used because the retry strategy on this context does not allow
         // user-initiated transactions outside of it; the whole gate + insert is a retriable unit.
         var executionStrategy = _context.Database.CreateExecutionStrategy();
@@ -116,25 +126,11 @@ public sealed class InventoryStore : IInventoryStore
                     .BeginTransactionAsync(cancellationToken)
                     .ConfigureAwait(false);
 
-                // The stock check and the corresponding mutation are a single atomic conditional
-                // UPDATE: the row is only touched while the requested quantity is still available,
-                // so two concurrent reservations can never both observe enough stock. RowsAffected
-                // is the success gate.
-                var affected = await _context
-                    .Database
-                    .ExecuteSqlInterpolatedAsync(
-                        $"""
-                         UPDATE [InventoryItems]
-                         SET [ReservedQuantity] = [ReservedQuantity] + {quantity},
-                             [Version] = [Version] + 1,
-                             [UpdatedAtUtc] = {utcNow}
-                         WHERE [Sku] = {sku.Value}
-                           AND [ReservedQuantity] + {quantity} <= [OnHandQuantity]
-                         """,
-                        cancellationToken)
+                var reservation = await ReserveCoreAsync(
+                    sku, reservationId, orderId, quantity, expiresAt, utcNow, cancellationToken)
                     .ConfigureAwait(false);
 
-                if (affected == 0)
+                if (reservation is null)
                 {
                     await transaction
                         .RollbackAsync(cancellationToken)
@@ -143,31 +139,67 @@ public sealed class InventoryStore : IInventoryStore
                     return null;
                 }
 
-                // Re-load the item so the reservation is recorded against the exact post-gate
-                // quantities. The reservation is constructed without mutating the item again: the
-                // reserved-quantity increment was already applied atomically by the gate, and the
-                // domain records the creation event. The item is intentionally not tracked in this
-                // context, so nothing re-saves it.
-                var item = await _context.InventoryItems
-                    .AsNoTracking()
-                    .SingleAsync(candidate => candidate.Id == sku, cancellationToken)
+                await transaction
+                    .CommitAsync(cancellationToken)
                     .ConfigureAwait(false);
-
-                var reservation = InventoryReservation.CreateReserved(
-                    reservationId,
-                    orderId,
-                    item.Sku,
-                    quantity,
-                    expiresAt,
-                    utcNow).Value;
-
-                _context.InventoryReservations.Add(reservation);
-
-                await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
                 return reservation;
             });
+    }
+
+    private async Task<InventoryReservation?> ReserveCoreAsync(
+        InventorySku sku,
+        InventoryReservationId reservationId,
+        OrderId orderId,
+        int quantity,
+        DateTimeOffset expiresAt,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        // The stock check and the corresponding mutation are a single atomic conditional
+        // UPDATE: the row is only touched while the requested quantity is still available,
+        // so two concurrent reservations can never both observe enough stock. RowsAffected
+        // is the success gate.
+        var affected = await _context
+            .Database
+            .ExecuteSqlInterpolatedAsync(
+                $"""
+                 UPDATE [InventoryItems]
+                 SET [ReservedQuantity] = [ReservedQuantity] + {quantity},
+                     [Version] = [Version] + 1,
+                     [UpdatedAtUtc] = {utcNow}
+                 WHERE [Sku] = {sku.Value}
+                   AND [ReservedQuantity] + {quantity} <= [OnHandQuantity]
+                 """,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (affected == 0)
+            return null;
+
+        // Re-load the item so the reservation is recorded against the exact post-gate
+        // quantities. The reservation is constructed without mutating the item again: the
+        // reserved-quantity increment was already applied atomically by the gate, and the
+        // domain records the creation event. The item is intentionally not tracked in this
+        // context, so nothing re-saves it.
+        var item = await _context.InventoryItems
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == sku, cancellationToken)
+            .ConfigureAwait(false);
+
+        var reservation = InventoryReservation.CreateReserved(
+            reservationId,
+            orderId,
+            item.Sku,
+            quantity,
+            expiresAt,
+            utcNow).Value;
+
+        _context.InventoryReservations.Add(reservation);
+
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return reservation;
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default) =>

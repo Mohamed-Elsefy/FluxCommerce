@@ -1,10 +1,13 @@
+using System.Diagnostics;
 using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
+using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.BuildingBlocks.Messaging.Events;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Dispatch;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
+using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,6 +119,21 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
         IRabbitMQPublisher publisher,
         CancellationToken cancellationToken)
     {
+        // Phase 8.9: the dispatch producer span is rooted at the trace context captured when the message
+        // was staged, so the outbox hop keeps the workflow on the same trace. The publisher injects the
+        // span id into the transport traceparent header for the consumer to continue from.
+        using var activity = TraceContext.StartActivity(
+            "Outbox.Dispatch",
+            ActivityKind.Producer,
+            message.TraceParent,
+            message.TraceState);
+
+        activity?
+            .AddTag("outbox.message.id", message.Id)
+            .AddTag("event.type", message.Type)
+            .AddTag("event.id", message.EventId)
+            .AddTag("correlation.id", message.CorrelationId);
+
         try
         {
             var integrationEvent = Deserialize(message);
@@ -261,6 +279,10 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
                 JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(message.Payload),
             OrderCancelledIntegrationEvent.EventType =>
                 JsonSerializer.Deserialize<OrderCancelledIntegrationEvent>(message.Payload),
+            InventoryReservationRequestedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<InventoryReservationRequestedIntegrationEvent>(message.Payload),
+            InventoryReleaseRequestedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<InventoryReleaseRequestedIntegrationEvent>(message.Payload),
             _ => null
         };
 }

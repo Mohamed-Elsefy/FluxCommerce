@@ -30,6 +30,16 @@ public class OrdersArchitectureTests
                         continue;
                     }
 
+                    // Phase 8.3 F2 carve-out (ADR-009): Orders.Infrastructure is allowed to reference
+                    // the approved Inventory integration contract namespaces only. The strict boundary
+                    // is pinned by Orders_Infrastructure_ReferencesInventory_OnlyThroughApprovedContractNamespaces.
+                    if (module == "Inventory"
+                        && layer == "Contracts"
+                        && assembly.GetName().Name == "FluxCommerce.Modules.Orders.Infrastructure")
+                    {
+                        continue;
+                    }
+
                     AssertNoDependencies(
                         assembly,
                         $"FluxCommerce.Modules.{module}.{layer}",
@@ -93,10 +103,14 @@ public class OrdersArchitectureTests
     [Fact]
     public void Orders_ShouldNot_ReferenceInventory()
     {
+        // Phase 8.3 F2 carve-out (ADR-009): Orders.Infrastructure may depend on the approved Inventory
+        // integration contract namespaces (FluxCommerce.Modules.Inventory.Contracts.Integration and
+        // .IntegrationEvents), so the full Inventory surface is forbidden for Domain, Application and
+        // Contracts, while Infrastructure may only still not reach the other Inventory layers.
         var failures = new List<string>();
 
         AssertNoDependencies(
-            OrdersAssemblies,
+            [OrdersDomain, OrdersApplication, OrdersContracts],
             [
                 "FluxCommerce.Modules.Inventory.Domain",
                 "FluxCommerce.Modules.Inventory.Application",
@@ -104,6 +118,16 @@ public class OrdersArchitectureTests
                 "FluxCommerce.Modules.Inventory.Contracts",
             ],
             "Orders -> Inventory",
+            failures);
+
+        AssertNoDependencies(
+            [OrdersInfrastructure],
+            [
+                "FluxCommerce.Modules.Inventory.Domain",
+                "FluxCommerce.Modules.Inventory.Application",
+                "FluxCommerce.Modules.Inventory.Infrastructure",
+            ],
+            "Orders.Infrastructure -> Inventory (non-contract)",
             failures);
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
@@ -184,25 +208,90 @@ public class OrdersArchitectureTests
     }
 
     [Fact]
-    public void Orders_ShouldNot_IntroduceSagaOrOrchestratorTypes()
+    public void Orders_ShouldNot_IntroduceOrchestratorTypesOutsideInfrastructure()
     {
+        // Phase 8.2/8.3 (F3, ADR-009): the Saga state model (OrderSaga) is hosted in Orders.Domain and
+        // the Saga orchestrator (OrderSagaOrchestrator) is deliberately placed in Orders.Infrastructure.
+        // Only the layers above Infrastructure must stay free of orchestrator types.
         var failures = new List<string>();
 
-        foreach (var assembly in OrdersAssemblies)
+        foreach (var assembly in new[] { OrdersDomain, OrdersApplication, OrdersContracts })
         {
             var result = Types.InAssembly(assembly)
                 .That()
-                .HaveNameEndingWith("Saga")
-                .Or()
                 .HaveNameEndingWith("Orchestrator")
                 .GetTypes()
                 .ToArray();
 
             if (result.Length > 0)
             {
-                failures.Add($"Orders introduced saga/orchestrator types: {assembly.GetName().Name} via: {string.Join(", ", result.Select(t => t.FullName))}");
+                failures.Add($"Orders introduced orchestrator types: {assembly.GetName().Name} via: {string.Join(", ", result.Select(t => t.FullName))}");
             }
         }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Orders_Should_HostTheSagaStateModelInDomain()
+    {
+        var sagaTypes = Types.InAssembly(OrdersDomain)
+            .That()
+            .ResideInNamespace("FluxCommerce.Modules.Orders.Domain.Sagas")
+            .GetTypes()
+            .ToArray();
+
+        Assert.Contains(sagaTypes, type => type.Name == "OrderSaga");
+    }
+
+    [Fact]
+    public void Orders_Should_HostTheSagaOrchestratorInInfrastructure()
+    {
+        // Phase 8.3 (ADR-009): the Saga orchestrator drives the workflow beside the module DbContext,
+        // idempotency store, and consumers — never in Domain or Application.
+        var orchestratorTypes = Types.InAssembly(OrdersInfrastructure)
+            .That()
+            .HaveNameEndingWith("Orchestrator")
+            .GetTypes()
+            .ToArray();
+
+        Assert.Contains(orchestratorTypes, type => type.Name == "OrderSagaOrchestrator");
+    }
+
+    [Fact]
+    public void Orders_Infrastructure_ReferencesInventory_OnlyThroughApprovedContractNamespaces()
+    {
+        // Phase 8.3 F2 carve-out (ADR-009): Orders.Infrastructure may depend on the Inventory module
+        // ONLY through the approved integration contract namespaces. Reaching the request/response or
+        // enum surfaces of Inventory.Contracts, or any other Inventory layer, is forbidden.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            OrdersInfrastructure,
+            "FluxCommerce.Modules.Inventory.Contracts.Requests",
+            "Orders.Infrastructure -> Inventory.Requests",
+            failures);
+
+        AssertNoDependencies(
+            OrdersInfrastructure,
+            "FluxCommerce.Modules.Inventory.Contracts.Responses",
+            "Orders.Infrastructure -> Inventory.Responses",
+            failures);
+
+        AssertNoDependencies(
+            OrdersInfrastructure,
+            "FluxCommerce.Modules.Inventory.Contracts.Enums",
+            "Orders.Infrastructure -> Inventory.Enums",
+            failures);
+
+        var referencingTypes = Types.InAssembly(OrdersInfrastructure)
+            .That()
+            .HaveDependencyOn("FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Orders.Infrastructure must reference the approved Inventory integration event contracts to issue reservation requests.");
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }

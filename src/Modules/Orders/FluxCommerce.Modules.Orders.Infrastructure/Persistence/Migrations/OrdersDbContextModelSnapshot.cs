@@ -95,6 +95,16 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("int")
                         .HasColumnName("Status");
 
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(55)
+                        .HasColumnType("nvarchar(55)")
+                        .HasColumnName("TraceParent");
+
+                    b.Property<string>("TraceState")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("TraceState");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -147,6 +157,59 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Orders_CustomerId");
 
                     b.ToTable("Orders", (string)null);
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Orders.Domain.Sagas.OrderSaga", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CorrelationId");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OrderId");
+
+                    b.Property<DateTimeOffset?>("ReleaseRequestedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("ReleaseRequestedAtUtc");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int")
+                        .HasColumnName("State");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("UpdatedAtUtc");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("Version");
+
+                    b.PrimitiveCollection<string>("_reservationIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ReservationIds");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .HasDatabaseName("IX_OrderSagas_CorrelationId");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_OrderSagas_OrderId");
+
+                    b.ToTable("OrderSagas", (string)null);
                 });
 
             modelBuilder.Entity("FluxCommerce.Modules.Orders.Infrastructure.Persistence.Entities.CheckoutIdempotency", b =>

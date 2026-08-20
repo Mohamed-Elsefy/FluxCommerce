@@ -1,8 +1,10 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -102,6 +104,58 @@ public class OrdersInfrastructureRegistrationTests
         Assert.Equal(TimeSpan.FromSeconds(1), options.BaseRetryDelay);
         Assert.Equal(2.0, options.RetryDelayMultiplier);
         Assert.Equal(TimeSpan.FromMinutes(1), options.MaxRetryDelay);
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersSagaOrchestrator_AsScoped()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(OrderSagaOrchestrator)
+                && descriptor.Lifetime == ServiceLifetime.Scoped);
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersSagaOutboxMessageFactory_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(SagaOutboxMessageFactory)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersIntegrationEventOutboxMessageFactory_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(IntegrationEventOutboxMessageFactory)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddOrdersInfrastructure_RegistersReservationRequestOptions_WithDefaults()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOrdersInfrastructure(ConnectionString);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<ReservationRequestOptions>>().Value;
+
+        Assert.Equal(TimeSpan.FromMinutes(30), options.ReservationLifetime);
     }
 
     private const string ConnectionString =

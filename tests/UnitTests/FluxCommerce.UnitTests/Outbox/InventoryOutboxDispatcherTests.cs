@@ -4,6 +4,7 @@ using FluxCommerce.BuildingBlocks.Messaging.Events;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
+using FluxCommerce.Modules.Inventory.Contracts.Enums;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Inventory.Infrastructure.Background;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,28 @@ public class InventoryOutboxDispatcherTests
         publisher.Verify(p => p.PublishAsync(
             InventoryReservationExpiredIntegrationEvent.EventType,
             It.Is<InventoryReservationExpiredIntegrationEvent>(e => e == @event),
+            It.IsAny<CancellationToken>()), Times.Once);
+        store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchCoreAsync_PublishesReleasedEvent_AndMarksPublished()
+    {
+        var @event = CreateReleased();
+        var message = CreateMessage(@event);
+        var store = new Mock<IOutboxStore>();
+        store.Setup(s => s.ClaimPendingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message]);
+        var publisher = new Mock<IRabbitMQPublisher>();
+        publisher.Setup(p => p.PublishAsync(
+                It.IsAny<string>(), It.IsAny<IIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await CreateDispatcher().DispatchCoreAsync(store.Object, publisher.Object, CancellationToken.None);
+
+        publisher.Verify(p => p.PublishAsync(
+            InventoryReleasedIntegrationEvent.EventType,
+            It.Is<InventoryReleasedIntegrationEvent>(e => e == @event),
             It.IsAny<CancellationToken>()), Times.Once);
         store.Verify(s => s.MarkPublishedAsync(message.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -142,12 +165,44 @@ public class InventoryOutboxDispatcherTests
             CorrelationId = CorrelationId
         };
 
+    private static InventoryReleasedIntegrationEvent CreateReleased() =>
+        new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "SKU-1",
+            2,
+            new DateTimeOffset(2026, 8, 14, 15, 0, 0, TimeSpan.Zero),
+            InventoryReservationStatus.Released,
+            new DateTimeOffset(2026, 8, 14, 14, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 8, 14, 15, 0, 0, TimeSpan.Zero),
+            1)
+        {
+            CorrelationId = CorrelationId
+        };
+
     private static OutboxMessage CreateMessage(InventoryReservationExpiredIntegrationEvent @event) =>
         new()
         {
             Id = Guid.NewGuid(),
             EventId = @event.EventId,
             Type = InventoryReservationExpiredIntegrationEvent.EventType,
+            Payload = JsonSerializer.Serialize(@event),
+            CorrelationId = @event.CorrelationId,
+            CausationId = @event.CausationId,
+            OccurredAtUtc = @event.OccurredAtUtc,
+            CreatedAtUtc = DateTime.UtcNow,
+            ProcessedAtUtc = null,
+            Status = OutboxStatus.Pending,
+            RetryCount = 0,
+            Error = null
+        };
+
+    private static OutboxMessage CreateMessage(InventoryReleasedIntegrationEvent @event) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            EventId = @event.EventId,
+            Type = InventoryReleasedIntegrationEvent.EventType,
             Payload = JsonSerializer.Serialize(@event),
             CorrelationId = @event.CorrelationId,
             CausationId = @event.CausationId,

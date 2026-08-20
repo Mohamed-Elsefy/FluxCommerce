@@ -5,6 +5,7 @@ using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Idempotency.Stores;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Outbox.Configuration;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Orders.Application.Commands.CancelOrder;
 using FluxCommerce.Modules.Orders.Application.Commands.Checkout;
@@ -19,6 +20,7 @@ using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
+using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -54,8 +56,17 @@ public static class DependencyInjection
         services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
         services.AddScoped<ICheckoutStore, CheckoutStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOrderSagaStore, OrderSagaStore>();
         services.AddScoped<IOrderSummaryProjectionStore, OrderSummaryProjectionStore>();
         services.AddScoped<IOrderSummaryProjectionService, OrderSummaryProjectionService>();
+
+        // Phase 8.3 Order Saga orchestration. The orchestrator is resolved by the saga consumer and
+        // stages the saga and reservation-request outbox records inside the idempotent-processing unit
+        // of work; options follow the defaults-only registration pattern of OutboxDispatchOptions.
+        services.AddOptions<ReservationRequestOptions>();
+        services.AddSingleton<SagaOutboxMessageFactory>();
+        services.AddSingleton<IntegrationEventOutboxMessageFactory>();
+        services.AddScoped<OrderSagaOrchestrator>();
 
         // Idempotency: the concrete, module-owned implementations are registered (so the consumer
         // infrastructure can resolve them by concrete type — each consumer carries its module's

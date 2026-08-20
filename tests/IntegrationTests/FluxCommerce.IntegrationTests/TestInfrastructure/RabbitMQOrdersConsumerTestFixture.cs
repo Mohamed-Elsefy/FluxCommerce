@@ -4,6 +4,7 @@ using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
+using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Entities;
@@ -90,6 +91,31 @@ public sealed class RabbitMQOrdersConsumerTestFixture : IAsyncDisposable
         services.AddRabbitMQPublisher(TestExchangeName);
         services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
         services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer, OrdersIdempotentProcessor>();
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Phase 8.5: builds a consumer host that registers both Inventory result consumers
+    /// (<c>InventoryReservedConsumer</c> and <c>InventoryReservationFailedConsumer</c>) against
+    /// <c>inventory.reserved</c> / <c>inventory.reservation_failed</c> on the given queue, inside the
+    /// Orders idempotent-processing boundary. The hosted <c>RabbitMQConsumerBackgroundService</c> is
+    /// started per test so the outbox hosted services never run.
+    /// </summary>
+    public ServiceProvider BuildResultConsumerProvider(
+        string queueName,
+        Action<FluxCommerce.BuildingBlocks.Infrastructure.Consuming.RabbitMQConsumerOptions>? configure = null)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+        services.AddSingleton<ICurrentUser, AnonymousCurrentUser>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
+        services.AddOrdersInfrastructure(SqlServerConnectionString);
+        services.AddRabbitMQ(RabbitMQConnectionString);
+        services.AddRabbitMQPublisher(TestExchangeName);
+        services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
+        services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
         return services.BuildServiceProvider();
     }
 

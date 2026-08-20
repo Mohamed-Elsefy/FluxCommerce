@@ -4,6 +4,7 @@ using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
+using FluxCommerce.Modules.Orders.Domain.Sagas;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -30,4 +31,6 @@ public sealed class OrdersDbContext : BaseDbContext
     public DbSet<ProcessedMessage> ProcessedMessages { get; set; } = null!;
 
     public DbSet<OrderSummaryProjectionEntity> OrderSummaryProjections { get; set; } = null!;
+
+    public DbSet<OrderSaga> OrderSagas { get; set; } = null!;
 }

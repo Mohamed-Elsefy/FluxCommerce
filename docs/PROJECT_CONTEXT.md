@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1405,6 +1405,40 @@ The Idempotent Consumers phase (see `docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 163/163, Unit tests 1910/1910, Integration tests 343/343 (real SQL Server + RabbitMQ), including Phase 6 outbox/publisher regression 47/47 and Phase 7 consumer/idempotency/ProcessedMessage scenarios 40/40. Module isolation is proven by dedicated integration tests (Orders consumer writes only the Orders database, Inventory consumer writes only the Inventory database, regardless of container registration order).
 
 **Deferred.** Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Phase 8 is the next phase.
+
+---
+
+### 14.7 Phase 8 — Order/Inventory Saga — Implemented & Verified
+
+The Order/Inventory Saga phase (see `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IMPLEMENTATION_PLAN.md` and `docs/completed/PHASE_8_COMPLETION_REPORT.md`) implements the first reliable cross-module business workflow: on `orders.order_created` the Saga starts, publishes `inventory.reservation_requested`, and consumes `inventory.reserved` / `inventory.reservation_failed`. A success completes the Saga while the Order stays Pending; a failure fails the Saga, cancels the Order, and publishes `orders.order_cancelled`; a cancellation with an active reservation publishes `inventory.release_requested`, compensated by the Inventory module.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 8.1 | Saga architecture & baseline audit | Implemented |
+| 8.2 | Saga state model & persistence | Implemented |
+| 8.3 | Order saga orchestration | Implemented |
+| 8.4 | Inventory reservation command flow | Implemented |
+| 8.5 | Inventory result events | Implemented |
+| 8.6 | Order state transitions | Implemented |
+| 8.7 | Compensation & release inventory | Implemented |
+| 8.8 | Idempotency, concurrency & recovery hardening | Implemented |
+| 8.9 | Observability & distributed trace verification | Implemented |
+| 8.10 | Final verification, hardening & completion | Implemented |
+
+**Key decisions (saga architecture).**
+
+- The Saga is Orders-owned orchestration living in `Orders.Infrastructure`; its state table holds only workflow progress (Id, OrderId, CorrelationId, State, timestamps, concurrency Version) and never duplicates Order or Inventory business state (ADR-009).
+- Wire contracts live in `Inventory.Contracts` (the module that owns the operations/state); Orders.Infrastructure gets the narrow approved reference to `Inventory.Contracts` (`Integration`/`IntegrationEvents` namespaces only), encoded in the architecture tests; Inventory never references Orders.
+- Coordination flows only through explicit Integration Event contracts over RabbitMQ via each module's Outbox and idempotent consumer infrastructure — no cross-module database access, no distributed transactions.
+- Saga transitions are guarded by the Saga row's optimistic concurrency token in addition to each consumer's idempotent-processing boundary, so duplicate or conflicting results (Reserved vs Failed, concurrent duplicates) apply at most once — exactly one business effect.
+- Every Saga-produced event carries correlation/causation: `OrderCreated(C1)` → `ReservationRequested(C1)` → `Reserved`/`Failed(C1)` → Order transition, with a W3C trace propagated and exported across every async hop (TraceParent/TraceState in Outbox rows and broker headers).
+- Failure compensation: a reservation failure cancels the Order (Order stays Cancelled; the summary projection stays fresh via an `orders.order_cancelled` consumer) and a cancelled order with an active reservation issues a compensating `inventory.release_requested` that is idempotent and durable.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2022/2022, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure). Phase 6/7 messaging and idempotency behavior remain green (regression).
+
+**Deferred.** Stripe Payments (Phase 9), compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Phase 9 is the next phase.
 
 ---
 
