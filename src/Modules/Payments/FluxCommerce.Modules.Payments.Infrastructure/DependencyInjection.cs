@@ -1,4 +1,6 @@
+using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +18,8 @@ public static class DependencyInjection
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Payments");
                 sqlOptions.MigrationsAssembly(typeof(PaymentsDbContext).Assembly.GetName().Name);
             }));
+
+        services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
 
         return services;
     }
