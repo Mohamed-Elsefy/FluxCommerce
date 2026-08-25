@@ -1,2 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  </Project>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
+  </ItemGroup>
+</Project>

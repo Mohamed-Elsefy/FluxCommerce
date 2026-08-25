@@ -1,3 +1,4 @@
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
@@ -20,8 +21,10 @@ public static class DependencyInjection
                 sqlOptions.MigrationsAssembly(typeof(PaymentsDbContext).Assembly.GetName().Name);
             }));
 
+        services.AddSingleton<IntegrationEventOutboxMessageFactory>();
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
         services.AddScoped<IStripeWebhookService, StripeWebhookService>();
+        services.AddScoped<IWebhookEventProcessor, WebhookEventProcessor>();
 
         return services;
     }

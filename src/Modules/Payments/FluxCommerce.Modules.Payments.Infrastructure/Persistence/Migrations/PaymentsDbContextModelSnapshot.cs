@@ -87,6 +87,117 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Payments", (string)null);
                 });
+
+            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Outbox.Messages.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CorrelationId");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<Guid?>("CausationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CausationId");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Error");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EventId");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("OccurredAtUtc");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Payload");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ProcessedAtUtc");
+
+                    b.Property<DateTime?>("RetryAfterUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("RetryAfterUtc");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int")
+                        .HasColumnName("RetryCount");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(55)
+                        .HasColumnType("nvarchar(55)")
+                        .HasColumnName("TraceParent");
+
+                    b.Property<string>("TraceState")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("TraceState");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("Type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAtUtc")
+                        .HasDatabaseName("IX_OutboxMessages_Status_CreatedAtUtc");
+
+                    b.HasIndex("Status", "ProcessedAtUtc")
+                        .HasDatabaseName("IX_OutboxMessages_Status_ProcessedAtUtc");
+
+                    b.ToTable("OutboxMessages", (string)null);
+                });
+
+            modelBuilder.Entity("FluxCommerce.Modules.Payments.Domain.Entities.ProcessedWebhookEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id");
+
+                    b.Property<string>("StripeEventId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("StripeEventId");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("EventType");
+
+                    b.Property<DateTimeOffset>("ProcessedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("ProcessedAtUtc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StripeEventId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProcessedWebhookEvents_StripeEventId");
+
+                    b.ToTable("ProcessedWebhookEvents", (string)null);
+                });
 #pragma warning restore 612, 618
         }
     }

@@ -2,6 +2,7 @@ using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Domain.Options;
 using Microsoft.Extensions.Options;
 using Stripe;
+using System.Text.Json;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 
@@ -14,40 +15,47 @@ public sealed class StripeWebhookService : IStripeWebhookService
         _webhookSecret = stripeOptions.Value.WebhookSecret ?? throw new InvalidOperationException("Stripe Webhook Secret is not configured.");
     }
 
-    /// <summary>
-    /// Verifies the Stripe webhook signature and parses the event.
-    /// </summary>
-    /// <param name="payload">The raw request body as string (UTF-8 encoded).</param>
-    /// <param name="signatureHeader">The Stripe-Signature header value.</param>
-    /// <returns>The verification result containing validity, event ID, and optional error message.</returns>
     public StripeWebhookVerificationResult VerifyAndParse(string payload, string signatureHeader)
     {
         if (string.IsNullOrEmpty(signatureHeader))
         {
-            // Note: logger not available here; caller should log
-            return new StripeWebhookVerificationResult(
-                IsValid: false,
-                EventId: null,
-                ErrorMessage: "Stripe-Signature header is missing");
+            return new StripeWebhookVerificationResult(false, null, null, null, "Stripe-Signature header is missing");
+        }
+
+        if (string.IsNullOrEmpty(payload))
+        {
+            return new StripeWebhookVerificationResult(false, null, null, null, "Payload is empty");
         }
 
         try
         {
-            var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, _webhookSecret);
+            var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, _webhookSecret, tolerance: 300, throwOnApiVersionMismatch: false);
 
-            // Note: logger not available here; caller should log
-            return new StripeWebhookVerificationResult(
-                IsValid: true,
-                EventId: stripeEvent?.Id,
-                ErrorMessage: null);
+            var paymentIntentId = ExtractPaymentIntentId(payload);
+
+            return new StripeWebhookVerificationResult(true, stripeEvent.Id, stripeEvent.Type, paymentIntentId, null);
         }
         catch (StripeException)
         {
-            // Invalid signature or payload mismatch
-            return new StripeWebhookVerificationResult(
-                IsValid: false,
-                EventId: null,
-                ErrorMessage: "Invalid Stripe webhook signature");
+            return new StripeWebhookVerificationResult(false, null, null, null, "Invalid Stripe webhook signature");
         }
+    }
+
+    private static string? ExtractPaymentIntentId(string payload)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            if (doc.RootElement.TryGetProperty("data", out var data) &&
+                data.TryGetProperty("object", out var obj) &&
+                obj.TryGetProperty("id", out var idProp))
+            {
+                var id = idProp.GetString();
+                if (!string.IsNullOrEmpty(id) && id.StartsWith("pi_", StringComparison.Ordinal))
+                    return id;
+            }
+        }
+        catch { }
+        return null;
     }
 }

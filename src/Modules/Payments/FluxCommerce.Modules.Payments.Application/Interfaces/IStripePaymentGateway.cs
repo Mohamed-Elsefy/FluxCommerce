@@ -2,18 +2,6 @@ using FluxCommerce.Modules.Payments.Domain.Enums;
 
 namespace FluxCommerce.Modules.Payments.Application.Interfaces;
 
-public sealed record CreatePaymentIntentRequest(
-    Guid OrderId,
-    Guid PaymentId,
-    decimal Amount,
-    string Currency,
-    long Version);
-
-public sealed record PaymentIntentResult(
-    string StripePaymentIntentId,
-    PaymentStatus Status,
-    string? ClientSecret);
-
 public interface IStripePaymentGateway
 {
     /// <summary>
@@ -27,3 +15,15 @@ public interface IStripePaymentGateway
     /// </summary>
     Task<PaymentStatus> GetPaymentIntentStatusAsync(string paymentIntentId, CancellationToken cancellationToken = default);
 }
+
+public sealed record CreatePaymentIntentRequest(
+    Guid OrderId,
+    Guid PaymentId,
+    decimal Amount,
+    string Currency,
+    long Version);
+
+public sealed record PaymentIntentResult(
+    string StripePaymentIntentId,
+    PaymentStatus Status,
+    string? ClientSecret);

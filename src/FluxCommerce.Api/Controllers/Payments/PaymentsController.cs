@@ -3,8 +3,10 @@ using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace FluxCommerce.Api.Controllers.Payments;
 
@@ -15,17 +17,20 @@ public sealed class PaymentsController : ApiControllerBase
 {
     private readonly ILogger<PaymentsController> _logger;
     private readonly IStripeWebhookService _webhookService;
+    private readonly IWebhookEventProcessor _webhookProcessor;
 
     public PaymentsController(
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer,
         ILogger<PaymentsController> logger,
-        IStripeWebhookService webhookService
+        IStripeWebhookService webhookService,
+        IWebhookEventProcessor webhookProcessor
     )
         : base(localizer, errorCodeLocalizer)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _webhookService = webhookService ?? throw new ArgumentNullException(nameof(webhookService));
+        _webhookProcessor = webhookProcessor ?? throw new ArgumentNullException(nameof(webhookProcessor));
     }
 
     /// <summary>
@@ -35,18 +40,23 @@ public sealed class PaymentsController : ApiControllerBase
     /// This endpoint is publicly accessible to Stripe servers; customer JWT authorization is not applied.
     /// The raw request body is required for Stripe signature verification.
     /// Invalid signatures are rejected with HTTP 400 Bad Request.
-    /// Valid events are logged and a 200 OK response is returned.
+    /// Valid events are processed idempotently and a 200 OK response is returned.
+    /// Duplicate deliveries return 200 OK so Stripe stops retrying.
+    /// 9.10 state mapping and 9.11 Outbox/RabbitMQ are intentionally deferred.
     /// </remarks>
     [HttpPost("webhook")]
     [AllowAnonymous]
-    public async Task<IActionResult> Webhook(
-        CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Webhook(CancellationToken cancellationToken = default)
     {
-        // Read the raw request body directly from the stream as string.
-        // ASP.NET Core model binding would deserialize the body as JSON, which would alter the
-        // binary content required for Stripe signature verification.
-        using var reader = new StreamReader(Request.Body, leaveOpen: true);
-        var payload = await reader.ReadToEndAsync(cancellationToken);
+        Request.EnableBuffering();
+
+        string payload;
+        using (var reader = new StreamReader(Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true))
+        {
+            payload = await reader.ReadToEndAsync(cancellationToken);
+            Request.Body.Position = 0;
+        }
+
         var signatureHeader = Request.Headers["Stripe-Signature"].FirstOrDefault();
 
         if (string.IsNullOrEmpty(signatureHeader))
@@ -55,22 +65,39 @@ public sealed class PaymentsController : ApiControllerBase
             return BadRequest();
         }
 
-        var verificationResult = _webhookService.VerifyAndParse(payload, signatureHeader);
-
-        if (!verificationResult.IsValid)
+        if (string.IsNullOrEmpty(payload))
         {
-            _logger.LogWarning("Stripe webhook verification failed: {ErrorMessage}", verificationResult.ErrorMessage);
+            _logger.LogWarning("Stripe webhook received with empty payload.");
             return BadRequest();
         }
 
-        // At this point the event is verified and parsed.
-        // TODO: 9.10 - Map Stripe event to Payment domain state transitions.
-        // For 9.8, we simply log and return success; idempotent processing and state mapping
-        // are deferred to sub-phases 9.9-9.10.
+        var result = _webhookService.VerifyAndParse(payload, signatureHeader);
+
+        if (!result.IsValid)
+        {
+            _logger.LogWarning("Stripe webhook signature verification failed: {ErrorMessage}", result.ErrorMessage);
+            return BadRequest();
+        }
+
+        // 9.9 + 9.10: atomic idempotent processing + explicit Stripe→Payment state mapping.
+        // Supported events are applied to Payment aggregate; unsupported/out-of-order are logged and treated as success.
+        // No Outbox/RabbitMQ yet (9.11 intentionally deferred).
+        var processResult = await _webhookProcessor.TryProcessAsync(result.EventId!, result.EventType, result.PaymentIntentId, cancellationToken);
+
+        if (processResult == WebhookProcessResult.AlreadyProcessed)
+        {
+            _logger.LogInformation(
+                "Stripe webhook duplicate detected, benign success. StripeEventId={StripeEventId}, EventType={EventType}",
+                result.EventId,
+                result.EventType);
+            return Ok();
+        }
 
         _logger.LogInformation(
-            "Stripe webhook event processed. EventId={EventId}",
-            verificationResult.EventId);
+            "Stripe webhook event processed. StripeEventId={StripeEventId}, EventType={EventType}, PaymentIntentId={PaymentIntentId}",
+            result.EventId,
+            result.EventType,
+            result.PaymentIntentId);
 
         return Ok();
     }

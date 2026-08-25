@@ -1,7 +1,8 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
-using FluxCommerce.BuildingBlocks.Persistence.Configurations;
 using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
+using FluxCommerce.Modules.Payments.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -18,5 +19,7 @@ public sealed class PaymentsDbContext : BaseDbContext
     {
     }
 
-    public DbSet<Payment> Payments {  get; set; } = null!;
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 }
