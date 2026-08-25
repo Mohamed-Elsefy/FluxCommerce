@@ -1,6 +1,6 @@
-using Stripe;
-using FluxCommerce.Modules.Payments.Domain.Enums;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Domain.Enums;
+using Stripe;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 
@@ -8,30 +8,43 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
 {
     public StripePaymentGateway()
     {
-        // StripeConfiguration.ApiKey is set externally via IOptions<StripeOptions>
-        // by the API host at application startup.
+    }
+
+    /// <summary>
+    /// Generates a deterministic Stripe Idempotency Key from the business operation context.
+    /// Format: intent_{OrderId}_{PaymentId}_{Version}
+    /// </summary>
+    public static string GenerateIdempotencyKey(Guid orderId, Guid paymentId, long version)
+    {
+        return $"intent_{orderId}_{paymentId}_{version}";
     }
 
     public async Task<PaymentIntentResult> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken = default)
     {
         if (request == null) throw new ArgumentNullException(nameof(request));
+        if (request.OrderId == Guid.Empty) throw new ArgumentException("OrderId must not be empty.", nameof(request.OrderId));
+        if (request.PaymentId == Guid.Empty) throw new ArgumentException("PaymentId must not be empty.", nameof(request.PaymentId));
+        if (string.IsNullOrWhiteSpace(request.Currency)) throw new ArgumentException("Currency is required.", nameof(request.Currency));
+        if (request.Amount <= 0) throw new ArgumentException("Amount must be positive.", nameof(request.Amount));
 
         var service = new PaymentIntentService();
         var createOptions = new PaymentIntentCreateOptions
         {
-            Amount = (long)(request.Amount * 100),
+            Amount = (long)(request.Amount * 100m),
             Currency = request.Currency.ToLowerInvariant(),
             AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions { Enabled = true },
             Metadata = new Dictionary<string, string>
             {
-                ["order_id"] = request.OrderId.ToString()
+                ["order_id"] = request.OrderId.ToString(),
+                ["payment_id"] = request.PaymentId.ToString()
             }
         };
 
-        // Use synchronous call wrapped in Task for interface compatibility;
-        // CancellationToken is accepted per interface contract but the Stripe
-        // .NET SDK v42.3.0 does not accept it directly on Create()/Get().
-        var paymentIntent = await Task.Run(() => service.Create(createOptions), cancellationToken);
+        var idempotencyKey = GenerateIdempotencyKey(request.OrderId, request.PaymentId, request.Version);
+        var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey };
+
+        // Stripe .NET SDK does not expose async overload with CancellationToken; use synchronous call wrapped in Task.Run
+        var paymentIntent = await Task.Run(() => service.Create(createOptions, requestOptions), cancellationToken);
 
         return new PaymentIntentResult(
             StripePaymentIntentId: paymentIntent.Id,
@@ -44,9 +57,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         if (string.IsNullOrWhiteSpace(paymentIntentId)) throw new ArgumentException("Value cannot be null or empty.", nameof(paymentIntentId));
 
         var service = new PaymentIntentService();
-        // Same pattern: synchronous call wrapped in Task.Run for interface compliance.
         var paymentIntent = await Task.Run(() => service.Get(paymentIntentId), cancellationToken);
-
         return MapStripeStatusToPaymentStatus(paymentIntent.Status);
     }
 
@@ -55,9 +66,9 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         return stripeStatus switch
         {
             "requires_payment_method" => PaymentStatus.Pending,
+            "requires_action" => PaymentStatus.Pending,
             "processing" => PaymentStatus.Processing,
             "succeeded" => PaymentStatus.Succeeded,
-            "failed" => PaymentStatus.Failed,
             "canceled" => PaymentStatus.Cancelled,
             _ => PaymentStatus.Pending
         };

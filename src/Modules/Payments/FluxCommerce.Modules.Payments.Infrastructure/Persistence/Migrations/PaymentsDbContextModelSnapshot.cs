@@ -24,7 +24,7 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("FluxCommerce.Modules.Payments.Domain.Aggregates.Payment", b =>
                 {
-                    b.Property<Guid>("PaymentId")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("PaymentId");
@@ -39,12 +39,10 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnName("CreatedAtUtc");
 
                     b.Property<string>("Currency")
+                        .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)")
                         .HasColumnName("Currency");
-
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier")
@@ -60,6 +58,10 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("ProviderPaymentIntentId");
 
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset")
                         .HasColumnName("UpdatedAtUtc");
@@ -69,7 +71,7 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("Version");
 
-                    b.HasKey("PaymentId");
+                    b.HasKey("Id");
 
                     b.HasIndex("CreatedAtUtc")
                         .HasDatabaseName("IX_Payments_CreatedAtUtc");

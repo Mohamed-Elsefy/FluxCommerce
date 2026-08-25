@@ -1,6 +1,7 @@
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
+using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,6 +21,7 @@ public static class DependencyInjection
             }));
 
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
+        services.AddScoped<IStripeWebhookService, StripeWebhookService>();
 
         return services;
     }

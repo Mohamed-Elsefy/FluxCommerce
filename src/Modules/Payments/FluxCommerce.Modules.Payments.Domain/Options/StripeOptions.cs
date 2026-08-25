@@ -12,6 +12,5 @@ public class StripeOptions
     [Required]
     public string WebhookSecret { get; init; } = string.Empty;
 
-    [Required]
     public string PublishableKey { get; init; } = string.Empty;
 }

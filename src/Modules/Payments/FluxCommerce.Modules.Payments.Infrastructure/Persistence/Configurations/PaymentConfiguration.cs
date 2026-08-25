@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
+using FluxCommerce.Modules.Payments.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -10,21 +11,30 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
     {
         builder.ToTable("Payments");
 
-        builder.HasKey(payment => payment.PaymentId);
+        builder.HasKey(payment => payment.Id);
 
-        builder.Property(payment => payment.PaymentId)
+        builder.Property(payment => payment.Id)
             .HasColumnName("PaymentId");
 
         builder.Property(payment => payment.OrderId)
-            .HasColumnName("OrderId");
+            .HasColumnName("OrderId")
+            .IsRequired();
 
         builder.Property(payment => payment.Currency)
             .HasColumnName("Currency")
-            .HasMaxLength(3);
+            .HasMaxLength(3)
+            .IsRequired();
 
         builder.Property(payment => payment.Amount)
             .HasColumnName("Amount")
-            .HasPrecision(18, 6);
+            .HasPrecision(18, 6)
+            .IsRequired();
+
+        builder.Property(payment => payment.Status)
+            .HasColumnName("Status")
+            .HasConversion<int>()
+            .HasField("_status")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.Property(payment => payment.ProviderPaymentIntentId)
             .HasColumnName("ProviderPaymentIntentId")
@@ -36,16 +46,19 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 
         builder.Property(payment => payment.Version)
             .HasColumnName("Version")
-            .IsConcurrencyToken();
+            .IsConcurrencyToken()
+            .IsRequired();
 
         builder.Property(payment => payment.CreatedAtUtc)
-            .HasColumnName("CreatedAtUtc");
+            .HasColumnName("CreatedAtUtc")
+            .IsRequired();
 
         builder.Property(payment => payment.UpdatedAtUtc)
             .HasColumnName("UpdatedAtUtc");
 
         builder.HasIndex(payment => payment.ProviderPaymentIntentId)
             .IsUnique()
+            .HasFilter("[ProviderPaymentIntentId] IS NOT NULL")
             .HasDatabaseName("UX_Payments_ProviderPaymentIntentId");
 
         builder.HasIndex(payment => payment.OrderId)
