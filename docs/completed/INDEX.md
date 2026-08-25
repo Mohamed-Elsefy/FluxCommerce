@@ -12,5 +12,6 @@
 | 6     | Done   | Outbox pattern + RabbitMQ integration |
 | 7     | Done   | Idempotent consumers (Inbox pattern) |
 | 8     | Done   | Order & Inventory Saga |
+| 9     | Done   | Stripe Payments |
 
 <!-- Update this line-per-phase after each phase; keep full detail in completed/PHASE_<N>_COMPLETION_REPORT.md -->

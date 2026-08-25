@@ -373,6 +373,55 @@ If modules need information from another module, they use:
 
 The exact mechanism depends on consistency requirements.
 
+### 9.1 Payments Bounded Context (Phase 9)
+
+Payments owns `Payment` state exclusively (`PaymentsDbContext` owns `Payments`, `ProcessedWebhookEvents`, `OutboxMessages`). No cross-module `DbContext` access.
+
+**Domain model (`Payments.Domain`):**
+```
+Payment : AggregateRoot<Guid>
+├── Id/PaymentId (PK → PaymentId column)
+├── OrderId (unique, UX_Payments_OrderId)
+├── CustomerId (owner, for [Authorize] enforcement)
+├── Amount (decimal 18,6) + Currency (ISO3, 3)
+├── Status (int → PaymentStatus: Pending=0, Processing, Succeeded, Failed, Cancelled) via field `_status`
+├── ProviderPaymentIntentId (256, unique filtered [IS NOT NULL])
+├── Provider (128)
+├── Version (bigint, IsConcurrencyToken) + CreatedAtUtc/UpdatedAtUtc
+```
+Invariants (`PaymentErrors`): amount>0, currency required, `Succeed/Fail/Cancel/Process` enforce terminal-state guards (`InvalidOperationException` → non-fatal webhook handling).
+
+**Persistence (`Payments.Infrastructure`):**
+* `PaymentConfiguration` maps `Status` via `_status` field, `Version` concurrency, filtered unique `ProviderPaymentIntentId`.
+* `ProcessedWebhookEventConfiguration` → `ProcessedWebhookEvents` (`Id`, `StripeEventId` 256 unique `UX_ProcessedWebhookEvents_StripeEventId`, `EventType` 128, `ProcessedAtUtc`).
+* `OutboxMessageConfiguration` (Payments copy) → `OutboxMessages` (same shape as Orders/Inventory, pending/inProgress/published with retry).
+* `PaymentsDbContext : BaseDbContext` owns `DbSet<Payment>`, `DbSet<ProcessedWebhookEvent>`, `DbSet<OutboxMessage>`; `ApplyConfigurationsFromAssembly`.
+* Migrations (5): `20260824131713_InitialPayments`, `20260825090000_FixPaymentStatusAndId` (add `Status`, drop duplicate `Id`), `20260825100000_AddProcessedWebhookEvents`, `20260825110000_AddPaymentsOutbox`, `20260825120000_AddPaymentCustomerId`. No pending model changes.
+
+**Stripe isolation (`ADR-011`):**
+```
+Payments.Domain ──X─► Stripe
+Payments.Application ──X─► Stripe
+Payments.Contracts ──X─► Stripe
+Payments.Infrastructure ──► Stripe.net (only)
+```
+`IStripePaymentGateway` (`Application`) → `StripePaymentGateway` (`Infrastructure`, `Stripe.net`, `PaymentIntentService`, deterministic `intent_{OrderId}_{PaymentId}_{Version}` idempotency via `RequestOptions.IdempotencyKey`). `IStripeWebhookService` (`Application`, `StripeWebhookVerificationResult` with `PaymentIntentId`) → `StripeWebhookService` (`Infrastructure`, `EventUtility.ConstructEvent(tolerance:300, throwOnApiVersionMismatch:false)` + `JsonDocument` `data.object.id` extraction). `StripeOptions` (`SecretKey/WebhookSecret`) bound via `IOptions` from `Configuration["Stripe"]` (externalized, no secrets in source).
+
+**Webhook flow (`9.8→9.11`, `PaymentsController`):**
+```
+Stripe → POST /api/payments/webhook [AllowAnonymous] (EnableBuffering → raw UTF-8)
+  → Stripe-Signature header + payload → IStripeWebhookService.VerifyAndParse
+  → IWebhookEventProcessor.TryProcessAsync(eventId,type,piId) — single PaymentsDbContext transaction:
+        ├─ idempotency AnyAsync check + unique UX_ProcessedWebhookEvents_StripeEventId (race → AlreadyProcessed)
+        ├─ lookup Payment by ProviderPaymentIntentId → ApplyEventToPayment (Supported: succeeded→Succeed, payment_failed→Fail, canceled→Cancel, processing→Process; unsupported→no-op; InvalidOperationException→ terminal protection, logged, success)
+        ├─ add ProcessedWebhookEvent
+        └─ if terminal Succeeded/Failed → IntegrationEventOutboxMessageFactory.Create("payments.payment_succeeded/failed", new PaymentSucceeded/FailedIntegrationEvent{CorrelationId=OrderId, CausationId=ProcessedEvent.Id}) → OutboxMessages
+  → 400 on missing/invalid sig, 200 on valid/duplicate/unsupported/out-of-order (Stripe stops retrying)
+```
+`GET /api/payments/{paymentId}` `[Authorize]` enforces ownership (`CustomerId == ICurrentUser.UserId` else 404) — `[AllowAnonymous]` strictly limited to webhook.
+
+**Observability (`9.12`):** `TraceContext.Source` (`FluxCommerce`) activities `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process` + tags `order.id/payment.id/stripe.*`; structured logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/EventType/CorrelationId/CausationId`, no `SecretKey`/card payload.
+
 ---
 
 # 10. Database Strategy

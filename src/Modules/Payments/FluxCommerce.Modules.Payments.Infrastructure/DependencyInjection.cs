@@ -1,7 +1,9 @@
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
+using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,7 @@ public static class DependencyInjection
             }));
 
         services.AddSingleton<IntegrationEventOutboxMessageFactory>();
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
         services.AddScoped<IStripeWebhookService, StripeWebhookService>();
         services.AddScoped<IWebhookEventProcessor, WebhookEventProcessor>();

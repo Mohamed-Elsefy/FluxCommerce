@@ -20,6 +20,9 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .HasColumnName("OrderId")
             .IsRequired();
 
+        builder.Property(payment => payment.CustomerId)
+            .HasColumnName("CustomerId");
+
         builder.Property(payment => payment.Currency)
             .HasColumnName("Currency")
             .HasMaxLength(3)

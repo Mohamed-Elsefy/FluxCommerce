@@ -12,6 +12,7 @@ public sealed class Payment : AggregateRoot<Guid>
 
     public Guid PaymentId => Id;
     public Guid OrderId { get; private set; }
+    public Guid CustomerId { get; private set; }
     public string Currency { get; private set; } = string.Empty;
     public decimal Amount { get; private set; }
     public string? ProviderPaymentIntentId { get; private set; }
@@ -28,7 +29,7 @@ public sealed class Payment : AggregateRoot<Guid>
         _status = PaymentStatus.Pending;
     }
 
-    public Payment(Guid paymentId, Guid orderId, decimal amount, string currency)
+    public Payment(Guid paymentId, Guid orderId, decimal amount, string currency, Guid? customerId = null)
         : base(paymentId)
     {
         if (paymentId == Guid.Empty) throw new ArgumentException("PaymentId is required.", nameof(paymentId));
@@ -37,6 +38,7 @@ public sealed class Payment : AggregateRoot<Guid>
         if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException(PaymentErrors.InvalidCurrency.Description, nameof(currency));
 
         OrderId = orderId;
+        CustomerId = customerId ?? Guid.Empty;
         Amount = amount;
         Currency = currency.Trim().ToUpperInvariant();
         _status = PaymentStatus.Pending;

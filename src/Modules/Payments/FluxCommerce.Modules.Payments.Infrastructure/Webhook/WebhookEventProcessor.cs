@@ -5,8 +5,10 @@ using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Entities;
 using FluxCommerce.Modules.Payments.Domain.Enums;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 
@@ -36,6 +38,11 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
 
     public async Task<WebhookProcessResult> TryProcessAsync(string stripeEventId, string? eventType, string? paymentIntentId, CancellationToken cancellationToken = default)
     {
+        using var activity = PaymentsActivitySource.Source.StartActivity("Payments.Webhook.Process", ActivityKind.Internal);
+        activity?.SetTag("stripe.event_id", stripeEventId);
+        activity?.SetTag("stripe.event_type", eventType);
+        activity?.SetTag("stripe.payment_intent_id", paymentIntentId);
+
         if (string.IsNullOrWhiteSpace(stripeEventId))
             throw new ArgumentException("StripeEventId is required.", nameof(stripeEventId));
 

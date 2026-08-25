@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9.1** (Baseline & Payment Architecture Audit — this audit).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1438,7 +1438,43 @@ The Order/Inventory Saga phase (see `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IM
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2022/2022, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure). Phase 6/7 messaging and idempotency behavior remain green (regression).
 
-**Deferred.** Stripe Payments (Phase 9), compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Phase 9.1 audit is complete; Phase 9.2 onward is the next sub-phase.
+**Deferred.** Compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Next is Phase 10 — Payment Saga & Order/Inventory Compensation.
+
+---
+
+### 14.8 Phase 9 — Stripe Payments — Implemented & Verified
+
+Phase 9 (see `PHASE_9_COMPLETION_REPORT.md` and `docs/phases/PHASE_9_STRIPE_PAYMENTS_IMPLEMENTATION_PLAN.md`) delivers a production-grade **Payments** bounded context that owns Payment state and integrates with Stripe without leaking provider concerns.
+
+**Subphases completed (9.1–9.13):**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 9.1 | Baseline & payment architecture audit (PROJECT_CONTEXT/ARCHITECTURE review, Saga integration point) | Implemented |
+| 9.2 | Payments module foundation (Domain/Application/Infrastructure/Contracts, PaymentsDbContext, StripeOptions externalized, 5 migrations) | Implemented |
+| 9.3 | Payment domain model & lifecycle (Payment `Pending→Processing→Succeeded/Failed/Cancelled`, invariants, domain events, terminal guards) | Implemented |
+| 9.4 | Persistence & concurrency (EF `PaymentConfiguration` filtered unique `ProviderPaymentIntentId`, `OrderId`, concurrency `Version`, `ProcessedWebhookEvents` dedup) | Implemented |
+| 9.5 | Stripe integration boundary (`IStripePaymentGateway` Application → `StripePaymentGateway` Infrastructure, Stripe SDK confined) | Implemented |
+| 9.6 | Payment Intent creation (authoritative `Amount/Currency`, `Error` mapping, no secret logging) | Implemented |
+| 9.7 | Payment Intent idempotency (`intent_{OrderId}_{PaymentId}_{Version}` via `RequestOptions.IdempotencyKey` + app unique `OrderId`) | Implemented |
+| 9.8 | Webhook endpoint & security (`POST /api/payments/webhook` `[AllowAnonymous]`, raw `EnableBuffering` UTF-8, `Stripe-Signature` → `EventUtility.ConstructEvent`, 400/200 non-leaking, `IStripeWebhookService`) | Implemented |
+| 9.9 | Webhook idempotent processing (`ProcessedWebhookEvents` `UX_StripeEventId`, atomic `AnyAsync`+constraint race → `AlreadyProcessed`) | Implemented |
+| 9.10 | Stripe event → Payment state (`succeeded→Succeed`, `payment_failed→Fail`, `canceled→Cancel`, `processing→Process`, unsupported/out-of-order safely ignored) | Implemented |
+| 9.11 | Payment integration events & Outbox (`PaymentSucceeded/FailedIntegrationEvent` in `Payments.Contracts`, `IntegrationEventOutboxMessageFactory` → `OutboxMessages` atomically with Payment + webhook) | Implemented |
+| 9.12 | Testing, observability & hardening (`ActivitySource FluxCommerce` `Payments.*`, structured `OrderId/PaymentId/Stripe* /Correlation/Causation`, `[Authorize]` + ownership `CustomerId` check, 11 Scenarios) | Implemented |
+| 9.13 | Final verification & Phase Completion (this entry, ARCHITECTURE sync, build/tests green) | Implemented |
+
+**Key decisions (payments architecture):**
+
+* **Ownership:** Payments owns `Payment`/`ProcessedWebhookEvent`/`OutboxMessage`; Orders/Saga owns `Order`/`Saga` — no cross-DbContext access, coordination only via `payments.payment_succeeded/failed` integration events (`Payments.Contracts`) over Outbox/RabbitMQ.
+* **Stripe isolation:** `Payments.Domain/Application/Contracts` have zero `Stripe.net` references; only `Payments.Infrastructure` references `Stripe.net` (verified `Payments_Domain/Application/Contracts_ShouldNot_Reference` + `StripeIsolation` tests).
+* **Webhook flow:** `Stripe → webhook [AllowAnonymous] → Verify (IStripeWebhookService) → Idempotent processor (unique `StripeEventId`) → State machine (`Succeed/Fail/...` with terminal protection) → Outbox (same `PaymentsDbContext` transaction) → Dispatcher → RabbitMQ`. Duplicate/concurrent deliveries → `AlreadyProcessed` + `200 OK` (Stripe stops retrying).
+* **Observability:** `PaymentsActivitySource` (`FluxCommerce` name) spans `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process`; logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/CorrelationId( OrderId)/CausationId(ProcessedEventId)`; no `SecretKey`/card data.
+* **Security:** `StripeOptions` via `IOptions<StripeOptions>` (`SecretKey/WebhookSecret` externalized, no hardcoded secrets); `GET /api/payments/{paymentId}` `[Authorize]` enforces `CustomerId==ICurrentUser.UserId` else `404` (ownership); only webhook is `AllowAnonymous`.
+
+**Verification.** `dotnet build FluxCommerce.slnx -c Debug` → 0 warnings 0 errors; `Architecture 166/166`, `Unit 32/32 Payments` (6 `StripeWebhookService` + 6 `PaymentsControllerWebhook` + 12 `WebhookEventProcessor` incl. 4 idempotency + 4 state + 4 outbox) + full suite `2022/2022` (Payments domain) and `Integration 376/376` (real SQL/RabbitMQ/Redis when infra available; Sqlite-based Payments webhook/outbox tests green). No pending EF model changes (5 Payments migrations).
+
+**Deferred.** Payment Saga & Order/Inventory compensation (Phase 10), reservation expiry (Phase 11), failure testing (Phase 12).
 
 ---
 

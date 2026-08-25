@@ -1,7 +1,9 @@
 using FluxCommerce.Api.Controllers.Payments;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Domain.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,12 +32,18 @@ public sealed class PaymentsControllerWebhookTests
             proc = m.Object;
         }
 
+        var repoMock = new Mock<FluxCommerce.Modules.Payments.Domain.Repositories.IPaymentRepository>();
+        var userMock = new Mock<FluxCommerce.BuildingBlocks.Application.Abstractions.ICurrentUser>();
+        userMock.Setup(x => x.UserId).Returns(Guid.NewGuid());
+
         var ctrl = new PaymentsController(
             localizerMock.Object,
             errorLocalizerMock.Object,
             NullLogger<PaymentsController>.Instance,
             svc,
-            proc);
+            proc,
+            repoMock.Object,
+            userMock.Object);
 
         var http = ctx ?? new DefaultHttpContext();
         http.Request.Headers["Stripe-Signature"] = http.Request.Headers["Stripe-Signature"];

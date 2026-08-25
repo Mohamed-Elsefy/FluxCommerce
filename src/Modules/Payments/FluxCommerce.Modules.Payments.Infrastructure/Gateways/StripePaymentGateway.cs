@@ -1,6 +1,8 @@
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Domain.Enums;
+using FluxCommerce.Modules.Payments.Infrastructure.Observability;
 using Stripe;
+using System.Diagnostics;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 
@@ -21,6 +23,13 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
 
     public async Task<PaymentIntentResult> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken = default)
     {
+        using var activity = PaymentsActivitySource.Source.StartActivity("Payments.Stripe.CreatePaymentIntent", ActivityKind.Internal);
+        activity?.SetTag("order.id", request?.OrderId);
+        activity?.SetTag("payment.id", request?.PaymentId);
+        activity?.SetTag("payment.amount", request?.Amount);
+        activity?.SetTag("payment.currency", request?.Currency);
+        activity?.SetTag("payment.version", request?.Version);
+
         if (request == null) throw new ArgumentNullException(nameof(request));
         if (request.OrderId == Guid.Empty) throw new ArgumentException("OrderId must not be empty.", nameof(request.OrderId));
         if (request.PaymentId == Guid.Empty) throw new ArgumentException("PaymentId must not be empty.", nameof(request.PaymentId));
@@ -45,6 +54,8 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
 
         // Stripe .NET SDK does not expose async overload with CancellationToken; use synchronous call wrapped in Task.Run
         var paymentIntent = await Task.Run(() => service.Create(createOptions, requestOptions), cancellationToken);
+        activity?.SetTag("stripe.payment_intent_id", paymentIntent.Id);
+        activity?.SetTag("stripe.status", paymentIntent.Status);
 
         return new PaymentIntentResult(
             StripePaymentIntentId: paymentIntent.Id,
