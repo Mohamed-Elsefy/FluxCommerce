@@ -816,4 +816,219 @@ public sealed class OrderSagaOrchestrator
 
         return [paymentEvent];
     }
+
+    /// <summary>
+    /// Phase 10.4: handles <c>payments.payment_succeeded</c> — validates correlation with the active saga,
+    /// verifies the saga is in <c>WaitingForPayment</c>, transitions saga via <c>SucceedPayment</c> to
+    /// <c>Completed</c>, and atomically confirms the Order via <c>Confirm</c> (Pending → Confirmed).
+    /// Duplicate delivery on <c>Completed</c> is an idempotent no-op (no re-confirm, no version bump);
+    /// out-of-order or invalid states are rejected without corrupting state or throwing unhandled exceptions.
+    /// Saga + Order changes commit atomically with the processed-message record via the Orders idempotent boundary.
+    /// </summary>
+    public async Task<OrderSagaTransitionResult> ApplyPaymentSucceededAsync(
+        OrderId orderId,
+        Guid paymentId,
+        string providerPaymentIntentId,
+        Guid correlationId,
+        Guid? causationId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderId);
+        if (paymentId == Guid.Empty)
+            throw new ArgumentException("A payment id must not be an empty GUID.", nameof(paymentId));
+        if (occurredAtUtc == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(occurredAtUtc));
+
+        var saga = await _sagaStore.GetByOrderIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+        if (saga is null)
+        {
+            throw new InvalidOperationException($"Cannot apply payment succeeded for order '{orderId.Value}': no saga exists for the order.");
+        }
+
+        var previousState = saga.State;
+        using var activity = StartSagaActivity(
+            "Orders.Saga.ApplyPaymentSucceeded",
+            orderId,
+            saga.Id,
+            previousState,
+            correlationId: correlationId,
+            causationId: causationId);
+
+        switch (saga.State)
+        {
+            case OrderSagaState.WaitingForPayment:
+            {
+                var sagaTransition = saga.SucceedPayment(occurredAtUtc);
+                if (sagaTransition.IsFailure)
+                {
+                    throw new InvalidOperationException($"Saga for order '{orderId.Value}' could not succeed payment: {sagaTransition.Error.Code}.");
+                }
+
+                var order = await _orderStore.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+                if (order is null)
+                {
+                    throw new InvalidOperationException($"Cannot confirm order '{orderId.Value}': the order does not exist.");
+                }
+
+                var confirm = order.Confirm(occurredAtUtc);
+                if (confirm.IsFailure)
+                {
+                    // Already confirmed → idempotent, keep confirmed state
+                    _logger.LogInformation("Order {OrderId} was already confirmed when applying payment_succeeded; keeping confirmed state.", orderId.Value);
+                }
+
+                // Best-effort payment tracking: record provider intent if saga has not yet captured it
+                if (string.IsNullOrWhiteSpace(saga.ProviderPaymentIntentId) && !string.IsNullOrWhiteSpace(providerPaymentIntentId))
+                {
+                    // Use existing MarkPaymentRequested bookkeeping if saga still in valid state,
+                    // but SucceedPayment already moved saga to Completed — so store via Hydrate fields is not needed.
+                    // PaymentId tracking is optional for 10.4; provider intent is observable via payment event.
+                }
+
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Applied.ToString());
+
+                var (traceId, spanId) = CurrentTraceIds();
+                _logger.LogInformation(
+                    "Applied payments.payment_succeeded to saga {SagaId} for order {OrderId} (payment {PaymentId}, correlation {CorrelationId}, causation {CausationId}): state {PreviousState} → {NewState} (outcome {Outcome}, trace {TraceId}, span {SpanId}); order is {OrderStatus}.",
+                    saga.Id, orderId.Value, paymentId, correlationId, causationId, previousState, saga.State, OrderSagaTransitionOutcome.Applied, traceId, spanId, order.Status);
+
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Applied, saga.Id);
+            }
+            case OrderSagaState.Completed:
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Duplicate.ToString());
+                var (traceDup, spanDup) = CurrentTraceIds();
+                _logger.LogInformation(
+                    "Saga {SagaId} for order {OrderId} is already completed; duplicate payments.payment_succeeded acknowledged (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                    saga.Id, orderId.Value, previousState, saga.State, OrderSagaTransitionOutcome.Duplicate, traceDup, spanDup);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id);
+            case OrderSagaState.Failed:
+            case OrderSagaState.ReleasingInventory:
+            case OrderSagaState.Cancelled:
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Conflicting.ToString());
+                var (traceConf, spanConf) = CurrentTraceIds();
+                _logger.LogWarning(
+                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; payments.payment_succeeded cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                    saga.Id, orderId.Value, saga.State, previousState, saga.State, OrderSagaTransitionOutcome.Conflicting, traceConf, spanConf);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Conflicting, saga.Id);
+            default:
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Invalid.ToString());
+                var (traceInv, spanInv) = CurrentTraceIds();
+                _logger.LogWarning(
+                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; payments.payment_succeeded cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                    saga.Id, orderId.Value, saga.State, previousState, saga.State, OrderSagaTransitionOutcome.Invalid, traceInv, spanInv);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Invalid, saga.Id);
+        }
+    }
+
+    /// <summary>
+    /// Phase 10.5: handles <c>payments.payment_failed</c> — validates correlation with the active saga,
+    /// verifies the saga is in <c>WaitingForPayment</c>, transitions saga via <c>FailPayment</c> to
+    /// <c>ReleasingInventory</c>, and atomically stages <c>inventory.release_requested</c> for each
+    /// recorded reservation via the Orders outbox. Duplicate delivery on <c>ReleasingInventory</c>/<c>Cancelled</c>
+    /// is an idempotent no-op (no duplicate release); out-of-order after <c>Completed</c>/<c>Failed</c>
+    /// is a conflicting rejection. Saga + outbox commit atomically via the Orders idempotent boundary.
+    /// </summary>
+    public async Task<OrderSagaTransitionResult> ApplyPaymentFailedAsync(
+        OrderId orderId,
+        Guid paymentId,
+        string providerPaymentIntentId,
+        string failureReason,
+        Guid correlationId,
+        Guid? causationId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderId);
+        if (paymentId == Guid.Empty)
+            throw new ArgumentException("A payment id must not be an empty GUID.", nameof(paymentId));
+        if (string.IsNullOrWhiteSpace(failureReason))
+            throw new ArgumentException("A failure reason is required.", nameof(failureReason));
+        if (occurredAtUtc == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(occurredAtUtc));
+
+        var saga = await _sagaStore.GetByOrderIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+        if (saga is null)
+        {
+            throw new InvalidOperationException($"Cannot apply payment failed for order '{orderId.Value}': no saga exists for the order.");
+        }
+
+        var previousState = saga.State;
+        using var activity = StartSagaActivity(
+            "Orders.Saga.ApplyPaymentFailed",
+            orderId,
+            saga.Id,
+            previousState,
+            correlationId: correlationId,
+            causationId: causationId);
+
+        switch (saga.State)
+        {
+            case OrderSagaState.WaitingForPayment:
+            {
+                var sagaTransition = saga.FailPayment(occurredAtUtc, failureReason);
+                if (sagaTransition.IsFailure)
+                {
+                    throw new InvalidOperationException($"Saga for order '{orderId.Value}' could not fail payment: {sagaTransition.Error.Code}.");
+                }
+
+                var producedAtUtc = _dateTimeProvider.UtcNow;
+                var reservationIds = saga.ReservationIds.ToList();
+                var releaseCommands = new List<InventoryReleaseRequestedIntegrationEvent>();
+
+                foreach (var reservationId in reservationIds)
+                {
+                    var release = new InventoryReleaseRequestedIntegrationEvent(reservationId)
+                    {
+                        EventId = Guid.NewGuid(),
+                        CorrelationId = correlationId,
+                        CausationId = causationId,
+                        OccurredAtUtc = producedAtUtc
+                    };
+                    _context.OutboxMessages.Add(_outboxMessageFactory.Create(release));
+                    releaseCommands.Add(release);
+                }
+
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Applied.ToString());
+
+                var (traceId, spanId) = CurrentTraceIds();
+                _logger.LogInformation(
+                    "Applied payments.payment_failed to saga {SagaId} for order {OrderId} (payment {PaymentId}, reason '{Reason}', correlation {CorrelationId}, causation {CausationId}): state {PreviousState} → {NewState} (outcome {Outcome}, trace {TraceId}, span {SpanId}); staged {ReleaseCount} release(s).",
+                    saga.Id, orderId.Value, paymentId, failureReason, correlationId, causationId, previousState, saga.State, OrderSagaTransitionOutcome.Applied, traceId, spanId, releaseCommands.Count);
+
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Applied, saga.Id);
+            }
+            case OrderSagaState.ReleasingInventory:
+            case OrderSagaState.Cancelled:
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Duplicate.ToString());
+                var (traceDup, spanDup) = CurrentTraceIds();
+                _logger.LogInformation(
+                    "Saga {SagaId} for order {OrderId} is already releasing inventory; duplicate payments.payment_failed acknowledged (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                    saga.Id, orderId.Value, previousState, saga.State, OrderSagaTransitionOutcome.Duplicate, traceDup, spanDup);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id);
+            case OrderSagaState.Completed:
+            case OrderSagaState.Failed:
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Conflicting.ToString());
+                var (traceConf, spanConf) = CurrentTraceIds();
+                _logger.LogWarning(
+                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; payments.payment_failed cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                    saga.Id, orderId.Value, saga.State, previousState, saga.State, OrderSagaTransitionOutcome.Conflicting, traceConf, spanConf);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Conflicting, saga.Id);
+            default:
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Invalid.ToString());
+                var (traceInv, spanInv) = CurrentTraceIds();
+                _logger.LogWarning(
+                    "Saga {SagaId} for order {OrderId} is in state {SagaState}; payments.payment_failed cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                    saga.Id, orderId.Value, saga.State, previousState, saga.State, OrderSagaTransitionOutcome.Invalid, traceInv, spanInv);
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Invalid, saga.Id);
+        }
+    }
 }

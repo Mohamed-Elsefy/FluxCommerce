@@ -169,6 +169,18 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.payments.create");
         services.AddIntegrationEventConsumer<CreatePaymentRequestedIntegrationEvent, CreatePaymentRequestedConsumer, PaymentsIdempotentProcessor>();
 
+        // Phase 10.4: Orders consumer for payments.payment_succeeded. Payments webhook stages
+        // payments.payment_succeeded via Payments outbox; Orders confirms the order and completes
+        // the saga atomically inside the Orders idempotent-processing boundary.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.succeeded");
+        services.AddIntegrationEventConsumer<PaymentSucceededIntegrationEvent, PaymentSucceededConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.5: Orders consumer for payments.payment_failed. Payments webhook stages
+        // payments.payment_failed via Payments outbox; Orders transitions saga to ReleasingInventory
+        // and stages inventory.release_requested for each recorded reservation atomically.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.failed");
+        services.AddIntegrationEventConsumer<PaymentFailedIntegrationEvent, PaymentFailedConsumer, OrdersIdempotentProcessor>();
+
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])

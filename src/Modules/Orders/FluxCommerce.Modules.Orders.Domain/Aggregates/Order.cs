@@ -319,6 +319,32 @@ public sealed class Order : AggregateRoot<OrderId>
         return DomainResult.Success();
     }
 
+    /// <summary>
+    /// Phase 10.4: confirms the order after successful payment.
+    /// Valid transition: Pending → Confirmed. Duplicate on Confirmed is idempotent;
+    /// any other state is rejected.
+    /// </summary>
+    public DomainResult Confirm(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return Status switch
+        {
+            OrderStatus.Pending => ConfirmTransition(utcNow),
+            OrderStatus.Confirmed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderErrors.InvalidStateTransition)
+        };
+    }
+
+    private DomainResult ConfirmTransition(DateTimeOffset utcNow)
+    {
+        Status = OrderStatus.Confirmed;
+        Touch(utcNow);
+        AddDomainEvent(new OrderConfirmed(Id, CustomerId, OrderNumber, utcNow));
+        return DomainResult.Success();
+    }
+
     private OrderMoney ComputeSubtotal()
     {
         var currency = _lineItems.Count > 0
