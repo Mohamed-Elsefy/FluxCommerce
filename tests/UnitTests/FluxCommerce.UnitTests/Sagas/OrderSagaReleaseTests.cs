@@ -158,7 +158,7 @@ public class OrderSagaReleaseTests : OrderSagaTestBase
 
         await using var freshContext = CreateContext();
         var reloaded = await freshContext.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, reloaded.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, reloaded.State);
         Assert.Equal(reservationId, Assert.Single(reloaded.ReservationIds));
     }
 
@@ -200,7 +200,7 @@ public class OrderSagaReleaseTests : OrderSagaTestBase
 
         var saga = await context.OrderSagas.SingleAsync();
         Assert.NotNull(saga.ReleaseRequestedAtUtc);
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public class OrderSagaReleaseTests : OrderSagaTestBase
         Assert.Equal(correlationId, command.CorrelationId);
 
         var saga = await context.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
         Assert.Equal(2, saga.ReservationIds.Count);
         Assert.Contains(firstReservationId, saga.ReservationIds);
         Assert.Contains(lateReservationId, saga.ReservationIds);
@@ -282,7 +282,7 @@ public class OrderSagaReleaseTests : OrderSagaTestBase
         Assert.False(release.ReleaseIssued);
         await context.SaveChangesAsync();
 
-        // The in-flight reservation result lands afterwards: the saga completes, the reservation is
+        // The in-flight reservation result lands afterwards: the saga enters WaitingForPayment, the reservation is
         // recorded, and it is compensated immediately.
         var applied = await orchestrator.ApplyReservationSuccessAsync(
             order.Id, reservationId, correlationId, Guid.NewGuid(), ResultAtUtc);
@@ -293,7 +293,7 @@ public class OrderSagaReleaseTests : OrderSagaTestBase
         Assert.Equal(reservationId, command.ReservationId);
 
         var saga = await context.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
         Assert.Equal(reservationId, Assert.Single(saga.ReservationIds));
         Assert.NotNull(saga.ReleaseRequestedAtUtc);
     }

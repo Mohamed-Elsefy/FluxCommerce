@@ -50,7 +50,7 @@ public class OrderResultConsumerTests : OrderSagaTestBase
         await consumer.HandleAsync(@event, EnvelopeFrom(@event));
         await context.SaveChangesAsync();
 
-        Assert.Equal(OrderSagaState.Completed, (await context.OrderSagas.SingleAsync()).State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, (await context.OrderSagas.SingleAsync()).State);
         Assert.Equal(OrderStatus.Pending, (await context.Orders.SingleAsync()).Status);
     }
 

@@ -22,7 +22,10 @@ using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Infrastructure;
+using FluxCommerce.Modules.Payments.Infrastructure.Consuming;
+using FluxCommerce.Modules.Payments.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Identity.Infrastructure;
 
 namespace FluxCommerce.Api.Extensions;
@@ -157,6 +160,14 @@ public static class DependencyInjection
         // is a no-op when the workflow never reserved inventory for the order.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.saga.compensation");
         services.AddIntegrationEventConsumer<OrderCancelledIntegrationEvent, OrderCancelledSagaConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.3: Payments creation consumer. The Orders saga (after inventory.reserved →
+        // WaitingForPayment) stages payments.create_payment_requested through the Orders outbox.
+        // Payments executes the creation idempotently (unique OrderId + idempotency) and calls
+        // Stripe only via Payments.Infrastructure. The consumer runs inside the Payments
+        // idempotent-processing boundary (ProcessedMessage keyed by EventId+HandlerName).
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.payments.create");
+        services.AddIntegrationEventConsumer<CreatePaymentRequestedIntegrationEvent, CreatePaymentRequestedConsumer, PaymentsIdempotentProcessor>();
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])

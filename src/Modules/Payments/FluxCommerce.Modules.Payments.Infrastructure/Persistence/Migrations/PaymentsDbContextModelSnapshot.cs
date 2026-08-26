@@ -198,6 +198,27 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ProcessedWebhookEvents", (string)null);
                 });
+
+            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Idempotency.Messages.ProcessedMessage", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)")
+                        .HasColumnName("Key");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("Handler");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ProcessedAtUtc");
+
+                    b.HasKey("Key", "Handler");
+
+                    b.ToTable("ProcessedMessages", (string)null);
+                });
 #pragma warning restore 612, 618
         }
     }

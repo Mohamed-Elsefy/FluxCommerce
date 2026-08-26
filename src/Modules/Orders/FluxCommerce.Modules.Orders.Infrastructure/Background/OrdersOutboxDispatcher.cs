@@ -10,6 +10,7 @@ using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -283,6 +284,8 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
                 JsonSerializer.Deserialize<InventoryReservationRequestedIntegrationEvent>(message.Payload),
             InventoryReleaseRequestedIntegrationEvent.EventType =>
                 JsonSerializer.Deserialize<InventoryReleaseRequestedIntegrationEvent>(message.Payload),
+            CreatePaymentRequestedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<CreatePaymentRequestedIntegrationEvent>(message.Payload),
             _ => null
         };
 }
