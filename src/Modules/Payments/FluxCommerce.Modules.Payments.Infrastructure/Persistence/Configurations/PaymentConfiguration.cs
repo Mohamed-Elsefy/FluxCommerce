@@ -47,6 +47,10 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .HasColumnName("Provider")
             .HasMaxLength(128);
 
+        builder.Property(payment => payment.ProviderRefundId)
+            .HasColumnName("ProviderRefundId")
+            .HasMaxLength(256);
+
         builder.Property(payment => payment.Version)
             .HasColumnName("Version")
             .IsConcurrencyToken()

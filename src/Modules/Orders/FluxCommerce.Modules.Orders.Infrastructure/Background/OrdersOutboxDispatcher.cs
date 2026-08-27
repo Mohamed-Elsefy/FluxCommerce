@@ -288,6 +288,8 @@ public sealed class OrdersOutboxDispatcher : BackgroundService, IOutboxDispatche
                 JsonSerializer.Deserialize<InventoryReleaseRequestedIntegrationEvent>(message.Payload),
             CreatePaymentRequestedIntegrationEvent.EventType =>
                 JsonSerializer.Deserialize<CreatePaymentRequestedIntegrationEvent>(message.Payload),
+            RefundPaymentRequestedIntegrationEvent.EventType =>
+                JsonSerializer.Deserialize<RefundPaymentRequestedIntegrationEvent>(message.Payload),
             _ => null
         };
 }

@@ -17,6 +17,7 @@ public sealed class Payment : AggregateRoot<Guid>
     public decimal Amount { get; private set; }
     public string? ProviderPaymentIntentId { get; private set; }
     public string? Provider { get; private set; }
+    public string? ProviderRefundId { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset? UpdatedAtUtc { get; private set; }
     public long Version { get; private set; }
@@ -51,7 +52,7 @@ public sealed class Payment : AggregateRoot<Guid>
 
     public void Process()
     {
-        if (_status is PaymentStatus.Succeeded or PaymentStatus.Failed or PaymentStatus.Cancelled)
+        if (_status is PaymentStatus.Succeeded or PaymentStatus.Failed or PaymentStatus.Cancelled or PaymentStatus.Refunded)
             throw new InvalidOperationException(PaymentErrors.InvalidStateTransition.Description);
 
         if (_status == PaymentStatus.Processing) return;
@@ -69,6 +70,8 @@ public sealed class Payment : AggregateRoot<Guid>
             throw new InvalidOperationException(PaymentErrors.PaymentAlreadyFailed.Description);
         if (_status == PaymentStatus.Cancelled)
             throw new InvalidOperationException(PaymentErrors.PaymentAlreadyCancelled.Description);
+        if (_status == PaymentStatus.Refunded)
+            throw new InvalidOperationException(PaymentErrors.PaymentAlreadyRefunded.Description);
 
         _status = PaymentStatus.Succeeded;
         if (!string.IsNullOrWhiteSpace(providerPaymentIntentId))
@@ -80,7 +83,7 @@ public sealed class Payment : AggregateRoot<Guid>
 
     public void Fail(string failureReason = "")
     {
-        if (_status is PaymentStatus.Succeeded or PaymentStatus.Failed or PaymentStatus.Cancelled)
+        if (_status is PaymentStatus.Succeeded or PaymentStatus.Failed or PaymentStatus.Cancelled or PaymentStatus.Refunded)
             throw new InvalidOperationException(PaymentErrors.InvalidStateTransition.Description);
 
         _status = PaymentStatus.Failed;
@@ -94,10 +97,31 @@ public sealed class Payment : AggregateRoot<Guid>
         if (_status is PaymentStatus.Succeeded or PaymentStatus.Failed or PaymentStatus.Cancelled)
             throw new InvalidOperationException(PaymentErrors.PaymentAlreadyCancelled.Description);
 
+        if (_status == PaymentStatus.Refunded)
+            throw new InvalidOperationException(PaymentErrors.PaymentAlreadyRefunded.Description);
+
         _status = PaymentStatus.Cancelled;
         BumpVersion();
         UpdatedAtUtc = DateTimeOffset.UtcNow;
         AddDomainEvent(new PaymentCancelledDomainEvent(Id, OrderId));
+    }
+
+    /// <summary>
+    /// Phase 10.8: refund a succeeded payment after post-payment failure.
+    /// </summary>
+    public void Refund(string? refundId = null)
+    {
+        if (_status == PaymentStatus.Refunded)
+            throw new InvalidOperationException(PaymentErrors.PaymentAlreadyRefunded.Description);
+        if (_status != PaymentStatus.Succeeded)
+            throw new InvalidOperationException(PaymentErrors.InvalidStateTransition.Description);
+
+        _status = PaymentStatus.Refunded;
+        if (!string.IsNullOrWhiteSpace(refundId))
+            ProviderRefundId = refundId;
+        BumpVersion();
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+        AddDomainEvent(new PaymentRefundedDomainEvent(Id, OrderId, Amount, Currency, ProviderPaymentIntentId, refundId));
     }
 
     public void UpdateProviderReference(string providerPaymentIntentId, string provider)
@@ -108,6 +132,8 @@ public sealed class Payment : AggregateRoot<Guid>
             throw new ArgumentException("Provider is required.", nameof(provider));
         if (_status == PaymentStatus.Succeeded)
             throw new InvalidOperationException(PaymentErrors.PaymentAlreadySucceeded.Description);
+        if (_status == PaymentStatus.Refunded)
+            throw new InvalidOperationException(PaymentErrors.PaymentAlreadyRefunded.Description);
 
         ProviderPaymentIntentId = providerPaymentIntentId;
         Provider = provider;

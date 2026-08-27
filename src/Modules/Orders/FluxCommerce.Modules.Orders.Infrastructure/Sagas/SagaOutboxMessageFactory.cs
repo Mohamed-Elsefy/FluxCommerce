@@ -47,4 +47,11 @@ public sealed class SagaOutboxMessageFactory
 
         return _outboxMessageFactory.Create(CreatePaymentRequestedIntegrationEvent.EventType, integrationEvent);
     }
+
+    public OutboxMessage Create(RefundPaymentRequestedIntegrationEvent integrationEvent)
+    {
+        ArgumentNullException.ThrowIfNull(integrationEvent);
+
+        return _outboxMessageFactory.Create(RefundPaymentRequestedIntegrationEvent.EventType, integrationEvent);
+    }
 }

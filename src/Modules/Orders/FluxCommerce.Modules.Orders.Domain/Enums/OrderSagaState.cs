@@ -46,4 +46,9 @@ public enum OrderSagaState
     /// <c>OrderCancelled</c> in the Phase 10 plan).
     /// </summary>
     Cancelled = 6,
+
+    /// <summary>
+    /// Phase 10.8: post-payment refund in progress (Completed → Refunding → ReleasingInventory).
+    /// </summary>
+    Refunding = 7,
 }

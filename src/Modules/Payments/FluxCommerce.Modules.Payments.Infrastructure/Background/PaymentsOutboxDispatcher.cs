@@ -164,7 +164,9 @@ public sealed class PaymentsOutboxDispatcher : BackgroundService, IOutboxDispatc
         {
             PaymentSucceededIntegrationEvent.EventType => JsonSerializer.Deserialize<PaymentSucceededIntegrationEvent>(message.Payload),
             PaymentFailedIntegrationEvent.EventType => JsonSerializer.Deserialize<PaymentFailedIntegrationEvent>(message.Payload),
-            // CreatePaymentRequested is produced by Orders, not Payments outbox; no need to dispatch here.
+            PaymentRefundedIntegrationEvent.EventType => JsonSerializer.Deserialize<PaymentRefundedIntegrationEvent>(message.Payload),
+            PaymentRefundFailedIntegrationEvent.EventType => JsonSerializer.Deserialize<PaymentRefundFailedIntegrationEvent>(message.Payload),
+            // CreatePaymentRequested/RefundRequested are produced by Orders, not Payments outbox; no need to dispatch here.
             _ => null
         };
 }

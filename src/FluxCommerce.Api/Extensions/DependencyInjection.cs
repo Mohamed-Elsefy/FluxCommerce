@@ -181,6 +181,25 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.failed");
         services.AddIntegrationEventConsumer<PaymentFailedIntegrationEvent, PaymentFailedConsumer, OrdersIdempotentProcessor>();
 
+        // Phase 10.6: Orders consumer for inventory.released compensation. Inventory publishes
+        // inventory.released via Inventory outbox after successful Release; Orders transitions
+        // saga ReleasingInventory → Cancelled atomically inside the Orders idempotent boundary.
+        // Duplicate released events are idempotent (no double transition).
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.inventory.released");
+        services.AddIntegrationEventConsumer<InventoryReleasedIntegrationEvent, InventoryReleasedConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.8: Payments refund consumer. Orders stages payments.refund_payment_requested
+        // when post-payment downstream failure requires compensation; Payments executes Stripe refund
+        // idempotently and publishes payments.payment_refunded via Payments outbox.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.payments.refund");
+        services.AddIntegrationEventConsumer<RefundPaymentRequestedIntegrationEvent, RefundPaymentRequestedConsumer, PaymentsIdempotentProcessor>();
+
+        // Phase 10.8: Orders consumer for payments.payment_refunded. Payments publishes
+        // payments.payment_refunded after successful Stripe refund; Orders transitions saga
+        // Refunding → ReleasingInventory and stages inventory release atomically.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.refunded");
+        services.AddIntegrationEventConsumer<PaymentRefundedIntegrationEvent, PaymentRefundedConsumer, OrdersIdempotentProcessor>();
+
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])

@@ -58,6 +58,11 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(256)")
                         .HasColumnName("ProviderPaymentIntentId");
 
+                    b.Property<string>("ProviderRefundId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ProviderRefundId");
+
                     b.Property<int>("Status")
                         .HasColumnType("int")
                         .HasColumnName("Status");

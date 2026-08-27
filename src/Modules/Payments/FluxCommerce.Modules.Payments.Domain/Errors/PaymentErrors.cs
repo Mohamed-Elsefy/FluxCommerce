@@ -52,6 +52,10 @@ public static class PaymentErrors
         "Payment.AlreadyCancelled",
         "Payment has already been cancelled and cannot be modified.");
 
+    public static readonly DomainError PaymentAlreadyRefunded = DomainError.Create(
+        "Payment.AlreadyRefunded",
+        "Payment has already been refunded and cannot be modified.");
+
     public static readonly DomainError ProviderPaymentIntentIdRequired = DomainError.Create(
         "Payment.ProviderPaymentIntentIdRequired",
         "Provider Payment Intent ID is required.");

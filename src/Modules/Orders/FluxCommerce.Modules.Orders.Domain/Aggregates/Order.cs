@@ -320,6 +320,28 @@ public sealed class Order : AggregateRoot<OrderId>
     }
 
     /// <summary>
+    /// Phase 10.8: compensating cancel after post-payment refund. Allows
+    /// Pending → Cancelled (same as Cancel) and Confirmed → Cancelled for refund.
+    /// Idempotent on already Cancelled.
+    /// </summary>
+    public DomainResult CancelForRefund(DateTimeOffset utcNow)
+    {
+        if (Status == OrderStatus.Cancelled)
+            return DomainResult.Success();
+
+        if (Status != OrderStatus.Pending && Status != OrderStatus.Confirmed)
+            return DomainResult.Failure(OrderErrors.InvalidStateTransition);
+
+        Status = OrderStatus.Cancelled;
+
+        Touch(utcNow);
+
+        AddDomainEvent(new OrderCancelled(Id, CustomerId, OrderNumber, utcNow));
+
+        return DomainResult.Success();
+    }
+
+    /// <summary>
     /// Phase 10.4: confirms the order after successful payment.
     /// Valid transition: Pending → Confirmed. Duplicate on Confirmed is idempotent;
     /// any other state is rejected.

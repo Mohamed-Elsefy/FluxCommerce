@@ -385,6 +385,45 @@ public sealed class OrderSaga
         };
     }
 
+    /// <summary>
+    /// Phase 10.8: request refund after post-payment downstream failure.
+    /// Completed → Refunding. Duplicate on Refunding/ReleasingInventory/Cancelled is idempotent;
+    /// already Completed after refund (second Completed) is also duplicate.
+    /// </summary>
+    public DomainResult RequestRefund(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.Completed => Transition(OrderSagaState.Refunding, utcNow),
+            OrderSagaState.Refunding => DomainResult.Success(),
+            OrderSagaState.ReleasingInventory => DomainResult.Success(),
+            OrderSagaState.Cancelled => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    /// <summary>
+    /// Phase 10.8: handle PaymentRefunded — Refunding → ReleasingInventory.
+    /// Duplicate on ReleasingInventory/Cancelled/Completed is idempotent.
+    /// </summary>
+    public DomainResult HandlePaymentRefunded(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.Refunding => Transition(OrderSagaState.ReleasingInventory, utcNow),
+            OrderSagaState.ReleasingInventory => DomainResult.Success(),
+            OrderSagaState.Cancelled => DomainResult.Success(),
+            OrderSagaState.Completed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
     public static OrderSaga Hydrate(
         Guid id,
         OrderId orderId,
