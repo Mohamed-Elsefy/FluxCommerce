@@ -22,75 +22,25 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("FluxCommerce.Modules.Payments.Domain.Aggregates.Payment", b =>
+            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Idempotency.Messages.ProcessedMessage", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("PaymentId");
+                    b.Property<string>("Key")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)")
+                        .HasColumnName("Key");
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)")
-                        .HasColumnName("Amount");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset")
-                        .HasColumnName("CreatedAtUtc");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)")
-                        .HasColumnName("Currency");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("OrderId");
-
-                    b.Property<string>("Provider")
+                    b.Property<string>("Handler")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)")
-                        .HasColumnName("Provider");
+                        .HasColumnName("Handler");
 
-                    b.Property<string>("ProviderPaymentIntentId")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
-                        .HasColumnName("ProviderPaymentIntentId");
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ProcessedAtUtc");
 
-                    b.Property<string>("ProviderRefundId")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
-                        .HasColumnName("ProviderRefundId");
+                    b.HasKey("Key", "Handler");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int")
-                        .HasColumnName("Status");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset")
-                        .HasColumnName("UpdatedAtUtc");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint")
-                        .HasColumnName("Version");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAtUtc")
-                        .HasDatabaseName("IX_Payments_CreatedAtUtc");
-
-                    b.HasIndex("OrderId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Payments_OrderId");
-
-                    b.HasIndex("ProviderPaymentIntentId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Payments_ProviderPaymentIntentId")
-                        .HasFilter("[ProviderPaymentIntentId] IS NOT NULL");
-
-                    b.ToTable("Payments", (string)null);
+                    b.ToTable("ProcessedMessages", (string)null);
                 });
 
             modelBuilder.Entity("FluxCommerce.BuildingBlocks.Outbox.Messages.OutboxMessage", b =>
@@ -100,6 +50,10 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("Id");
 
+                    b.Property<Guid?>("CausationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CausationId");
+
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CorrelationId");
@@ -107,10 +61,6 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreatedAtUtc");
-
-                    b.Property<Guid?>("CausationId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("CausationId");
 
                     b.Property<string>("Error")
                         .HasColumnType("nvarchar(max)")
@@ -172,18 +122,87 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                     b.ToTable("OutboxMessages", (string)null);
                 });
 
+            modelBuilder.Entity("FluxCommerce.Modules.Payments.Domain.Aggregates.Payment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PaymentId");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasColumnName("Amount");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("CreatedAtUtc");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)")
+                        .HasColumnName("Currency");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CustomerId");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OrderId");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasColumnName("Provider");
+
+                    b.Property<string>("ProviderPaymentIntentId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ProviderPaymentIntentId");
+
+                    b.Property<string>("ProviderRefundId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ProviderRefundId");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("UpdatedAtUtc");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("Version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_Payments_CreatedAtUtc");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Payments_OrderId");
+
+                    b.HasIndex("ProviderPaymentIntentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Payments_ProviderPaymentIntentId")
+                        .HasFilter("[ProviderPaymentIntentId] IS NOT NULL");
+
+                    b.ToTable("Payments", (string)null);
+                });
+
             modelBuilder.Entity("FluxCommerce.Modules.Payments.Domain.Entities.ProcessedWebhookEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("Id");
-
-                    b.Property<string>("StripeEventId")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
-                        .HasColumnName("StripeEventId");
 
                     b.Property<string>("EventType")
                         .IsRequired()
@@ -195,6 +214,12 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetimeoffset")
                         .HasColumnName("ProcessedAtUtc");
 
+                    b.Property<string>("StripeEventId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("StripeEventId");
+
                     b.HasKey("Id");
 
                     b.HasIndex("StripeEventId")
@@ -202,27 +227,6 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_ProcessedWebhookEvents_StripeEventId");
 
                     b.ToTable("ProcessedWebhookEvents", (string)null);
-                });
-
-            modelBuilder.Entity("FluxCommerce.BuildingBlocks.Idempotency.Messages.ProcessedMessage", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(36)
-                        .HasColumnType("nvarchar(36)")
-                        .HasColumnName("Key");
-
-                    b.Property<string>("Handler")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)")
-                        .HasColumnName("Handler");
-
-                    b.Property<DateTime>("ProcessedAtUtc")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("ProcessedAtUtc");
-
-                    b.HasKey("Key", "Handler");
-
-                    b.ToTable("ProcessedMessages", (string)null);
                 });
 #pragma warning restore 612, 618
         }

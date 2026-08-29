@@ -821,6 +821,100 @@ are guarded by the Saga row's optimistic concurrency token (duplicate or conflic
 most once), and every consumer runs inside its module's idempotent-processing boundary. Payment
 (Phase 9) and refund compensation (Phase 10) extend this pattern in later phases.
 
+### 15.1 Order Processing Saga with Payment Compensation (Phase 10)
+
+The Phase 10 Order Processing Saga extends the Phase 8 Order/Inventory Saga to incorporate
+Payment orchestration and refund compensation. The workflow spans three modules:
+
+- **Orders** owns Order state (`Pending → Confirmed → Cancelled`) and the Saga orchestration state
+- **Inventory** owns Inventory item state and reservation/expiration lifecycle
+- **Payments** owns Payment state (`Pending → Processing → Succeeded/Failed/Cancelled`) and Stripe integration
+
+**Happy Path (10.2–10.4):**
+
+1. Orders Saga starts at `WaitingForInventory`, publishes `inventory.reservation_requested`
+2. Inventory consumes, reserves stock, publishes `inventory.reserved`
+3. Saga transitions to `WaitingForPayment`, publishes `payments.payment_requested`
+4. Payments consumes, creates PaymentIntent via Stripe, publishes `payments.payment_succeeded`
+5. Saga consumes `payments.payment_succeeded`, transitions Order to `Confirmed`, Saga to `Completed`
+
+**Payment Failure (10.5–10.6):**
+
+1. Payments publishes `payments.payment_failed`
+2. Saga consumes, transitions to `ReleasingInventory`
+3. Inventory consumes, releases reservation, Saga to `Completed` (Order stays Pending/Cancelled)
+
+**Post-Payment Compensation (10.8):**
+
+1. Payments publishes `payments.refund_requested` (Stripe refund)
+2. Saga consumes, transitions Order to `Refunding`
+3. Inventory releases any remaining reservation, Saga to `Cancelled`
+4. Order cancelled, `orders.order_cancelled` published
+
+**Isolation guarantee:** The Saga never reads another module's DbContext. Each module's consumer
+runs inside its idempotent-processing boundary (EventId + HandlerName). Saga state transitions are
+guarded by the Saga row's optimistic concurrency token (`Version` field). Payment integration is
+confined to `Payments.Infrastructure` → `Stripe.net` only; `Payments.Contracts` carries the
+integration events (`PaymentSucceededIntegrationEvent`, `PaymentFailedIntegrationEvent`,
+`RefundPaymentRequestedIntegrationEvent`, `PaymentRefundedIntegrationEvent`) that other modules
+consume without accessing Payments' DbContext.
+
+---
+
+## 6. Module Dependency Rules (expanded)
+
+Modules are isolated. The following additions apply specifically to Phase 10 Payment Saga:
+
+**Forbidden (expanded):**
+
+    Inventory
+       |
+       X
+       +--> Payments.Infrastructure
+
+    Orders
+       |
+       X
+       +--> PaymentsDbContext
+
+    Payments
+       |
+       X
+       +--> OrdersDbContext / InventoryDbContext
+
+A module must not directly modify another module's state.
+
+**Approved cross-module references (Phase 10):**
+
+- **Orders.Infrastructure MAY reference `FluxCommerce.Modules.Payments.Contracts`** (the `Integration`
+  and `IntegrationEvents` namespaces only) so it can consume `PaymentSucceeded`, `PaymentFailed`,
+  `RefundPaymentRequested`, and `PaymentRefunded` integration events. This mirrors the existing
+  Phase 4.5 carve-out that lets Orders.Application reference the Cart/Catalog Contracts, and the
+  Phase 8 carve-out that lets Orders.Infrastructure reference `Inventory.Contracts`.
+
+- **Orders.Infrastructure MAY reference `FluxCommerce.Modules.Inventory.Contracts`** (the `Integration`
+  and `IntegrationEvents` namespaces only) as established in Phase 8.
+
+The architecture tests `Orders_ShouldNot_ReferenceOtherModules` and `Orders_ShouldNot_ReferenceInventory`
+are updated to encode the narrow Payments carve-out. Payments never references Orders or Inventory internal
+layers. Inventory never references Orders or Payments internal layers.
+
+**Concurrency & Idempotency (expanded from §16):**
+
+- **Optimistic Concurrency:** Each module's aggregate root uses a `Version` field (bigint, `IsConcurrencyToken`)
+  for EF Core concurrency protection. Saga state transitions also guard on the Saga row's `Version` token,
+  so duplicate or conflicting results (Reserved vs Failed, Payment Succeeded vs Failed) apply at most once.
+- **Idempotent Consumers:** Every asynchronous consumer that changes state must be idempotent (Rule 7). 
+  Consumers use the `IIdempotentProcessor` boundary with `ProcessedMessage.Create(EventId, HandlerName)`
+  as the idempotency key. The composite `(Key, Handler)` primary key in each module's `ProcessedMessages`
+  table is the final concurrency protection: `(E1, H1)` can be claimed once, duplicate `(E1, H1)` races
+  are resolved by the database and reported as `AlreadyProcessed`.
+- **No distributed transactions:** Cross-module workflows use Integration Events + Saga Orchestration +
+  Compensation rather than distributed transactions (2PC).
+- **Outbox Pattern:** Each module's Outbox ensures reliable event publication atomically with the
+  business state change. The Outbox Message contains sufficient metadata (CorrelationId, CausationId,
+  OccurredAtUtc, RetryCount, Error information) for reliable processing and observability.
+
 ---
 
 # 16. Idempotency

@@ -1436,7 +1436,7 @@ The Order/Inventory Saga phase (see `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IM
 - Every Saga-produced event carries correlation/causation: `OrderCreated(C1)` → `ReservationRequested(C1)` → `Reserved`/`Failed(C1)` → Order transition, with a W3C trace propagated and exported across every async hop (TraceParent/TraceState in Outbox rows and broker headers).
 - Failure compensation: a reservation failure cancels the Order (Order stays Cancelled; the summary projection stays fresh via an `orders.order_cancelled` consumer) and a cancelled order with an active reservation issues a compensating `inventory.release_requested` that is idempotent and durable.
 
-**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2022/2022, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure). Phase 6/7 messaging and idempotency behavior remain green (regression).
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2095/2095, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure) plus 22 Phase 10 workflow tests (Payment Succeeded, Payment Failed, Refund, Inventory Compensation, Idempotency races, Concurrency safety, 8 Failure/Recovery scenarios A–H, Tracing validation). Integration tests require Redis server (unavailable in this environment; 110 Redis-dependent tests excluded). Phase 6/7 messaging and idempotency behavior remain green (regression).
 
 **Deferred.** Compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Next is Phase 10 — Payment Saga & Order/Inventory Compensation.
 
@@ -1472,7 +1472,7 @@ Phase 9 (see `PHASE_9_COMPLETION_REPORT.md` and `docs/phases/PHASE_9_STRIPE_PAYM
 * **Observability:** `PaymentsActivitySource` (`FluxCommerce` name) spans `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process`; logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/CorrelationId( OrderId)/CausationId(ProcessedEventId)`; no `SecretKey`/card data.
 * **Security:** `StripeOptions` via `IOptions<StripeOptions>` (`SecretKey/WebhookSecret` externalized, no hardcoded secrets); `GET /api/payments/{paymentId}` `[Authorize]` enforces `CustomerId==ICurrentUser.UserId` else `404` (ownership); only webhook is `AllowAnonymous`.
 
-**Verification.** `dotnet build FluxCommerce.slnx -c Debug` → 0 warnings 0 errors; `Architecture 166/166`, `Unit 32/32 Payments` (6 `StripeWebhookService` + 6 `PaymentsControllerWebhook` + 12 `WebhookEventProcessor` incl. 4 idempotency + 4 state + 4 outbox) + full suite `2022/2022` (Payments domain) and `Integration 376/376` (real SQL/RabbitMQ/Redis when infra available; Sqlite-based Payments webhook/outbox tests green). No pending EF model changes (5 Payments migrations).
+**Verification.** `dotnet build FluxCommerce.slnx -c Debug` → 0 warnings 0 errors; `Architecture 166/166`, `Unit 2095/2095` (32 `Payments` + full suite including Phase 10 Sagas/Compensation/Hardening/Refund/Tracing) + `Integration 376/376` (real SQL/RabbitMQ/Redis when infra available; Sqlite-based Payments webhook/outbox tests green, Phase 10 E2E integration tests green). No pending EF model changes (5 Payments migrations).
 
 **Deferred.** Payment Saga & Order/Inventory compensation (Phase 10), reservation expiry (Phase 11), failure testing (Phase 12).
 
@@ -2044,6 +2044,9 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_5_INVENTORY_CONCURRENCY.md
         PHASE_6_OUTBOX_RABBITMQ.md
         PHASE_7_IDEMPOTENT_CONSUMERS.md
+        PHASE_8_ORDER_INVENTORY_SAGA.md
+        PHASE_9_STRIPE_PAYMENTS.md
+        PHASE_10_PAYMENT_SAGA_COMPENSATION.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md
@@ -2054,6 +2057,9 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_5_COMPLETION_REPORT.md
         PHASE_6_COMPLETION_REPORT.md
         PHASE_7_COMPLETION_REPORT.md
+        PHASE_8_COMPLETION_REPORT.md
+        PHASE_9_COMPLETION_REPORT.md
+        PHASE_10_COMPLETION_REPORT.md
     current/
         EF_CORE_COMMANDS.md
         LOCAL_DEVELOPMENT.md

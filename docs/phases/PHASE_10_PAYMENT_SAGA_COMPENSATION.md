@@ -884,9 +884,9 @@ Update:
 ```text
 PROJECT_CONTEXT.md
 ARCHITECTURE.md
-PHASES.md
+completed/INDEX.md
 ADR(s)
-COMPLETED/Phase 10 Completion Report
+completed/Phase 10 Completion Report
 ```
 
 Document:

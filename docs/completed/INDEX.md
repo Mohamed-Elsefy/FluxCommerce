@@ -13,5 +13,6 @@
 | 7     | Done   | Idempotent consumers (Inbox pattern) |
 | 8     | Done   | Order & Inventory Saga |
 | 9     | Done   | Stripe Payments |
+| 10    | Done   | Payment Saga & Compensation Workflows — OrderSaga Orchestrator, Outbox Pattern, Compensation Workflows, Stripe Refund Integration, Idempotency, W3C Tracing |
 
 <!-- Update this line-per-phase after each phase; keep full detail in completed/PHASE_<N>_COMPLETION_REPORT.md -->
