@@ -31,6 +31,19 @@ namespace FluxCommerce.Modules.Orders.Domain.Sagas;
 /// cancellation and arrives AFTER the release was issued, so the orchestrator can compensate that
 /// reservation immediately instead of letting it leak until Inventory expiry (Phase 11).
 /// </para>
+///
+/// <para>
+/// Phase 10.2 extends the state machine to include Payment and compensation (plan §10.2).
+/// New states: <c>WaitingForPayment</c> (after inventory reserved), <c>ReleasingInventory</c>
+/// (after payment failed), <c>Cancelled</c> (OrderCancelled after compensation). Payment
+/// tracking properties <see cref="PaymentId"/>, <see cref="ProviderPaymentIntentId"/>,
+/// <see cref="PaymentFailureReason"/>, <see cref="PaymentRequestedAtUtc"/> are bookkeeping
+/// (first write wins, no version bump). Valid transitions are explicit:
+/// <c>WaitingForInventory → WaitingForPayment → Completed</c> (payment succeeded) and
+/// <c>WaitingForPayment → ReleasingInventory → Cancelled → Completed</c> (payment failed).
+/// Duplicate events on the target state are idempotent no-ops; invalid/out-of-order events
+/// are rejected with <see cref="OrderSagaErrors.InvalidStateTransition"/>.
+/// </para>
 /// </summary>
 public sealed class OrderSaga
 {
@@ -64,9 +77,41 @@ public sealed class OrderSaga
     /// </summary>
     public DateTimeOffset? ReleaseRequestedAtUtc => _releaseRequestedAtUtc;
 
+    /// <summary>
+    /// Phase 10.2 payment tracking — the payment associated with this saga, if any.
+    /// Null until the saga enters <see cref="OrderSagaState.WaitingForPayment"/> and
+    /// a payment intent is requested.
+    /// </summary>
+    public Guid? PaymentId => _paymentId;
+
+    /// <summary>
+    /// Phase 10.2 provider-side payment intent identifier (Stripe <c>pi_*</c>), if known.
+    /// </summary>
+    public string? ProviderPaymentIntentId => _providerPaymentIntentId;
+
+    /// <summary>
+    /// Phase 10.2 failure reason when <see cref="FailPayment"/> transitions to
+    /// <see cref="OrderSagaState.ReleasingInventory"/>.
+    /// </summary>
+    public string? PaymentFailureReason => _paymentFailureReason;
+
+    /// <summary>
+    /// Phase 10.2 moment the payment was requested for this order, or <c>null</c> when
+    /// no payment has been requested. Bookkeeping only — does not bump the concurrency version.
+    /// </summary>
+    public DateTimeOffset? PaymentRequestedAtUtc => _paymentRequestedAtUtc;
+
     private List<Guid> _reservationIds = [];
 
     private DateTimeOffset? _releaseRequestedAtUtc;
+
+    private Guid? _paymentId;
+
+    private string? _providerPaymentIntentId;
+
+    private string? _paymentFailureReason;
+
+    private DateTimeOffset? _paymentRequestedAtUtc;
 
     private long _version;
 
@@ -197,6 +242,188 @@ public sealed class OrderSaga
         _releaseRequestedAtUtc ??= utcNow;
     }
 
+    // ---- Phase 10.2 Payment state machine ----
+
+    /// <summary>
+    /// Phase 10.2 transitions <c>WaitingForInventory → WaitingForPayment</c> after all
+    /// <c>inventory.reserved</c> results have been applied. A saga already waiting for
+    /// payment is an idempotent no-op (duplicate reservation result); any other state
+    /// is rejected.
+    /// </summary>
+    public DomainResult MarkWaitingForPayment(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.WaitingForInventory => Transition(OrderSagaState.WaitingForPayment, utcNow),
+            OrderSagaState.WaitingForPayment => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    /// <summary>
+    /// Phase 10.2 records the payment intent associated with this saga. Bookkeeping only:
+    /// it never advances the state machine or bumps the concurrency version. Only valid
+    /// in <c>WaitingForPayment</c>; duplicate calls with the same <paramref name="paymentId"/>
+    /// are idempotent no-ops; a different payment id on an already-recorded saga is rejected
+    /// to prevent cross-payment contamination.
+    /// </summary>
+    public DomainResult MarkPaymentRequested(Guid paymentId, string? providerPaymentIntentId, DateTimeOffset utcNow)
+    {
+        if (paymentId == Guid.Empty)
+            throw new ArgumentException("A payment id must not be an empty GUID.", nameof(paymentId));
+
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        if (State != OrderSagaState.WaitingForPayment)
+            return DomainResult.Failure(OrderSagaErrors.InvalidStateTransition);
+
+        if (_paymentId.HasValue)
+        {
+            if (_paymentId.Value == paymentId)
+                return DomainResult.Success();
+
+            return DomainResult.Failure(OrderSagaErrors.InvalidStateTransition);
+        }
+
+        _paymentId = paymentId;
+        if (!string.IsNullOrWhiteSpace(providerPaymentIntentId))
+            _providerPaymentIntentId = providerPaymentIntentId;
+        _paymentRequestedAtUtc ??= utcNow;
+
+        return DomainResult.Success();
+    }
+
+    /// <summary>
+    /// Phase 10.2 applies <c>payments.payment_succeeded</c>:
+    /// <c>WaitingForPayment → Completed</c>. A duplicate on an already-completed saga
+    /// is an idempotent no-op; a result on <c>ReleasingInventory</c>/<c>Cancelled</c>/
+    /// <c>Failed</c> is a conflicting rejection; any other state is rejected.
+    /// </summary>
+    public DomainResult SucceedPayment(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.WaitingForPayment => Transition(OrderSagaState.Completed, utcNow),
+            OrderSagaState.Completed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    /// <summary>
+    /// Phase 10.2 applies <c>payments.payment_failed</c>:
+    /// <c>WaitingForPayment → ReleasingInventory</c>. The <paramref name="failureReason"/>
+    /// is recorded. A duplicate on <c>ReleasingInventory</c> or <c>Cancelled</c> is an
+    /// idempotent no-op (single compensation decision under at-least-once delivery);
+    /// a duplicate on <c>Completed</c> is a conflicting rejection (already succeeded);
+    /// any other state is rejected.
+    /// </summary>
+    public DomainResult FailPayment(DateTimeOffset utcNow, string failureReason)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        if (string.IsNullOrWhiteSpace(failureReason))
+            throw new ArgumentException("A failure reason is required.", nameof(failureReason));
+
+        return State switch
+        {
+            OrderSagaState.WaitingForPayment => FailPaymentTransition(utcNow, failureReason),
+            OrderSagaState.ReleasingInventory => DomainResult.Success(),
+            OrderSagaState.Cancelled => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    private DomainResult FailPaymentTransition(DateTimeOffset utcNow, string failureReason)
+    {
+        _paymentFailureReason = failureReason;
+        return Transition(OrderSagaState.ReleasingInventory, utcNow);
+    }
+
+    /// <summary>
+    /// Phase 10.2 completes compensation after inventory was released:
+    /// <c>ReleasingInventory → Cancelled</c> (OrderCancelled). A duplicate on
+    /// <c>Cancelled</c> or <c>Completed</c> is an idempotent no-op; any other
+    /// state is rejected.
+    /// </summary>
+    public DomainResult MarkInventoryReleased(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.ReleasingInventory => Transition(OrderSagaState.Cancelled, utcNow),
+            OrderSagaState.Cancelled => DomainResult.Success(),
+            OrderSagaState.Completed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    /// <summary>
+    /// Phase 10.2 finalizes the cancelled saga to <c>Completed</c> for E2E traceability:
+    /// <c>Cancelled → Completed</c>. A duplicate on <c>Completed</c> is an idempotent
+    /// no-op; any other state is rejected.
+    /// </summary>
+    public DomainResult FinalizeCancellation(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.Cancelled => Transition(OrderSagaState.Completed, utcNow),
+            OrderSagaState.Completed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    /// <summary>
+    /// Phase 10.8: request refund after post-payment downstream failure.
+    /// Completed → Refunding. Duplicate on Refunding/ReleasingInventory/Cancelled is idempotent;
+    /// already Completed after refund (second Completed) is also duplicate.
+    /// </summary>
+    public DomainResult RequestRefund(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.Completed => Transition(OrderSagaState.Refunding, utcNow),
+            OrderSagaState.Refunding => DomainResult.Success(),
+            OrderSagaState.ReleasingInventory => DomainResult.Success(),
+            OrderSagaState.Cancelled => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    /// <summary>
+    /// Phase 10.8: handle PaymentRefunded — Refunding → ReleasingInventory.
+    /// Duplicate on ReleasingInventory/Cancelled/Completed is idempotent.
+    /// </summary>
+    public DomainResult HandlePaymentRefunded(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.Refunding => Transition(OrderSagaState.ReleasingInventory, utcNow),
+            OrderSagaState.ReleasingInventory => DomainResult.Success(),
+            OrderSagaState.Cancelled => DomainResult.Success(),
+            OrderSagaState.Completed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
     public static OrderSaga Hydrate(
         Guid id,
         OrderId orderId,
@@ -205,7 +432,11 @@ public sealed class OrderSaga
         long version,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc,
-        DateTimeOffset? releaseRequestedAtUtc = null)
+        DateTimeOffset? releaseRequestedAtUtc = null,
+        Guid? paymentId = null,
+        string? providerPaymentIntentId = null,
+        string? paymentFailureReason = null,
+        DateTimeOffset? paymentRequestedAtUtc = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("A saga id must not be an empty GUID.", nameof(id));
@@ -234,9 +465,21 @@ public sealed class OrderSaga
                 "A valid release-requested timestamp is required.",
                 nameof(releaseRequestedAtUtc));
 
+        if (paymentId.HasValue && paymentId.Value == Guid.Empty)
+            throw new ArgumentException("A payment id must not be an empty GUID.", nameof(paymentId));
+
+        if (paymentRequestedAtUtc is not null && paymentRequestedAtUtc.Value == default)
+            throw new ArgumentException(
+                "A valid payment-requested timestamp is required.",
+                nameof(paymentRequestedAtUtc));
+
         var saga = new OrderSaga(id, orderId, correlationId, state, version, createdAtUtc);
         saga._updatedAtUtc = updatedAtUtc;
         saga._releaseRequestedAtUtc = releaseRequestedAtUtc;
+        saga._paymentId = paymentId;
+        saga._providerPaymentIntentId = providerPaymentIntentId;
+        saga._paymentFailureReason = paymentFailureReason;
+        saga._paymentRequestedAtUtc = paymentRequestedAtUtc;
 
         return saga;
     }

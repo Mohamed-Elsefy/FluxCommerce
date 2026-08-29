@@ -23,6 +23,13 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Configurations;
 /// column — the bookkeeping marker the orchestrator sets when the compensation release is requested, so
 /// a late <c>inventory.reserved</c> result racing the cancellation can be compensated immediately.
 /// </para>
+///
+/// <para>
+/// Phase 10.2 maps payment tracking properties:
+/// <c>PaymentId</c> (nullable uniqueidentifier), <c>ProviderPaymentIntentId</c> (nvarchar 256),
+/// <c>PaymentFailureReason</c> (nvarchar 512), <c>PaymentRequestedAtUtc</c> (datetimeoffset).
+/// These are bookkeeping fields, nullable until payment is requested/failed.
+/// </para>
 /// </summary>
 public sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSaga>
 {
@@ -56,6 +63,24 @@ public sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSaga>
 
         builder.Property(saga => saga.ReleaseRequestedAtUtc)
             .HasColumnName("ReleaseRequestedAtUtc")
+            .HasColumnType("datetimeoffset");
+
+        builder.Property(saga => saga.PaymentId)
+            .HasColumnName("PaymentId")
+            .HasColumnType("uniqueidentifier");
+
+        builder.Property(saga => saga.ProviderPaymentIntentId)
+            .HasColumnName("ProviderPaymentIntentId")
+            .HasColumnType("nvarchar(256)")
+            .HasMaxLength(256);
+
+        builder.Property(saga => saga.PaymentFailureReason)
+            .HasColumnName("PaymentFailureReason")
+            .HasColumnType("nvarchar(512)")
+            .HasMaxLength(512);
+
+        builder.Property(saga => saga.PaymentRequestedAtUtc)
+            .HasColumnName("PaymentRequestedAtUtc")
             .HasColumnType("datetimeoffset");
 
         builder.Property(saga => saga.Version)

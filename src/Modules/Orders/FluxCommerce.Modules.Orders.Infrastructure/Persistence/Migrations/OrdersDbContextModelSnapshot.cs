@@ -178,6 +178,24 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("OrderId");
 
+                    b.Property<string>("PaymentFailureReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("PaymentFailureReason");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PaymentId");
+
+                    b.Property<DateTimeOffset?>("PaymentRequestedAtUtc")
+                        .HasColumnType("datetimeoffset")
+                        .HasColumnName("PaymentRequestedAtUtc");
+
+                    b.Property<string>("ProviderPaymentIntentId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ProviderPaymentIntentId");
+
                     b.Property<DateTimeOffset?>("ReleaseRequestedAtUtc")
                         .HasColumnType("datetimeoffset")
                         .HasColumnName("ReleaseRequestedAtUtc");

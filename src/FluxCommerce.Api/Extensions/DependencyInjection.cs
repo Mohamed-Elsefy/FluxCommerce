@@ -22,7 +22,10 @@ using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Infrastructure;
+using FluxCommerce.Modules.Payments.Infrastructure.Consuming;
+using FluxCommerce.Modules.Payments.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Identity.Infrastructure;
 
 namespace FluxCommerce.Api.Extensions;
@@ -58,6 +61,16 @@ public static class DependencyInjection
 
         services.AddOptions<CacheOptions>()
             .Bind(configuration.GetSection(CacheOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<StripeOptions>()
+            .Bind(configuration.GetSection(StripeOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<FluxCommerce.Modules.Payments.Domain.Options.StripeOptions>()
+            .Bind(configuration.GetSection(FluxCommerce.Modules.Payments.Domain.Options.StripeOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
@@ -147,6 +160,45 @@ public static class DependencyInjection
         // is a no-op when the workflow never reserved inventory for the order.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.saga.compensation");
         services.AddIntegrationEventConsumer<OrderCancelledIntegrationEvent, OrderCancelledSagaConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.3: Payments creation consumer. The Orders saga (after inventory.reserved →
+        // WaitingForPayment) stages payments.create_payment_requested through the Orders outbox.
+        // Payments executes the creation idempotently (unique OrderId + idempotency) and calls
+        // Stripe only via Payments.Infrastructure. The consumer runs inside the Payments
+        // idempotent-processing boundary (ProcessedMessage keyed by EventId+HandlerName).
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.payments.create");
+        services.AddIntegrationEventConsumer<CreatePaymentRequestedIntegrationEvent, CreatePaymentRequestedConsumer, PaymentsIdempotentProcessor>();
+
+        // Phase 10.4: Orders consumer for payments.payment_succeeded. Payments webhook stages
+        // payments.payment_succeeded via Payments outbox; Orders confirms the order and completes
+        // the saga atomically inside the Orders idempotent-processing boundary.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.succeeded");
+        services.AddIntegrationEventConsumer<PaymentSucceededIntegrationEvent, PaymentSucceededConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.5: Orders consumer for payments.payment_failed. Payments webhook stages
+        // payments.payment_failed via Payments outbox; Orders transitions saga to ReleasingInventory
+        // and stages inventory.release_requested for each recorded reservation atomically.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.failed");
+        services.AddIntegrationEventConsumer<PaymentFailedIntegrationEvent, PaymentFailedConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.6: Orders consumer for inventory.released compensation. Inventory publishes
+        // inventory.released via Inventory outbox after successful Release; Orders transitions
+        // saga ReleasingInventory → Cancelled atomically inside the Orders idempotent boundary.
+        // Duplicate released events are idempotent (no double transition).
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.inventory.released");
+        services.AddIntegrationEventConsumer<InventoryReleasedIntegrationEvent, InventoryReleasedConsumer, OrdersIdempotentProcessor>();
+
+        // Phase 10.8: Payments refund consumer. Orders stages payments.refund_payment_requested
+        // when post-payment downstream failure requires compensation; Payments executes Stripe refund
+        // idempotently and publishes payments.payment_refunded via Payments outbox.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.payments.refund");
+        services.AddIntegrationEventConsumer<RefundPaymentRequestedIntegrationEvent, RefundPaymentRequestedConsumer, PaymentsIdempotentProcessor>();
+
+        // Phase 10.8: Orders consumer for payments.payment_refunded. Payments publishes
+        // payments.payment_refunded after successful Stripe refund; Orders transitions saga
+        // Refunding → ReleasingInventory and stages inventory release atomically.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.refunded");
+        services.AddIntegrationEventConsumer<PaymentRefundedIntegrationEvent, PaymentRefundedConsumer, OrdersIdempotentProcessor>();
 
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])

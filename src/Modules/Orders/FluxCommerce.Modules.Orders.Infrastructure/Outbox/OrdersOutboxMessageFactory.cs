@@ -41,6 +41,9 @@ public sealed class OrdersOutboxMessageFactory
                 case OrderCancelled cancelled:
                     messages.Add(Map(cancelled));
                     break;
+                case OrderConfirmed confirmed:
+                    messages.Add(Map(confirmed));
+                    break;
             }
         }
 
@@ -95,6 +98,36 @@ public sealed class OrdersOutboxMessageFactory
             Id = Guid.NewGuid(),
             EventId = domainEvent.EventId,
             Type = OrderCancelledIntegrationEvent.EventType,
+            Payload = JsonSerializer.Serialize(integrationEvent),
+            CorrelationId = integrationEvent.CorrelationId,
+            CausationId = integrationEvent.CausationId,
+            OccurredAtUtc = integrationEvent.OccurredAtUtc,
+            CreatedAtUtc = DateTime.UtcNow,
+            ProcessedAtUtc = null,
+            Status = OutboxStatus.Pending,
+            RetryCount = 0,
+            Error = null
+        };
+    }
+
+    private OutboxMessage Map(OrderConfirmed domainEvent)
+    {
+        var integrationEvent = new OrderConfirmedIntegrationEvent(
+            domainEvent.OrderId.Value,
+            domainEvent.CustomerId.Value,
+            domainEvent.OrderNumber.Value,
+            domainEvent.OccurredAt)
+        {
+            EventId = domainEvent.EventId,
+            CorrelationId = _correlationIdProvider.GetCorrelationId(),
+            OccurredAtUtc = domainEvent.OccurredAtUtc
+        };
+
+        return new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            EventId = domainEvent.EventId,
+            Type = OrderConfirmedIntegrationEvent.EventType,
             Payload = JsonSerializer.Serialize(integrationEvent),
             CorrelationId = integrationEvent.CorrelationId,
             CausationId = integrationEvent.CausationId,

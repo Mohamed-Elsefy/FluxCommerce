@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 
 namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 
@@ -13,6 +14,9 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 /// shared <see cref="IntegrationEventOutboxMessageFactory"/>. Phase 8.7 adds the compensation mapping:
 /// the same factory maps the <see cref="InventoryReleaseRequestedIntegrationEvent"/> issued when a
 /// cancelled order must release its previously reserved inventory.
+/// Phase 10.3 adds payment initiation: the same factory maps
+/// <see cref="CreatePaymentRequestedIntegrationEvent"/> staged after the saga enters
+/// <c>WaitingForPayment</c>.
 /// </summary>
 public sealed class SagaOutboxMessageFactory
 {
@@ -35,5 +39,19 @@ public sealed class SagaOutboxMessageFactory
         ArgumentNullException.ThrowIfNull(integrationEvent);
 
         return _outboxMessageFactory.Create(InventoryReleaseRequestedIntegrationEvent.EventType, integrationEvent);
+    }
+
+    public OutboxMessage Create(CreatePaymentRequestedIntegrationEvent integrationEvent)
+    {
+        ArgumentNullException.ThrowIfNull(integrationEvent);
+
+        return _outboxMessageFactory.Create(CreatePaymentRequestedIntegrationEvent.EventType, integrationEvent);
+    }
+
+    public OutboxMessage Create(RefundPaymentRequestedIntegrationEvent integrationEvent)
+    {
+        ArgumentNullException.ThrowIfNull(integrationEvent);
+
+        return _outboxMessageFactory.Create(RefundPaymentRequestedIntegrationEvent.EventType, integrationEvent);
     }
 }

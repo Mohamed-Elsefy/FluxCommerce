@@ -373,6 +373,55 @@ If modules need information from another module, they use:
 
 The exact mechanism depends on consistency requirements.
 
+### 9.1 Payments Bounded Context (Phase 9)
+
+Payments owns `Payment` state exclusively (`PaymentsDbContext` owns `Payments`, `ProcessedWebhookEvents`, `OutboxMessages`). No cross-module `DbContext` access.
+
+**Domain model (`Payments.Domain`):**
+```
+Payment : AggregateRoot<Guid>
+├── Id/PaymentId (PK → PaymentId column)
+├── OrderId (unique, UX_Payments_OrderId)
+├── CustomerId (owner, for [Authorize] enforcement)
+├── Amount (decimal 18,6) + Currency (ISO3, 3)
+├── Status (int → PaymentStatus: Pending=0, Processing, Succeeded, Failed, Cancelled) via field `_status`
+├── ProviderPaymentIntentId (256, unique filtered [IS NOT NULL])
+├── Provider (128)
+├── Version (bigint, IsConcurrencyToken) + CreatedAtUtc/UpdatedAtUtc
+```
+Invariants (`PaymentErrors`): amount>0, currency required, `Succeed/Fail/Cancel/Process` enforce terminal-state guards (`InvalidOperationException` → non-fatal webhook handling).
+
+**Persistence (`Payments.Infrastructure`):**
+* `PaymentConfiguration` maps `Status` via `_status` field, `Version` concurrency, filtered unique `ProviderPaymentIntentId`.
+* `ProcessedWebhookEventConfiguration` → `ProcessedWebhookEvents` (`Id`, `StripeEventId` 256 unique `UX_ProcessedWebhookEvents_StripeEventId`, `EventType` 128, `ProcessedAtUtc`).
+* `OutboxMessageConfiguration` (Payments copy) → `OutboxMessages` (same shape as Orders/Inventory, pending/inProgress/published with retry).
+* `PaymentsDbContext : BaseDbContext` owns `DbSet<Payment>`, `DbSet<ProcessedWebhookEvent>`, `DbSet<OutboxMessage>`; `ApplyConfigurationsFromAssembly`.
+* Migrations (5): `20260824131713_InitialPayments`, `20260825090000_FixPaymentStatusAndId` (add `Status`, drop duplicate `Id`), `20260825100000_AddProcessedWebhookEvents`, `20260825110000_AddPaymentsOutbox`, `20260825120000_AddPaymentCustomerId`. No pending model changes.
+
+**Stripe isolation (`ADR-011`):**
+```
+Payments.Domain ──X─► Stripe
+Payments.Application ──X─► Stripe
+Payments.Contracts ──X─► Stripe
+Payments.Infrastructure ──► Stripe.net (only)
+```
+`IStripePaymentGateway` (`Application`) → `StripePaymentGateway` (`Infrastructure`, `Stripe.net`, `PaymentIntentService`, deterministic `intent_{OrderId}_{PaymentId}_{Version}` idempotency via `RequestOptions.IdempotencyKey`). `IStripeWebhookService` (`Application`, `StripeWebhookVerificationResult` with `PaymentIntentId`) → `StripeWebhookService` (`Infrastructure`, `EventUtility.ConstructEvent(tolerance:300, throwOnApiVersionMismatch:false)` + `JsonDocument` `data.object.id` extraction). `StripeOptions` (`SecretKey/WebhookSecret`) bound via `IOptions` from `Configuration["Stripe"]` (externalized, no secrets in source).
+
+**Webhook flow (`9.8→9.11`, `PaymentsController`):**
+```
+Stripe → POST /api/payments/webhook [AllowAnonymous] (EnableBuffering → raw UTF-8)
+  → Stripe-Signature header + payload → IStripeWebhookService.VerifyAndParse
+  → IWebhookEventProcessor.TryProcessAsync(eventId,type,piId) — single PaymentsDbContext transaction:
+        ├─ idempotency AnyAsync check + unique UX_ProcessedWebhookEvents_StripeEventId (race → AlreadyProcessed)
+        ├─ lookup Payment by ProviderPaymentIntentId → ApplyEventToPayment (Supported: succeeded→Succeed, payment_failed→Fail, canceled→Cancel, processing→Process; unsupported→no-op; InvalidOperationException→ terminal protection, logged, success)
+        ├─ add ProcessedWebhookEvent
+        └─ if terminal Succeeded/Failed → IntegrationEventOutboxMessageFactory.Create("payments.payment_succeeded/failed", new PaymentSucceeded/FailedIntegrationEvent{CorrelationId=OrderId, CausationId=ProcessedEvent.Id}) → OutboxMessages
+  → 400 on missing/invalid sig, 200 on valid/duplicate/unsupported/out-of-order (Stripe stops retrying)
+```
+`GET /api/payments/{paymentId}` `[Authorize]` enforces ownership (`CustomerId == ICurrentUser.UserId` else 404) — `[AllowAnonymous]` strictly limited to webhook.
+
+**Observability (`9.12`):** `TraceContext.Source` (`FluxCommerce`) activities `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process` + tags `order.id/payment.id/stripe.*`; structured logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/EventType/CorrelationId/CausationId`, no `SecretKey`/card payload.
+
 ---
 
 # 10. Database Strategy
@@ -771,6 +820,100 @@ Pending; a failure transitions the Saga to `Failed`, cancels the Order, and publ
 are guarded by the Saga row's optimistic concurrency token (duplicate or conflicting results apply at
 most once), and every consumer runs inside its module's idempotent-processing boundary. Payment
 (Phase 9) and refund compensation (Phase 10) extend this pattern in later phases.
+
+### 15.1 Order Processing Saga with Payment Compensation (Phase 10)
+
+The Phase 10 Order Processing Saga extends the Phase 8 Order/Inventory Saga to incorporate
+Payment orchestration and refund compensation. The workflow spans three modules:
+
+- **Orders** owns Order state (`Pending → Confirmed → Cancelled`) and the Saga orchestration state
+- **Inventory** owns Inventory item state and reservation/expiration lifecycle
+- **Payments** owns Payment state (`Pending → Processing → Succeeded/Failed/Cancelled`) and Stripe integration
+
+**Happy Path (10.2–10.4):**
+
+1. Orders Saga starts at `WaitingForInventory`, publishes `inventory.reservation_requested`
+2. Inventory consumes, reserves stock, publishes `inventory.reserved`
+3. Saga transitions to `WaitingForPayment`, publishes `payments.payment_requested`
+4. Payments consumes, creates PaymentIntent via Stripe, publishes `payments.payment_succeeded`
+5. Saga consumes `payments.payment_succeeded`, transitions Order to `Confirmed`, Saga to `Completed`
+
+**Payment Failure (10.5–10.6):**
+
+1. Payments publishes `payments.payment_failed`
+2. Saga consumes, transitions to `ReleasingInventory`
+3. Inventory consumes, releases reservation, Saga to `Completed` (Order stays Pending/Cancelled)
+
+**Post-Payment Compensation (10.8):**
+
+1. Payments publishes `payments.refund_requested` (Stripe refund)
+2. Saga consumes, transitions Order to `Refunding`
+3. Inventory releases any remaining reservation, Saga to `Cancelled`
+4. Order cancelled, `orders.order_cancelled` published
+
+**Isolation guarantee:** The Saga never reads another module's DbContext. Each module's consumer
+runs inside its idempotent-processing boundary (EventId + HandlerName). Saga state transitions are
+guarded by the Saga row's optimistic concurrency token (`Version` field). Payment integration is
+confined to `Payments.Infrastructure` → `Stripe.net` only; `Payments.Contracts` carries the
+integration events (`PaymentSucceededIntegrationEvent`, `PaymentFailedIntegrationEvent`,
+`RefundPaymentRequestedIntegrationEvent`, `PaymentRefundedIntegrationEvent`) that other modules
+consume without accessing Payments' DbContext.
+
+---
+
+## 6. Module Dependency Rules (expanded)
+
+Modules are isolated. The following additions apply specifically to Phase 10 Payment Saga:
+
+**Forbidden (expanded):**
+
+    Inventory
+       |
+       X
+       +--> Payments.Infrastructure
+
+    Orders
+       |
+       X
+       +--> PaymentsDbContext
+
+    Payments
+       |
+       X
+       +--> OrdersDbContext / InventoryDbContext
+
+A module must not directly modify another module's state.
+
+**Approved cross-module references (Phase 10):**
+
+- **Orders.Infrastructure MAY reference `FluxCommerce.Modules.Payments.Contracts`** (the `Integration`
+  and `IntegrationEvents` namespaces only) so it can consume `PaymentSucceeded`, `PaymentFailed`,
+  `RefundPaymentRequested`, and `PaymentRefunded` integration events. This mirrors the existing
+  Phase 4.5 carve-out that lets Orders.Application reference the Cart/Catalog Contracts, and the
+  Phase 8 carve-out that lets Orders.Infrastructure reference `Inventory.Contracts`.
+
+- **Orders.Infrastructure MAY reference `FluxCommerce.Modules.Inventory.Contracts`** (the `Integration`
+  and `IntegrationEvents` namespaces only) as established in Phase 8.
+
+The architecture tests `Orders_ShouldNot_ReferenceOtherModules` and `Orders_ShouldNot_ReferenceInventory`
+are updated to encode the narrow Payments carve-out. Payments never references Orders or Inventory internal
+layers. Inventory never references Orders or Payments internal layers.
+
+**Concurrency & Idempotency (expanded from §16):**
+
+- **Optimistic Concurrency:** Each module's aggregate root uses a `Version` field (bigint, `IsConcurrencyToken`)
+  for EF Core concurrency protection. Saga state transitions also guard on the Saga row's `Version` token,
+  so duplicate or conflicting results (Reserved vs Failed, Payment Succeeded vs Failed) apply at most once.
+- **Idempotent Consumers:** Every asynchronous consumer that changes state must be idempotent (Rule 7). 
+  Consumers use the `IIdempotentProcessor` boundary with `ProcessedMessage.Create(EventId, HandlerName)`
+  as the idempotency key. The composite `(Key, Handler)` primary key in each module's `ProcessedMessages`
+  table is the final concurrency protection: `(E1, H1)` can be claimed once, duplicate `(E1, H1)` races
+  are resolved by the database and reported as `AlreadyProcessed`.
+- **No distributed transactions:** Cross-module workflows use Integration Events + Saga Orchestration +
+  Compensation rather than distributed transactions (2PC).
+- **Outbox Pattern:** Each module's Outbox ensures reliable event publication atomically with the
+  business state change. The Outbox Message contains sufficient metadata (CorrelationId, CausationId,
+  OccurredAtUtc, RetryCount, Error information) for reliable processing and observability.
 
 ---
 

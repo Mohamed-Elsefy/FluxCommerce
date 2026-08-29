@@ -40,6 +40,15 @@ public class OrdersArchitectureTests
                         continue;
                     }
 
+                    // Phase 10.3 carve-out (ADR-010): Orders.Infrastructure is allowed to reference
+                    // Payments.Contracts for saga-to-payment initiation (payments.create_payment_requested).
+                    if (module == "Payments"
+                        && layer == "Contracts"
+                        && assembly.GetName().Name == "FluxCommerce.Modules.Orders.Infrastructure")
+                    {
+                        continue;
+                    }
+
                     AssertNoDependencies(
                         assembly,
                         $"FluxCommerce.Modules.{module}.{layer}",
@@ -136,10 +145,13 @@ public class OrdersArchitectureTests
     [Fact]
     public void Orders_ShouldNot_ReferencePayments()
     {
+        // Phase 10.3 carve-out (ADR-010): Orders.Infrastructure may reference Payments.Contracts
+        // (IntegrationEvents) to publish payments.create_payment_requested. Domain/Application/Contracts
+        // remain forbidden from any Payments reference.
         var failures = new List<string>();
 
         AssertNoDependencies(
-            OrdersAssemblies,
+            [OrdersDomain, OrdersApplication, OrdersContracts],
             [
                 "FluxCommerce.Modules.Payments.Domain",
                 "FluxCommerce.Modules.Payments.Application",
@@ -147,6 +159,16 @@ public class OrdersArchitectureTests
                 "FluxCommerce.Modules.Payments.Contracts",
             ],
             "Orders -> Payments",
+            failures);
+
+        AssertNoDependencies(
+            [OrdersInfrastructure],
+            [
+                "FluxCommerce.Modules.Payments.Domain",
+                "FluxCommerce.Modules.Payments.Application",
+                "FluxCommerce.Modules.Payments.Infrastructure",
+            ],
+            "Orders.Infrastructure -> Payments (non-contract)",
             failures);
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));

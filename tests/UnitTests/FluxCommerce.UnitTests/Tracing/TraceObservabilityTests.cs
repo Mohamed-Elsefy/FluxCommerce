@@ -235,7 +235,7 @@ public class TraceObservabilityTests : OrderSagaTestBase
 
         Assert.Equal(rootTraceId, successSpan.TraceId);
         Assert.Equal(OrderSagaState.WaitingForInventory.ToString(), successSpan.GetTagItem("saga.previous.state"));
-        Assert.Equal(OrderSagaState.Completed.ToString(), successSpan.GetTagItem("saga.new.state"));
+        Assert.Equal(OrderSagaState.WaitingForPayment.ToString(), successSpan.GetTagItem("saga.new.state"));
         Assert.Equal(OrderSagaTransitionOutcome.Applied.ToString(), successSpan.GetTagItem("saga.outcome"));
         Assert.Equal(reservationId, successSpan.GetTagItem("reservation.id"));
     }

@@ -33,6 +33,10 @@
     <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Domain\FluxCommerce.Modules.Orders.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Orders\FluxCommerce.Modules.Orders.Infrastructure\FluxCommerce.Modules.Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Domain\FluxCommerce.Modules.Payments.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Application\FluxCommerce.Modules.Payments.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Payments\FluxCommerce.Modules.Payments.Infrastructure\FluxCommerce.Modules.Payments.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\FluxCommerce.Api\FluxCommerce.Api.csproj" />
   </ItemGroup>
 
 </Project>

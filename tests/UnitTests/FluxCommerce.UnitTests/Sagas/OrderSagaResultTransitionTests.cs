@@ -42,13 +42,16 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         Assert.Equal(OrderSagaTransitionOutcome.Applied, result.Outcome);
 
         var saga = await context.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
         Assert.Contains(ReservationId, saga.ReservationIds);
 
         await using var freshContext = CreateContext();
         Assert.Equal(OrderStatus.Pending, (await freshContext.Orders.SingleAsync()).Status);
         Assert.Equal(0, await freshContext.OutboxMessages.CountAsync(
             message => message.Type == OrderCancelledIntegrationEvent.EventType));
+        // Phase 10.3: payment initiation is staged via Orders outbox
+        Assert.Equal(1, await freshContext.OutboxMessages.CountAsync(
+            message => message.Type == FluxCommerce.Modules.Payments.Contracts.IntegrationEvents.CreatePaymentRequestedIntegrationEvent.EventType));
     }
 
     [Fact]
@@ -99,9 +102,13 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         Assert.Equal(OrderSagaTransitionOutcome.Duplicate, duplicate.Outcome);
 
         var saga = await context.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
         Assert.Equal(versionAfterFirst, saga.Version);
         Assert.Single(saga.ReservationIds);
+        // Duplicate must not stage a second payment request
+        await using var freshContext = CreateContext();
+        Assert.Equal(1, await freshContext.OutboxMessages.CountAsync(
+            message => message.Type == FluxCommerce.Modules.Payments.Contracts.IntegrationEvents.CreatePaymentRequestedIntegrationEvent.EventType));
     }
 
     [Fact]
@@ -171,14 +178,17 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         await orchestrator.ApplyReservationSuccessAsync(order.Id, ReservationId, Guid.NewGuid(), Guid.NewGuid(), ResultAtUtc);
         await context.SaveChangesAsync();
 
+        // After Phase 10.3, success leaves saga in WaitingForPayment, not Completed.
+        // Inventory failure after waiting for payment is not the expected failed-reservation path
+        // — it should be rejected (no OrderCancelled, saga stays WaitingForPayment).
         var conflicting = await orchestrator.ApplyReservationFailureAsync(
             order.Id, Guid.NewGuid(), Guid.NewGuid(), "Inventory.InsufficientStock", ResultAtUtc);
         await context.SaveChangesAsync();
 
-        Assert.Equal(OrderSagaTransitionOutcome.Conflicting, conflicting.Outcome);
+        Assert.Equal(OrderSagaTransitionOutcome.Invalid, conflicting.Outcome);
 
         var saga = await context.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
 
         await using var freshContext = CreateContext();
         Assert.Equal(OrderStatus.Pending, (await freshContext.Orders.SingleAsync()).Status);
@@ -329,7 +339,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
         // applies the success transition with a distinct reservation id (plan §13.8.6 concurrent
         // result scenario). The first SaveChanges commits; the second is rejected by the saga's
         // optimistic concurrency token, so the concurrent results produce exactly one business
-        // effect: a single Completed transition and one recorded reservation.
+        // effect: a single WaitingForPayment transition and one recorded reservation.
         await using var contextA = CreateContext();
         await using var contextB = CreateContext();
         var orchestratorA = CreateOrchestrator(contextA);
@@ -349,7 +359,7 @@ public class OrderSagaResultTransitionTests : OrderSagaTestBase
 
         await using var freshContext = CreateContext();
         var saga = await freshContext.OrderSagas.SingleAsync();
-        Assert.Equal(OrderSagaState.Completed, saga.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, saga.State);
         Assert.Single(saga.ReservationIds);
     }
 
