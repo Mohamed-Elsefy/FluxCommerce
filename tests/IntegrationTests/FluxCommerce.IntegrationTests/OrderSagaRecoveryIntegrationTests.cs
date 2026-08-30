@@ -63,8 +63,8 @@ public class OrderSagaRecoveryIntegrationTests
 
         // Two consumers on the same queue: the broker round-robins the two distinct reserved results to
         // them concurrently (prefetch 1 each). The saga version token serializes the transition — at
-        // most one applies the Completed transition; the other re-applies idempotently on the completed
-        // saga. Both results are acknowledged and nothing is dead-lettered.
+        // most one advances the saga (to WaitingForPayment); the other re-applies idempotently on the
+        // advanced saga. Both results are acknowledged and nothing is dead-lettered.
         await using var provider = _fixture.BuildProvider(queueName, options => options.Concurrency = 2);
 
         try
@@ -83,11 +83,11 @@ public class OrderSagaRecoveryIntegrationTests
             Assert.Equal(1, await CountOrdersProcessedAsync(first.EventId, InventoryReservedConsumer.StableHandlerName));
             Assert.Equal(1, await CountOrdersProcessedAsync(second.EventId, InventoryReservedConsumer.StableHandlerName));
 
-            // Single valid transition: the saga is Completed exactly once, the order stays Pending and
-            // both reservations are recorded (each result carried its own reservation id).
+            // Single valid transition: the saga is WaitingForPayment exactly once, the order stays
+            // Pending and both reservations are recorded (each result carried its own reservation id).
             var saga = await GetSagaAsync(orderId);
             Assert.NotNull(saga);
-            Assert.Equal(OrderSagaState.Completed, saga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, saga!.State);
             Assert.Equal(OrderSaga.InitialVersion + 2, saga.Version);
 
             Assert.Equal(OrderStatus.Pending, (await GetOrderAsync(orderId))!.Status);
@@ -120,8 +120,8 @@ public class OrderSagaRecoveryIntegrationTests
             await WaitForOrdersProcessedAsync(reserved.EventId, InventoryReservedConsumer.StableHandlerName);
 
             // The conflicting failure result is a VALID delivery (it is processed and acknowledged), but
-            // its transition is rejected: the saga is already Completed, so it must not flip it or cancel
-            // the order.
+            // its transition is rejected: the saga is already WaitingForPayment, so it must not flip it
+            // or cancel the order.
             await PublishAsync(provider, failed);
             await WaitForOrdersProcessedAsync(failed.EventId, InventoryReservationFailedConsumer.StableHandlerName);
             await WaitForQueueEmptyAsync(provider, queueName);
@@ -131,7 +131,7 @@ public class OrderSagaRecoveryIntegrationTests
 
             var saga = await GetSagaAsync(orderId);
             Assert.NotNull(saga);
-            Assert.Equal(OrderSagaState.Completed, saga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, saga!.State);
             Assert.Single(saga.ReservationIds);
 
             Assert.Equal(OrderStatus.Pending, (await GetOrderAsync(orderId))!.Status);
@@ -223,7 +223,8 @@ public class OrderSagaRecoveryIntegrationTests
         await PublishAsync(providerA, @event);
 
         // "Consumer A" fetches the delivery without auto-ack and processes it through the real pipeline:
-        // the business effect commits (saga Completed + ProcessedMessage), but the ACK is never sent.
+        // the business effect commits (saga WaitingForPayment + ProcessedMessage), but the ACK is never
+        // sent.
         var connectionProviderA = providerA.GetRequiredService<IRabbitMQConnectionProvider>();
         await using (var fetchChannel = await connectionProviderA.CreateChannelAsync())
         {
@@ -237,7 +238,7 @@ public class OrderSagaRecoveryIntegrationTests
                 Assert.Equal(ConsumerMessageAction.Ack, action);
             }
 
-            Assert.Equal(OrderSagaState.Completed, (await GetSagaAsync(orderId))!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, (await GetSagaAsync(orderId))!.State);
             Assert.Equal(1, await CountOrdersProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName));
 
             // "Crash before ACK": the channel closes without acknowledging -> the broker requeues the
@@ -254,7 +255,7 @@ public class OrderSagaRecoveryIntegrationTests
         await consumerB.StopAsync(CancellationToken.None);
 
         Assert.Equal(1, await CountOrdersProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName));
-        Assert.Equal(OrderSagaState.Completed, (await GetSagaAsync(orderId))!.State);
+        Assert.Equal(OrderSagaState.WaitingForPayment, (await GetSagaAsync(orderId))!.State);
         Assert.Single((await GetSagaAsync(orderId))!.ReservationIds);
         Assert.Equal(OrderStatus.Pending, (await GetOrderAsync(orderId))!.Status);
         Assert.Equal(0u, await GetMessageCountAsync(providerB, DeadLetterQueueName(queueName)));
@@ -282,7 +283,7 @@ public class OrderSagaRecoveryIntegrationTests
             await WaitForConsumerAsync(provider, queueName);
 
             // "Process B" (a fresh DI container) resumes the workflow: it finds the persisted saga and
-            // completes it from the surviving state.
+            // advances it (to WaitingForPayment) from the surviving state.
             await PublishAsync(provider, @event);
 
             await WaitForOrdersProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName);
@@ -291,7 +292,7 @@ public class OrderSagaRecoveryIntegrationTests
 
             var saga = await GetSagaAsync(orderId);
             Assert.NotNull(saga);
-            Assert.Equal(OrderSagaState.Completed, saga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, saga!.State);
             Assert.Equal(correlationId, saga.CorrelationId);
             Assert.Equal(OrderStatus.Pending, (await GetOrderAsync(orderId))!.Status);
             Assert.Equal(1, await CountOrdersProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName));
@@ -420,7 +421,8 @@ public class OrderSagaRecoveryIntegrationTests
                 await context.SaveChangesAsync();
             }
 
-            // 2. The first reservation result completes the saga and records the reservation.
+            // 2. The first reservation result advances the saga (to WaitingForPayment) and records the
+            // reservation.
             var firstReserved = CreateReservedEvent(orderId, firstReservationId, skuA, 3);
             firstReservedEventId = firstReserved.EventId;
             await PublishAsync(provider, firstReserved);
@@ -429,7 +431,7 @@ public class OrderSagaRecoveryIntegrationTests
 
             var completedSaga = await GetSagaAsync(orderId);
             Assert.NotNull(completedSaga);
-            Assert.Equal(OrderSagaState.Completed, completedSaga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, completedSaga!.State);
             Assert.Equal(firstReservationId, Assert.Single(completedSaga.ReservationIds));
 
             // 3. The order is cancelled: the compensation release is requested for the recorded
@@ -469,7 +471,7 @@ public class OrderSagaRecoveryIntegrationTests
             Assert.Equal(10, (await GetItemAsync(skuA))!.AvailableQuantity);
 
             // 5. The LATE reservation result (still in flight when the order was cancelled) arrives on the
-            // completed saga. Phase 8.8: it is recorded AND compensated immediately — a new release
+            // advanced saga. Phase 8.8: it is recorded AND compensated immediately — a new release
             // command is staged for it instead of being left to leak until Inventory expiry.
             var lateReserved = CreateReservedEvent(orderId, lateReservationId, skuB, 2, lateReservedCorrelationId);
             lateReservedEventId = lateReserved.EventId;
@@ -487,7 +489,7 @@ public class OrderSagaRecoveryIntegrationTests
 
             var finalSaga = await GetSagaAsync(orderId);
             Assert.NotNull(finalSaga);
-            Assert.Equal(OrderSagaState.Completed, finalSaga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, finalSaga!.State);
             Assert.Equal(2, finalSaga!.ReservationIds.Count);
             Assert.Contains(firstReservationId, finalSaga.ReservationIds);
             Assert.Contains(lateReservationId, finalSaga.ReservationIds);

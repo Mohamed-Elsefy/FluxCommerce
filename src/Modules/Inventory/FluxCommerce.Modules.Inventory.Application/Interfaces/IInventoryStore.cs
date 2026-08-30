@@ -25,6 +25,26 @@ public interface IInventoryStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Loads the full reservation aggregates for the supplied identifiers in a single query. The
+    /// returned aggregates are tracked so their (and their items') domain mutations can be flushed
+    /// through <see cref="SaveLifecycleChangesAsync"/>. Used by the expiration processor to avoid a
+    /// per-reservation lookup (N+1) when expiring a batch.
+    /// </summary>
+    Task<IReadOnlyList<InventoryReservation>> GetReservationsByIdsAsync(
+        IReadOnlyCollection<InventoryReservationId> reservationIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads the full inventory item aggregates for the supplied SKUs in a single query. The
+    /// returned aggregates are tracked so their domain mutations can be flushed through
+    /// <see cref="SaveLifecycleChangesAsync"/>. Used by the expiration processor alongside
+    /// <see cref="GetReservationsByIdsAsync"/> to avoid a per-reservation item lookup (N+1).
+    /// </summary>
+    Task<IReadOnlyList<InventoryItem>> GetItemsBySkusAsync(
+        IReadOnlyCollection<InventorySku> skus,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the identifiers of up to <paramref name="maxResults"/> reservations that are still
     /// pending and whose expiration deadline is at or before <paramref name="utcNow"/>, ordered by
     /// deadline so the oldest reservations are expired first. Only reservations that can actually

@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below), and **Phase 10** (Payment Saga & Compensation Workflows — `docs/completed/PHASE_10_COMPLETION_REPORT.md`, summarized in §14.9 below), and **Phase 11** (Reservation Expiry Orchestration — `docs/completed/PHASE_11_COMPLETION_REPORT.md`, summarized in §14.10 below). Next is **Phase 12** (Failure Testing).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1329,7 +1329,7 @@ The Orders & Checkout phase (see `docs/phases/PHASE_4_ORDERS_CHECKOUT.md` and `d
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 103/103, Unit tests 1,497/1,497, Integration tests 207/207. EF model in sync with the `InitialOrders` migration (no pending model changes).
 
-**Deferred.** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). Order cancellation currently performs no inventory/payment compensation by design. `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
+**Deferred (at Phase 4).** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). At Phase 4 completion, order cancellation performed no inventory/payment compensation by design; compensation (Phase 10) and reservation expiry (Phase 11) are now implemented, with failure testing (Phase 12) next. `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
 
 ### 14.5 Phase 6 — Outbox + RabbitMQ — Implemented & Verified
 
@@ -1365,7 +1365,7 @@ The Outbox + RabbitMQ phase (see `docs/phases/PHASE_6_OUTBOX_RABBITMQ.md` and `d
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 157/157, Unit tests 1796/1796, Integration tests 300/300 (54 Phase 6 messaging-specific) against real SQL Server + RabbitMQ, including E2E (success, broker nack + recovery, atomic rollback, stale-claim recovery, batch, duplicate boundary, cancellation). Orders and Inventory EF models are in sync with migrations (no pending changes). No Phase 7 consumers/Inbox/Saga were introduced.
 
-**Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7), compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Phase 9.1 audit is complete; Phase 9.2 onward is the next sub-phase.
+**Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7). Phase 10 (payment compensation) and Phase 11 (reservation expiry) are now implemented; next is Phase 12 — failure testing.
 
 ### 14.6 Phase 7 — Idempotent Consumers — Implemented & Verified
 
@@ -1404,7 +1404,7 @@ The Idempotent Consumers phase (see `docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 163/163, Unit tests 1910/1910, Integration tests 343/343 (real SQL Server + RabbitMQ), including Phase 6 outbox/publisher regression 47/47 and Phase 7 consumer/idempotency/ProcessedMessage scenarios 40/40. Module isolation is proven by dedicated integration tests (Orders consumer writes only the Orders database, Inventory consumer writes only the Inventory database, regardless of container registration order).
 
-**Deferred.** Order/Inventory Saga (Phase 8), compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Phase 9.1 audit is complete; Phase 9.2 onward is the next sub-phase.
+**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; next is Phase 12 — failure testing.
 
 ---
 
@@ -1438,7 +1438,7 @@ The Order/Inventory Saga phase (see `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IM
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2095/2095, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure) plus 22 Phase 10 workflow tests (Payment Succeeded, Payment Failed, Refund, Inventory Compensation, Idempotency races, Concurrency safety, 8 Failure/Recovery scenarios A–H, Tracing validation). Integration tests require Redis server (unavailable in this environment; 110 Redis-dependent tests excluded). Phase 6/7 messaging and idempotency behavior remain green (regression).
 
-**Deferred.** Compensation workflows (Phase 10), reservation expiry orchestration (Phase 11), failure testing (Phase 12). Next is Phase 10 — Payment Saga & Order/Inventory Compensation.
+**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; next is Phase 12 — failure testing.
 
 ---
 
@@ -1474,7 +1474,58 @@ Phase 9 (see `PHASE_9_COMPLETION_REPORT.md` and `docs/phases/PHASE_9_STRIPE_PAYM
 
 **Verification.** `dotnet build FluxCommerce.slnx -c Debug` → 0 warnings 0 errors; `Architecture 166/166`, `Unit 2095/2095` (32 `Payments` + full suite including Phase 10 Sagas/Compensation/Hardening/Refund/Tracing) + `Integration 376/376` (real SQL/RabbitMQ/Redis when infra available; Sqlite-based Payments webhook/outbox tests green, Phase 10 E2E integration tests green). No pending EF model changes (5 Payments migrations).
 
-**Deferred.** Payment Saga & Order/Inventory compensation (Phase 10), reservation expiry (Phase 11), failure testing (Phase 12).
+**Phase 10 (Payment Saga & Compensation) and Phase 11 (Reservation Expiry Orchestration) implemented & verified** (see 14.9 and 14.10 below).
+**Deferred.** Failure testing (Phase 12), Search (Phase 13), Promotions & Coupons (Phase 14), Wishlist (Phase 15), Reviews (Phase 16), Notifications (Phase 17), Shipping (Phase 18), Analytics (Phase 19), Production Hardening (Phase 20).
+
+### 14.9 Phase 10 — Payment Saga & Compensation Workflows — Implemented & Verified
+
+Phase 10 (see `docs/completed/PHASE_10_COMPLETION_REPORT.md` and `docs/phases/PHASE_10_PAYMENT_SAGA_COMPENSATION.md`) delivers the Order/Payment Saga orchestration with compensation, extending the Phase 8 Order/Inventory Saga to incorporate Payment orchestration (`WaitingForInventory → WaitingForPayment → Completed`) and refund compensation (`ReleasingInventory`, `Refunding`) without 2PC or distributed transactions.
+
+**Subphases completed (10.1–10.14):**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 10.1–10.2 | Baseline & Saga/Payment architecture audit; Payment Saga state model (`WaitingForInventory`, `WaitingForPayment`, `Completed`, `Failed`, `Cancelled`, `ReleasingInventory`, `Refunding`) | Implemented |
+| 10.3 | Payment initiation flow (`payments.payment_requested`), outbox dispatcher, consumer in `Orders.Infrastructure` | Implemented |
+| 10.4 | PaymentSucceeded flow → Order Confirmed, Saga `Completed`, `OrderConfirmed` event | Implemented |
+| 10.5–10.6 | PaymentFailed flow → `ReleasingInventory`, Inventory compensation (`inventory.release_requested`) → `Cancelled` | Implemented |
+| 10.7–10.8 | Order cancellation & saga finalization (`Cancelled→Completed`), Payment refund (`PaymentStatus.Refunded`, Stripe refund, Saga `Refunding`) | Implemented |
+| 10.9–10.10 | Idempotency, concurrency & recovery hardening; 8 failure/recovery scenarios (A–H) | Implemented |
+| 10.11–10.12 | Observability & W3C distributed tracing; full E2E integration verification | Implemented |
+| 10.13–10.14 | Architecture/Security/Performance audit; documentation & final completion | Implemented |
+
+**Verification.** Build 0 warnings/0 errors; `Architecture 166/166`, `Unit 2044/2044`, `Integration 376/376`. Documented in `docs/completed/PHASE_10_COMPLETION_REPORT.md` and `docs/adr/ADR-0010-payment-saga-and-compensation-workflows.md`.
+
+**Deferred.** Reservation expiry orchestration (Phase 11), failure testing (Phase 12).
+
+### 14.10 Phase 11 — Reservation Expiry Orchestration — Implemented & Verified
+
+Phase 11 (see `docs/completed/PHASE_11_COMPLETION_REPORT.md` and `docs/phases/PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md`) closes the reservation-timeout path of the Order Processing Saga. When an Inventory reservation expires, the system produces the `InventoryReservationExpiredIntegrationEvent` (`Inventory.Contracts`), persists it transactionally in the Outbox, publishes it through the Outbox Dispatcher to RabbitMQ, and an idempotent consumer in `Orders.Infrastructure` (`InventoryReservationExpiredConsumer`, handler `Orders.ApplyReservationExpired`) drives the Saga from `WaitingForPayment → Cancelled`. No double release, no duplicate refund, terminal states protected.
+
+**Subphases completed (11.1–11.12):**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 11.1 | Baseline & reservation-expiry architecture audit | Implemented |
+| 11.2 | Integration contract & Outbox (`InventoryReservationExpiredIntegrationEvent` in `Inventory.Contracts`) | Implemented |
+| 11.3 | Transactional state + Outbox persistence & dispatch to RabbitMQ | Implemented |
+| 11.4 | Orders consumer registration (`InventoryReservationExpiredConsumer`) | Implemented |
+| 11.5 | Saga expiry model (`OrderSaga.ApplyReservationExpired`, `WaitingForPayment → Cancelled`) | Implemented |
+| 11.6 | Consumer + compensation & race handling | Implemented |
+| 11.7 | Idempotency, concurrency & recovery safety | Implemented |
+| 11.8 | Observability & distributed tracing across the async boundary | Implemented |
+| 11.9 | Integration & E2E test coverage | Implemented |
+| 11.10 | Migration of stale Phase 8 `Completed`-after-reservation tests to `WaitingForPayment` post payment-phase | Implemented |
+| 11.11 | Architecture/Security/Performance audit; N+1 batched-load hardening of `ExpiredReservationProcessor` | Implemented |
+| 11.12 | Final verification & this documentation entry | Implemented |
+
+**State transition rule (final `OrderSaga` matrix for `ReservationExpired`):** `WaitingForPayment → Cancelled` is the only valid transition; `WaitingForInventory`, `ReleasingInventory`, `Refunding`, `Completed`, `Failed`, `Cancelled` are benign idempotent no-ops (a late/duplicate `ReservationExpired` never moves a terminal or in-flight-compensation saga); any unspecified state → `InvalidStateTransition`.
+
+**Architectural decisions:** contract lives in `Inventory.Contracts.IntegrationEvents` (`InventoryReservationExpiredIntegrationEvent`) distinct from the domain event `InventoryReservationExpired` (`Inventory.Domain.Events`); release on the expiry path happens in Inventory's expiration processor (released exactly once) — the Saga does not stage `inventory.release_requested` on the `WaitingForPayment→Cancelled` expiry path; the cross-module consumer carve-out is governed by the same `Orders.Infrastructure MAY reference Inventory.Contracts` rule established in Phase 8 / ADR-009.
+
+**Verification.** Build 0 warnings/0 errors; `Architecture 169/169`, `Unit 2264/2264`, `Integration 381/381` (full clean run; ambient parallel-run outbox/broker timing flakiness present in a few pre-existing tests, each passing in isolation). No new ADR required — design decisions are covered by ADR-009 / ADR-0010.
+
+**Deferred.** Failure testing (Phase 12).
 
 ---
 

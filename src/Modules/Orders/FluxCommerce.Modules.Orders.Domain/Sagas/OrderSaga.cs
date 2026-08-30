@@ -40,11 +40,24 @@ namespace FluxCommerce.Modules.Orders.Domain.Sagas;
 /// <see cref="PaymentFailureReason"/>, <see cref="PaymentRequestedAtUtc"/> are bookkeeping
 /// (first write wins, no version bump). Valid transitions are explicit:
 /// <c>WaitingForInventory → WaitingForPayment → Completed</c> (payment succeeded) and
-/// <c>WaitingForPayment → ReleasingInventory → Cancelled → Completed</c> (payment failed).
-/// Duplicate events on the target state are idempotent no-ops; invalid/out-of-order events
-/// are rejected with <see cref="OrderSagaErrors.InvalidStateTransition"/>.
-/// </para>
-/// </summary>
+    /// <c>WaitingForPayment → ReleasingInventory → Cancelled → Completed</c> (payment failed).
+    /// Duplicate events on the target state are idempotent no-ops; invalid/out-of-order events
+    /// are rejected with <see cref="OrderSagaErrors.InvalidStateTransition"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// Phase 11.5 adds <see cref="ApplyReservationExpired"/>, the cross-module reaction to
+    /// <c>inventory.reservation_expired</c>. Because Inventory has already released and cleared the
+    /// reservation on its own side, the Orders saga cancels the workflow directly:
+    /// <c>WaitingForPayment → Cancelled</c>. Every other state is either a benign no-op that is safely
+    /// ignored (terminal <c>Completed</c>/<c>Failed</c>/<c>Cancelled</c>, and in-flight compensation
+    /// <c>ReleasingInventory</c>/<c>Refunding</c>, or the unexpected <c>WaitingForInventory</c>) or, on the
+    /// unreachable <c>Started</c> state, a genuine anomaly that is rejected with
+    /// <see cref="OrderSagaErrors.InvalidStateTransition"/>. A late <c>ReservationExpired</c> never moves a
+    /// saga backward from a terminal state, and ignored events never bump the optimistic concurrency
+    /// <see cref="Version"/>.
+    /// </para>
+    /// </summary>
 public sealed class OrderSaga
 {
     public const long InitialVersion = 1;
@@ -363,6 +376,47 @@ public sealed class OrderSaga
             OrderSagaState.ReleasingInventory => Transition(OrderSagaState.Cancelled, utcNow),
             OrderSagaState.Cancelled => DomainResult.Success(),
             OrderSagaState.Completed => DomainResult.Success(),
+            _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
+        };
+    }
+
+    // ---- Phase 11.5 Reservation-expiry state machine ----
+
+    /// <summary>
+    /// Phase 11.5 applies <c>inventory.reservation_expired</c> to the saga. Because Inventory has already
+    /// released and cleared the reservation on its own side, the workflow is cancelled directly:
+    /// <c>WaitingForPayment → Cancelled</c>. Every state is defined:
+    /// <list type="bullet">
+    /// <item><c>WaitingForPayment</c> — the only valid transition: <c>WaitingForPayment → Cancelled</c>.
+    /// The reserved stock is gone (the reservation expired and was cleared by Inventory), so the order
+    /// cannot be fulfilled and its workflow is cancelled. Bumps the <see cref="Version"/>.</item>
+    /// <item><c>Completed</c> / <c>Failed</c> / <c>Cancelled</c> — terminal states. Ignored safely with no
+    /// version bump and no state modification; a late <c>ReservationExpired</c> must never move a terminal
+    /// saga backward.</item>
+    /// <item><c>ReleasingInventory</c> / <c>Refunding</c> — in-flight compensation. Ignored safely with no
+    /// version bump (a release/refund command is already being processed on the Inventory/Payments side;
+    /// do not restart or duplicate it).</item>
+    /// <item><c>WaitingForInventory</c> — unexpected (a reservation request was issued but no result ever
+    /// arrived before expiration). Ignored safely with no version bump; the anomaly is logged by the
+    /// consumer rather than retried.</item>
+    /// <item><c>Started</c> — unreachable in practice (a reservation cannot expire before a request was
+    /// issued); rejected as a genuine anomaly with <see cref="OrderSagaErrors.InvalidStateTransition"/>.</item>
+    /// </list>
+    /// </summary>
+    public DomainResult ApplyReservationExpired(DateTimeOffset utcNow)
+    {
+        if (utcNow == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(utcNow));
+
+        return State switch
+        {
+            OrderSagaState.WaitingForPayment => Transition(OrderSagaState.Cancelled, utcNow),
+            OrderSagaState.WaitingForInventory => DomainResult.Success(),
+            OrderSagaState.ReleasingInventory => DomainResult.Success(),
+            OrderSagaState.Refunding => DomainResult.Success(),
+            OrderSagaState.Completed => DomainResult.Success(),
+            OrderSagaState.Failed => DomainResult.Success(),
+            OrderSagaState.Cancelled => DomainResult.Success(),
             _ => DomainResult.Failure(OrderSagaErrors.InvalidStateTransition)
         };
     }

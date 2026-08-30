@@ -1,3 +1,5 @@
+using System.Text.Json;
+using FluxCommerce.Modules.Orders.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.Sagas;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
@@ -11,6 +13,8 @@ namespace FluxCommerce.UnitTests.Sagas;
 
 /// <summary>
 /// Phase 10.4: PaymentSucceeded → Completed (saga) + Confirmed (order), idempotency, invalid transitions.
+/// Phase 11.7: PaymentSucceeded after ReservationExpired (saga Cancelled) → staged refund compensation;
+/// PaymentSucceeded before ReservationExpired (saga Completed) → the later expiry is ignored safely.
 /// </summary>
 public class OrderSagaPaymentSucceededTests : OrderSagaTestBase
 {
@@ -85,7 +89,6 @@ public class OrderSagaPaymentSucceededTests : OrderSagaTestBase
     [InlineData(OrderSagaState.WaitingForInventory)]
     [InlineData(OrderSagaState.Failed)]
     [InlineData(OrderSagaState.ReleasingInventory)]
-    [InlineData(OrderSagaState.Cancelled)]
     public async Task ApplyPaymentSucceeded_OnInvalidState_IsRejected(OrderSagaState state)
     {
         await using var ctx = CreateContext();
@@ -126,5 +129,85 @@ public class OrderSagaPaymentSucceededTests : OrderSagaTestBase
         var result = await orchestrator.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test", Guid.NewGuid(), Guid.NewGuid(), SucceededAt);
         Assert.Equal(OrderSagaTransitionOutcome.Invalid, result.Outcome);
         Assert.Equal(OrderSagaState.WaitingForInventory, (await ctx.OrderSagas.SingleAsync()).State);
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Phase 11.7: PaymentSucceeded after ReservationExpired (the reservation-expiry race).
+    // --------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ApplyPaymentSucceeded_AfterReservationExpired_StagesRefundWithoutResurrectingSaga()
+    {
+        await using var ctx = CreateContext();
+        var (order, _) = await CreateWaitingForPaymentSagaAsync(ctx);
+        var orchestrator = CreateOrchestrator(ctx);
+
+        // ReservationExpired wins first -> saga Cancelled + order Cancelled (inventory already released).
+        var reservationId = Guid.NewGuid();
+        var expired = await orchestrator.ApplyReservationExpiredAsync(
+            order.Id, reservationId, Guid.NewGuid(), Guid.NewGuid(), SucceededAt);
+        await ctx.SaveChangesAsync();
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, expired.Outcome);
+        Assert.Equal(OrderSagaState.Cancelled, (await ctx.OrderSagas.SingleAsync()).State);
+
+        // A duplicate expiry is safely ignored (no re-cancel, no extra outbox).
+        var duplicateExpired = await orchestrator.ApplyReservationExpiredAsync(
+            order.Id, reservationId, Guid.NewGuid(), Guid.NewGuid(), SucceededAt);
+        await ctx.SaveChangesAsync();
+        Assert.Equal(OrderSagaTransitionOutcome.Ignored, duplicateExpired.Outcome);
+
+        // Now a late PaymentSucceeded arrives. Money was charged but the reservation is gone:
+        // a refund must be staged and the terminal saga must NOT be moved back or confirmed.
+        var paymentId = Guid.NewGuid();
+        var lateSuccess = await orchestrator.ApplyPaymentSucceededAsync(
+            order.Id, paymentId, "pi_test_late", Guid.NewGuid(), Guid.NewGuid(), SucceededAt);
+        await ctx.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Conflicting, lateSuccess.Outcome);
+        var saga = await ctx.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.Cancelled, saga.State);
+
+        // Order stays Cancelled (NOT confirmed by the late success) -> no resurrection.
+        var orderAfter = await ctx.Orders.SingleAsync();
+        Assert.Equal(OrderStatus.Cancelled, orderAfter.Status);
+
+        // Exactly one refund is staged (no duplicate).
+        var refunds = await ctx.OutboxMessages.Where(m => m.Type == RefundPaymentRequestedIntegrationEvent.EventType).ToListAsync();
+        Assert.Single(refunds);
+        var refund = JsonSerializer.Deserialize<RefundPaymentRequestedIntegrationEvent>(refunds[0].Payload);
+        Assert.NotNull(refund);
+        Assert.Equal(order.Id.Value, refund.OrderId);
+        Assert.Equal(paymentId, refund.PaymentId);
+        Assert.Equal("ReservationExpired.BeforePaymentSucceeded", refund.Reason);
+        Assert.Equal(order.GrandTotal.Amount, refund.Amount);
+        Assert.Equal(order.GrandTotal.Currency, refund.Currency);
+    }
+
+    [Fact]
+    public async Task ApplyPaymentSucceeded_BeforeReservationExpired_ThenExpiryIsIgnored()
+    {
+        await using var ctx = CreateContext();
+        var (order, _) = await CreateWaitingForPaymentSagaAsync(ctx);
+        var orchestrator = CreateOrchestrator(ctx);
+
+        // PaymentSucceeded wins first -> saga Completed + order Confirmed.
+        var success = await orchestrator.ApplyPaymentSucceededAsync(
+            order.Id, Guid.NewGuid(), "pi_test", Guid.NewGuid(), Guid.NewGuid(), SucceededAt);
+        await ctx.SaveChangesAsync();
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, success.Outcome);
+        Assert.Equal(OrderSagaState.Completed, (await ctx.OrderSagas.SingleAsync()).State);
+
+        // The late ReservationExpired arrives on a Completed saga -> safely ignored, no re-cancel,
+        // no extra outbox. The order stays Confirmed (no resurrection either way).
+        var lateExpiry = await orchestrator.ApplyReservationExpiredAsync(
+            order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), SucceededAt);
+        await ctx.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Ignored, lateExpiry.Outcome);
+        var saga = await ctx.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.Completed, saga.State);
+        await using var fresh = CreateContext();
+        Assert.Equal(OrderStatus.Confirmed, (await fresh.Orders.SingleAsync()).Status);
+        Assert.Empty(await fresh.OutboxMessages.Where(m => m.Type == OrderCancelledIntegrationEvent.EventType).ToListAsync());
     }
 }

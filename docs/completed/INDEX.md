@@ -14,5 +14,7 @@
 | 8     | Done   | Order & Inventory Saga |
 | 9     | Done   | Stripe Payments |
 | 10    | Done   | Payment Saga & Compensation Workflows — OrderSaga Orchestrator, Outbox Pattern, Compensation Workflows, Stripe Refund Integration, Idempotency, W3C Tracing |
+| 11    | Done   | Reservation Expiry Orchestration — Inventory expiration worker publishes `ReservationExpired` via Outbox/RabbitMQ; Orders idempotent consumer drives Saga `WaitingForPayment → Cancelled`; N+1 batched-load hardening |
+| 12    | Next   | Failure Testing (not started) |
 
 <!-- Update this line-per-phase after each phase; keep full detail in completed/PHASE_<N>_COMPLETION_REPORT.md -->

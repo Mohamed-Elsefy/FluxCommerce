@@ -49,6 +49,38 @@ public sealed class InventoryStore : IInventoryStore
             .ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<InventoryReservation>> GetReservationsByIdsAsync(
+        IReadOnlyCollection<InventoryReservationId> reservationIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (reservationIds is null)
+            throw new ArgumentNullException(nameof(reservationIds));
+
+        if (reservationIds.Count == 0)
+            return Array.Empty<InventoryReservation>();
+
+        return await _context.InventoryReservations
+            .Where(reservation => reservationIds.Contains(reservation.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<InventoryItem>> GetItemsBySkusAsync(
+        IReadOnlyCollection<InventorySku> skus,
+        CancellationToken cancellationToken = default)
+    {
+        if (skus is null)
+            throw new ArgumentNullException(nameof(skus));
+
+        if (skus.Count == 0)
+            return Array.Empty<InventoryItem>();
+
+        return await _context.InventoryItems
+            .Where(item => skus.Contains(item.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public Task<bool> ExistsAsync(
         InventorySku sku,
         CancellationToken cancellationToken = default)

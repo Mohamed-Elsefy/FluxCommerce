@@ -188,6 +188,135 @@ public class OrderSagaEndToEndIntegrationTests : OrderSagaTestBase
         Assert.Equal(1, outboxAfterFirst);
     }
 
+    [Fact(DisplayName = "11.10 Scenario 1+10: Normal Expiration -> Order Cancelled, Released Exactly Once (no re-release)")]
+    public async Task Scenario1_NormalExpiration_OrderCancelled_SingleRelease()
+    {
+        await using var ctx = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 1));
+        var orchestrator = CreateOrchestrator(ctx);
+        var correlation = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+
+        await orchestrator.StartFromOrderCreatedAsync(order.Id, correlation, Guid.NewGuid(), PlacedAtUtc);
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+        Assert.Equal(OrderSagaState.WaitingForPayment, (await ctx.OrderSagas.SingleAsync()).State);
+        var versionBefore = (await ctx.OrderSagas.SingleAsync()).Version;
+
+        var expired = await orchestrator.ApplyReservationExpiredAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, expired.Outcome);
+        var saga = await ctx.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.Cancelled, saga.State);
+        Assert.True(saga.Version > versionBefore);
+        await using var fresh = CreateContext();
+        Assert.Equal(OrderStatus.Cancelled, (await fresh.Orders.SingleAsync()).Status);
+        Assert.Equal(1, await fresh.OutboxMessages.CountAsync(m => m.Type == "orders.order_cancelled"));
+        // Scenario 10: the expired reservation was released in Inventory at expiry time; the saga must NOT
+        // re-issue an inventory.release_requested (that would double-release).
+        Assert.Equal(0, await fresh.OutboxMessages.CountAsync(m => m.Type == "inventory.release_requested"));
+        Assert.Equal(0, await fresh.OutboxMessages.CountAsync(m => m.Type == "orders.order_confirmed"));
+    }
+
+    [Fact(DisplayName = "11.10 Scenario 2: Duplicate Expiration Event -> One Business Effect")]
+    public async Task Scenario2_DuplicateExpiration_SingleEffect()
+    {
+        await using var ctx = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 1));
+        var orchestrator = CreateOrchestrator(ctx);
+        var correlation = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+
+        await orchestrator.StartFromOrderCreatedAsync(order.Id, correlation, Guid.NewGuid(), PlacedAtUtc);
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+
+        var first = await orchestrator.ApplyReservationExpiredAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+        var versionAfterFirst = (await ctx.OrderSagas.SingleAsync()).Version;
+
+        var duplicate = await orchestrator.ApplyReservationExpiredAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, first.Outcome);
+        Assert.Equal(OrderSagaTransitionOutcome.Ignored, duplicate.Outcome);
+        Assert.Equal(versionAfterFirst, (await ctx.OrderSagas.SingleAsync()).Version);
+        await using var fresh = CreateContext();
+        Assert.Equal(OrderStatus.Cancelled, (await fresh.Orders.SingleAsync()).Status);
+        Assert.Equal(1, await fresh.OutboxMessages.CountAsync(m => m.Type == "orders.order_cancelled"));
+        Assert.Equal(0, await fresh.OutboxMessages.CountAsync(m => m.Type == "inventory.release_requested"));
+    }
+
+    [Fact(DisplayName = "11.10 Scenario 4: Expiration After Payment Success -> Safe Ignore")]
+    public async Task Scenario4_ExpirationAfterPaymentSuccess_Ignored()
+    {
+        await using var ctx = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 1));
+        var orchestrator = CreateOrchestrator(ctx);
+        var correlation = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+
+        await orchestrator.StartFromOrderCreatedAsync(order.Id, correlation, Guid.NewGuid(), PlacedAtUtc);
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test", correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+        Assert.Equal(OrderSagaState.Completed, (await ctx.OrderSagas.SingleAsync()).State);
+        await using var confirmedCtx = CreateContext();
+        Assert.Equal(OrderStatus.Confirmed, (await confirmedCtx.Orders.SingleAsync()).Status);
+        var versionAfterPayment = (await ctx.OrderSagas.SingleAsync()).Version;
+
+        var lateExpiry = await orchestrator.ApplyReservationExpiredAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+
+        Assert.Equal(OrderSagaTransitionOutcome.Ignored, lateExpiry.Outcome);
+        Assert.Equal(versionAfterPayment, (await ctx.OrderSagas.SingleAsync()).Version);
+        await using var fresh = CreateContext();
+        Assert.Equal(OrderStatus.Confirmed, (await fresh.Orders.SingleAsync()).Status);
+        Assert.Equal(0, await fresh.OutboxMessages.CountAsync(m => m.Type == "orders.order_cancelled"));
+    }
+
+    [Fact(DisplayName = "11.10 Scenario 5: Expiration Before Payment Success -> No Resurrection, Refund Staged")]
+    public async Task Scenario5_ExpirationBeforePaymentSuccess_NoResurrection()
+    {
+        await using var ctx = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 1));
+        var orchestrator = CreateOrchestrator(ctx);
+        var correlation = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+
+        await orchestrator.StartFromOrderCreatedAsync(order.Id, correlation, Guid.NewGuid(), PlacedAtUtc);
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyReservationSuccessAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+
+        var expired = await orchestrator.ApplyReservationExpiredAsync(order.Id, reservationId, correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, expired.Outcome);
+        Assert.Equal(OrderSagaState.Cancelled, (await ctx.OrderSagas.SingleAsync()).State);
+
+        var latePayment = await orchestrator.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test", correlation, Guid.NewGuid(), At);
+        await ctx.SaveChangesAsync();
+
+        // Saga stays Cancelled (no resurrection), order stays Cancelled, refund staged with the 11.7 reason.
+        Assert.Equal(OrderSagaState.Cancelled, (await ctx.OrderSagas.SingleAsync()).State);
+        await using var fresh = CreateContext();
+        Assert.Equal(OrderStatus.Cancelled, (await fresh.Orders.SingleAsync()).Status);
+        var refund = await fresh.OutboxMessages.Where(m => m.Type == RefundPaymentRequestedIntegrationEvent.EventType).ToListAsync();
+        var refundMsg = Assert.Single(refund);
+        var refundPayload = System.Text.Json.JsonSerializer.Deserialize<RefundPaymentRequestedIntegrationEvent>(refundMsg.Payload);
+        Assert.Equal("ReservationExpired.BeforePaymentSucceeded", refundPayload!.Reason);
+        // No order confirmation and no cancellation re-emission from the late success; the single cancellation
+        // outbox record came from the expiry itself, and no re-release command was issued.
+        Assert.Equal(0, await fresh.OutboxMessages.CountAsync(m => m.Type == "orders.order_confirmed"));
+        Assert.Equal(1, await fresh.OutboxMessages.CountAsync(m => m.Type == "orders.order_cancelled"));
+        Assert.Equal(0, await fresh.OutboxMessages.CountAsync(m => m.Type == "inventory.release_requested"));
+    }
+
     [Fact(DisplayName = "10.12 Architecture & Isolation Rules Audit")]
     public void Architecture_Isolation_NoSharedDbContextOrLeakage()
     {

@@ -462,16 +462,29 @@ public sealed class OrderSagaOrchestrator
     }
 
     /// <summary>
-    /// Phase 11.4 placeholder: acknowledges an <c>inventory.reservation_expired</c> result to the saga.
-    /// Sub-phase 11.4 wires the cross-module publication/consumption end-to-end so Inventory's reservation
-    /// deadline is no longer lost when no subscriber is ready, but the reservation-expiry state model itself
-    /// is delivered in sub-phases 11.5/11.6 — the state transitions that cancel the expired order's workflow
-    /// and the <see cref="OrderSaga"/> changes are intentionally NOT implemented here. This stub therefore
-    /// performs a safe, observable no-op: it validates the payload, resolves the order's saga, and returns
-    /// an <see cref="OrderSagaTransitionOutcome.Ignored"/> result WITHOUT mutating saga state or the Order.
-    /// Running inside the Orders idempotent-processing boundary, the consumer commits the processed-message
-    /// record and acknowledges the event, so every well-formed expiry is consumed exactly-once (no retry
-    /// storm, no dead-letter backlog) until 11.5/11.6 replace this stub with the real transition.
+    /// Phase 11.6 applies an <c>inventory.reservation_expired</c> result to the saga. It is the real
+    /// counterpart of the Phase 11.4 stub: it wires the Phase 11.5 state model
+    /// (<see cref="OrderSaga.ApplyReservationExpired"/>) into the consumer pipeline and, on a valid expiry,
+    /// cancels the order through its own domain transition.
+    /// <para>
+    /// Behavior per saga state:
+    /// <list type="bullet">
+    /// <item><c>WaitingForPayment</c> — valid: <c>WaitingForPayment → Cancelled</c> (the reservation's stock
+    /// is already released by Inventory, so the order cannot be fulfilled) and the Order transitions through
+    /// its own <c>Cancel</c> (Pending → Cancelled), which raises the <c>OrderCancelled</c> domain event that
+    /// the Orders outbox publishes as <c>orders.order_cancelled</c> atomically with the saga state. Returns
+    /// <see cref="OrderSagaTransitionOutcome.Applied"/>.</item>
+    /// <item><c>Completed</c> / <c>Failed</c> / <c>Cancelled</c> — terminal. Ignored: no saga state change, no
+    /// Order mutation, no outbox event; a late expiry never moves a terminal saga backward.</item>
+    /// <item><c>ReleasingInventory</c> / <c>Refunding</c> — in-flight compensation. Ignored (a release/refund is
+    /// already being processed; do not restart or duplicate it).</item>
+    /// <item><c>WaitingForInventory</c> — unexpected. Ignored safely (no result arrived before expiry).</item>
+    /// <item><c>Started</c> — unreachable anomaly. Acknowledged without retrying (<see cref="OrderSagaTransitionOutcome.Invalid"/>).</item>
+    /// </list>
+    /// The saga transition and (on a valid expiry) the Order cancellation are staged in the same unit of work
+    /// as the Orders idempotent-processing boundary, so they commit atomically with the processed-message
+    /// record. An expired event for an order with no saga throws (anomaly → retry/dead-letter).
+    /// </para>
     /// </summary>
     /// <param name="orderId">The order whose reservation expired.</param>
     /// <param name="reservationId">The expired reservation's identifier.</param>
@@ -503,14 +516,103 @@ public sealed class OrderSagaOrchestrator
                 $"Cannot apply a reservation expiration for order '{orderId.Value}': no saga exists for the order.");
         }
 
-        _logger.LogInformation(
-            "Reservation {ReservationId} for order {OrderId} expired (correlation {CorrelationId}, causation {CausationId}); Phase 11.4 placeholder — no saga state change yet (the expiry state model lands in sub-phases 11.5/11.6).",
-            reservationId,
-            orderId.Value,
-            correlationId,
-            causationId);
+        var previousState = saga.State;
+        using var expiryActivity = StartSagaActivity(
+            "Orders.Saga.ApplyReservationExpired",
+            orderId,
+            saga.Id,
+            previousState,
+            correlationId: correlationId,
+            causationId: causationId,
+            reservationId: reservationId);
 
-        return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Ignored, saga.Id);
+        var transition = saga.ApplyReservationExpired(occurredAtUtc);
+
+        if (transition.IsFailure)
+        {
+            // Started is the only non-ignore state that cannot accept the expiry; acknowledged as an
+            // unreachable anomaly without retrying (matched by the Phase 11.5 matrix).
+            expiryActivity?
+                .AddTag("saga.new.state", saga.State.ToString())
+                .AddTag("saga.outcome", OrderSagaTransitionOutcome.Invalid.ToString());
+            var (traceIdOnInvalid, spanIdOnInvalid) = CurrentTraceIds();
+            _logger.LogWarning(
+                "Saga {SagaId} for order {OrderId} is in state {SagaState}; inventory.reservation_expired cannot be applied (correlation {CorrelationId}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                saga.Id,
+                orderId.Value,
+                saga.State,
+                correlationId,
+                OrderSagaTransitionOutcome.Invalid,
+                traceIdOnInvalid,
+                spanIdOnInvalid);
+
+            return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Invalid, saga.Id);
+        }
+
+        if (previousState != OrderSagaState.WaitingForPayment)
+        {
+            // Safe ignore: terminal (Completed/Failed/Cancelled), in-flight compensation
+            // (ReleasingInventory/Refunding) or unexpected (WaitingForInventory) — no saga state change,
+            // no Order mutation, no outbox event.
+            expiryActivity?
+                .AddTag("saga.new.state", saga.State.ToString())
+                .AddTag("saga.outcome", OrderSagaTransitionOutcome.Ignored.ToString());
+            var (traceIdOnIgnore, spanIdOnIgnore) = CurrentTraceIds();
+            _logger.LogInformation(
+                "Saga {SagaId} for order {OrderId} is in state {SagaState}; inventory.reservation_expired safely ignored (correlation {CorrelationId}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
+                saga.Id,
+                orderId.Value,
+                saga.State,
+                correlationId,
+                OrderSagaTransitionOutcome.Ignored,
+                traceIdOnIgnore,
+                spanIdOnIgnore);
+
+            return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Ignored, saga.Id);
+        }
+
+        // Valid expiry: WaitingForPayment → Cancelled; cancel the Order through its own domain transition.
+        var order = await _orderStore
+            .GetByIdAsync(orderId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (order is null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot cancel order '{orderId.Value}': the order does not exist.");
+        }
+
+        var cancel = order.Cancel(occurredAtUtc);
+
+        if (cancel.IsFailure)
+        {
+            // Pending is the only Order state that allows cancellation, so a failed Cancel means the
+            // Order is already Cancelled — the desired end state is already reached.
+            _logger.LogInformation(
+                "Order {OrderId} was already cancelled when applying inventory.reservation_expired; keeping the cancelled state.",
+                orderId.Value);
+        }
+
+        expiryActivity?
+            .AddTag("saga.new.state", saga.State.ToString())
+            .AddTag("saga.outcome", OrderSagaTransitionOutcome.Applied.ToString());
+
+        var (traceId, spanId) = CurrentTraceIds();
+        _logger.LogInformation(
+            "Applied inventory.reservation_expired to saga {SagaId} for order {OrderId} (reservation {ReservationId}, correlation {CorrelationId}, causation {CausationId}): state {PreviousState} → {NewState} (outcome {Outcome}, trace {TraceId}, span {SpanId}); order is {OrderStatus}.",
+            saga.Id,
+            orderId.Value,
+            reservationId,
+            correlationId,
+            causationId,
+            previousState,
+            saga.State,
+            OrderSagaTransitionOutcome.Applied,
+            traceId,
+            spanId,
+            order.Status);
+
+        return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Applied, saga.Id);
     }
 
     /// <summary>
@@ -876,6 +978,17 @@ public sealed class OrderSagaOrchestrator
     /// Duplicate delivery on <c>Completed</c> is an idempotent no-op (no re-confirm, no version bump);
     /// out-of-order or invalid states are rejected without corrupting state or throwing unhandled exceptions.
     /// Saga + Order changes commit atomically with the processed-message record via the Orders idempotent boundary.
+    ///
+    /// <para>
+    /// Phase 11.7 handles the <c>PaymentSucceeded</c> after <c>ReservationExpired</c> race (money charged for
+    /// an order whose reservation already expired and released Inventory). When the saga is already
+    /// <c>Cancelled</c> (the expiry won before this success arrived), a success here means money was taken
+    /// with no inventory behind it, so the orchestrator stages an explicit <c>refund_payment_requested</c>
+    /// compensation instead of merely rejecting it — preventing money lock-in without double-charging or
+    /// resurrecting the terminal workflow. The saga stays <c>Cancelled</c> (no backward move, no version bump)
+    /// and the Order is NOT confirmed. The refund is staged atomically inside the same Orders idempotent
+    /// boundary as the processed-message record, so a redelivered success does not stage a duplicate refund.
+    /// </para>
     /// </summary>
     public async Task<OrderSagaTransitionResult> ApplyPaymentSucceededAsync(
         OrderId orderId,
@@ -958,7 +1071,6 @@ public sealed class OrderSagaOrchestrator
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Duplicate, saga.Id);
             case OrderSagaState.Failed:
             case OrderSagaState.ReleasingInventory:
-            case OrderSagaState.Cancelled:
                 activity?.AddTag("saga.new.state", saga.State.ToString())
                     .AddTag("saga.outcome", OrderSagaTransitionOutcome.Conflicting.ToString());
                 var (traceConf, spanConf) = CurrentTraceIds();
@@ -966,6 +1078,58 @@ public sealed class OrderSagaOrchestrator
                     "Saga {SagaId} for order {OrderId} is in state {SagaState}; payments.payment_succeeded cannot be applied (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}).",
                     saga.Id, orderId.Value, saga.State, previousState, saga.State, OrderSagaTransitionOutcome.Conflicting, traceConf, spanConf);
                 return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Conflicting, saga.Id);
+            case OrderSagaState.Cancelled:
+            {
+                // Phase 11.7 race: PaymentSucceeded arrived AFTER ReservationExpired (the saga is already
+                // Cancelled and the order already cancelled). Money was charged, but the reservation has
+                // expired and Inventory has already released it — there is no inventory to fulfil, so the
+                // payment must be refunded to prevent money lock-in. The desired outcome is determined by
+                // the persisted saga state and explicit rules, not by message arrival order: the terminal
+                // Cancelled saga is NOT moved backward and the order is NOT confirmed; only the refund is
+                // staged, atomically with the processed-message record (so a redelivered success does not
+                // stage a duplicate refund).
+                var cancelledOrder = await _orderStore
+                    .GetByIdAsync(orderId, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (cancelledOrder is null)
+                    throw new InvalidOperationException(
+                        $"Cannot refund order '{orderId.Value}': the order does not exist.");
+
+                var producedAtUtc = _dateTimeProvider.UtcNow;
+                var refundEvent = new RefundPaymentRequestedIntegrationEvent(
+                    orderId.Value,
+                    paymentId,
+                    providerPaymentIntentId,
+                    cancelledOrder.GrandTotal.Amount,
+                    cancelledOrder.GrandTotal.Currency,
+                    "ReservationExpired.BeforePaymentSucceeded")
+                {
+                    EventId = Guid.NewGuid(),
+                    CorrelationId = correlationId,
+                    CausationId = causationId,
+                    OccurredAtUtc = producedAtUtc
+                };
+                _context.OutboxMessages.Add(_outboxMessageFactory.Create(refundEvent));
+
+                activity?.AddTag("saga.new.state", saga.State.ToString())
+                    .AddTag("saga.outcome", OrderSagaTransitionOutcome.Conflicting.ToString());
+                var (traceConflict, spanConflict) = CurrentTraceIds();
+                _logger.LogWarning(
+                    "Saga {SagaId} for order {OrderId} was already cancelled when payments.payment_succeeded arrived (inventory reservation expired); staged {RefundEvent} to refund the charged payment {PaymentId} and prevent money lock-in (previous state {PreviousState}, new state {NewState}, outcome {Outcome}, trace {TraceId}, span {SpanId}); order stays {OrderStatus}.",
+                    saga.Id,
+                    orderId.Value,
+                    RefundPaymentRequestedIntegrationEvent.EventType,
+                    paymentId,
+                    previousState,
+                    saga.State,
+                    OrderSagaTransitionOutcome.Conflicting,
+                    traceConflict,
+                    spanConflict,
+                    cancelledOrder.Status);
+
+                return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Conflicting, saga.Id);
+            }
             default:
                 activity?.AddTag("saga.new.state", saga.State.ToString())
                     .AddTag("saga.outcome", OrderSagaTransitionOutcome.Invalid.ToString());

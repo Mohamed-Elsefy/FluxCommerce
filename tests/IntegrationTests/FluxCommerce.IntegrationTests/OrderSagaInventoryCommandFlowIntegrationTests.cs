@@ -146,7 +146,7 @@ public class OrderSagaInventoryCommandFlowIntegrationTests
             // The Inventory outbox dispatcher publishes the result event; the Orders result consumer
             // receives it through the Orders idempotent-processing boundary (ProcessedMessage
             // Orders.ApplyReservationSuccess), closing the loop back to the saga. Phase 8.6 applies the
-            // transition: the saga completes and the Order stays Pending.
+            // transition: the saga advances to WaitingForPayment and the Order stays Pending.
             using (var dispatcherScope = provider.CreateScope())
             {
                 var dispatcher = dispatcherScope.ServiceProvider.GetRequiredService<InventoryOutboxDispatcher>();
@@ -158,10 +158,10 @@ public class OrderSagaInventoryCommandFlowIntegrationTests
             await WaitForQueueEmptyAsync(provider, queueName);
             await consumer.StopAsync(CancellationToken.None);
 
-            // Phase 8.6: the reservation success reached the saga — it completed, the Order stays Pending.
+            // Phase 8.6: the reservation success reached the saga and recorded the reservation.
             var completedSaga = await GetSagaAsync(orderId);
             Assert.NotNull(completedSaga);
-            Assert.Equal(OrderSagaState.Completed, completedSaga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, completedSaga!.State);
 
             var orderAfterResult = await GetOrderAsync(orderId);
             Assert.NotNull(orderAfterResult);

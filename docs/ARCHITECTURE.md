@@ -859,6 +859,63 @@ integration events (`PaymentSucceededIntegrationEvent`, `PaymentFailedIntegratio
 `RefundPaymentRequestedIntegrationEvent`, `PaymentRefundedIntegrationEvent`) that other modules
 consume without accessing Payments' DbContext.
 
+### 15.2 Reservation Expiry Orchestration (Phase 11)
+
+Phase 11 closes the reservation-timeout path of the Order Processing Saga. When an Inventory
+reservation reaches its expiry, the Inventory expiration worker (`ExpiredReservationProcessor`,
+`ReservationExpirationBackgroundService`) expires the reservation **in Inventory only**, then the
+system raises an **integration** event so the Orders Saga can react statefully.
+
+The **domain** event `InventoryReservationExpired` (in `Inventory.Domain.Events`) is raised by
+`InventoryReservation.Expire`; the **integration** contract `InventoryReservationExpiredIntegrationEvent`
+lives in `Inventory.Contracts.IntegrationEvents`. These are distinct types and namespaces — the domain
+event never crosses the module boundary; only the integration contract is published over RabbitMQ.
+
+**Message flow:**
+
+```text
+Expiration Worker
+      ↓
+ExpiredReservationProcessor (batch-load, expire, release exactly once, per-reservation save)
+      ↓
+InventoryReservationExpired (domain event) → InventoryReservationExpiredIntegrationEvent (contract)
+      ↓
+Outbox (InventoryDbContext, transactional with the reservation state change)
+      ↓
+Outbox Dispatcher → RabbitMQ
+      ↓
+InventoryReservationExpiredConsumer (Orders.Infrastructure; stable handler Orders.ApplyReservationExpired)
+      ↓
+OrderSagaOrchestrator.ApplyReservationExpiredAsync
+      ↓
+OrderSaga.ApplyReservationExpired → WaitingForPayment → Cancelled
+```
+
+**Final `OrderSaga` transition matrix for `ReservationExpired` (from `OrderSaga.ApplyReservationExpired`):**
+
+| Current State | Outcome |
+|---------------|---------|
+| `WaitingForPayment` | Only valid transition: `WaitingForPayment → Cancelled` |
+| `WaitingForInventory` | Benign no-op (Success) |
+| `ReleasingInventory` | Benign no-op (Success) — in-flight compensation, ignore safely |
+| `Refunding` | Benign no-op (Success) — in-flight compensation, ignore safely |
+| `Completed` | Benign no-op (Success) — terminal protected |
+| `Failed` | Benign no-op (Success) — terminal protected |
+| `Cancelled` | Benign no-op (Success) — terminal protected |
+| any other/unspecified | `InvalidStateTransition` failure |
+
+A late or duplicate `ReservationExpired` never moves a terminal state or an in-flight-compensation
+state; only an active `WaitingForPayment` saga is cancelled. On the `WaitingForPayment → Cancelled`
+expiry path the Saga does **not** stage `inventory.release_requested` — release is performed exclusively
+by the Inventory expiration processor, so Inventory is released exactly once (no double release) and no
+refund is duplicated.
+
+**Guarantees (Phase 11):** at-least-once delivery with idempotent consumers; transactional Outbox
+publication; optimistic-concurrency-guarded saga transitions; concurrency / out-of-order / duplicate
+safety; terminal-state protection; crash-recovery safe via idempotency; correlation/causation preserved
+across the async boundary via the `IntegrationEventEnvelope` (W3C trace context propagates through the
+`Expiration` inventory activity source to the `Orders.Saga.ApplyReservationExpired` consumer).
+
 ---
 
 ## 6. Module Dependency Rules (expanded)
@@ -893,11 +950,17 @@ A module must not directly modify another module's state.
   Phase 8 carve-out that lets Orders.Infrastructure reference `Inventory.Contracts`.
 
 - **Orders.Infrastructure MAY reference `FluxCommerce.Modules.Inventory.Contracts`** (the `Integration`
-  and `IntegrationEvents` namespaces only) as established in Phase 8.
+  and `IntegrationEvents` namespaces only) as established in Phase 8. This same carve-out (Phase 11) lets
+  `Orders.Infrastructure` consume `InventoryReservationExpiredIntegrationEvent` via
+  `InventoryReservationExpiredConsumer` without ever touching the Inventory DbContext.
 
 The architecture tests `Orders_ShouldNot_ReferenceOtherModules` and `Orders_ShouldNot_ReferenceInventory`
 are updated to encode the narrow Payments carve-out. Payments never references Orders or Inventory internal
-layers. Inventory never references Orders or Payments internal layers.
+layers. Inventory never references Orders or Payments internal layers. Phase 11 adds dedicated rules
+(`Inventory_ReservationExpirationTypes_ShouldBeOwnedByInventory` and
+`Orders_Saga_ShouldNot_ReferenceInventoryReservationPersistence`) verifying the expiration processor,
+background service, and both reservation-expired event types are confined to their owning modules and
+that the Orders Saga never references Inventory reservation persistence.
 
 **Concurrency & Idempotency (expanded from §16):**
 
@@ -930,6 +993,13 @@ Potential areas include:
 - Saga commands
 
 The exact strategy depends on the operation.
+
+**Reservation expiry (Phase 11):** the `InventoryReservationExpiredIntegrationEvent` is handled by the
+`InventoryReservationExpiredConsumer` (`Orders.Infrastructure`) inside the standard idempotent-processing
+boundary with stable handler `Orders.ApplyReservationExpired` and `ProcessedMessage.Create(EventId,
+HandlerName)` keyed on `(EventId, HandlerName)` and the `(Key, Handler)` composite PK. Duplicate or
+redelivered expiry events therefore produce at most one saga effect; a duplicate on a terminal/completed
+state is an idempotent no-op.
 
 Do not assume one universal idempotency mechanism for every workflow.
 

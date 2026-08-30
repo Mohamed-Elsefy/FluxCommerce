@@ -165,6 +165,30 @@ public class ExpiredReservationProcessorTests
     }
 
     [Fact]
+    public async Task ProcessExpiredReservationsAsync_ConflictingReservation_DoesNotPreventRemainingOnes()
+    {
+        var (itemA, reservationA) = CreatePendingState("SKU-A", PastDeadline.AddMinutes(-2));
+        var (itemB, reservationB) = CreatePendingState("SKU-B", PastDeadline.AddMinutes(-1));
+        var (itemC, reservationC) = CreatePendingState("SKU-C", PastDeadline);
+
+        var store = CreateStore((itemA, reservationA), (itemB, reservationB), (itemC, reservationC));
+        store
+            .SetupSequence(s => s.SaveLifecycleChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true)   // A expires
+            .ReturnsAsync(false)  // B loses a concurrent race
+            .ReturnsAsync(true);  // C is still processed after the conflict re-load
+        var processor = CreateProcessor(store);
+
+        var expired = await processor.ProcessExpiredReservationsAsync(maxResults: 100, CancellationToken.None);
+
+        // The conflicting reservation is not counted, but the sibling after it is still expired.
+        Assert.Equal(2, expired);
+        Assert.Equal(InventoryReservationStatus.Expired, reservationA.Status);
+        Assert.Equal(InventoryReservationStatus.Expired, reservationC.Status);
+        store.Verify(s => s.SaveLifecycleChangesAsync(It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
     public async Task ProcessExpiredReservationsAsync_MissingReservation_Skips()
     {
         var (_, reservation) = CreatePendingState(PastDeadline);
@@ -173,8 +197,8 @@ public class ExpiredReservationProcessorTests
             .Setup(s => s.GetExpiredReservationIdsAsync(It.IsAny<DateTimeOffset>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([reservation.Id]);
         store
-            .Setup(s => s.GetReservationByIdAsync(It.IsAny<InventoryReservationId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((InventoryReservation?)null);
+            .Setup(s => s.GetReservationsByIdsAsync(It.IsAny<IReadOnlyCollection<InventoryReservationId>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<InventoryReservation>());
         var processor = CreateProcessor(store);
 
         var expired = await processor.ProcessExpiredReservationsAsync(maxResults: 100, CancellationToken.None);
@@ -192,11 +216,11 @@ public class ExpiredReservationProcessorTests
             .Setup(s => s.GetExpiredReservationIdsAsync(It.IsAny<DateTimeOffset>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([reservation.Id]);
         store
-            .Setup(s => s.GetReservationByIdAsync(It.IsAny<InventoryReservationId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(reservation);
+            .Setup(s => s.GetReservationsByIdsAsync(It.IsAny<IReadOnlyCollection<InventoryReservationId>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reservation]);
         store
-            .Setup(s => s.GetItemBySkuAsync(It.IsAny<InventorySku>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((InventoryItem?)null);
+            .Setup(s => s.GetItemsBySkusAsync(It.IsAny<IReadOnlyCollection<InventorySku>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<InventoryItem>());
         var processor = CreateProcessor(store);
 
         var expired = await processor.ProcessExpiredReservationsAsync(maxResults: 100, CancellationToken.None);
@@ -251,7 +275,7 @@ public class ExpiredReservationProcessorTests
         var expired = await processor.ProcessExpiredReservationsAsync(maxResults: 100, cts.Token);
 
         Assert.Equal(0, expired);
-        store.Verify(s => s.GetReservationByIdAsync(It.IsAny<InventoryReservationId>(), It.IsAny<CancellationToken>()), Times.Never);
+        store.Verify(s => s.GetReservationsByIdsAsync(It.IsAny<IReadOnlyCollection<InventoryReservationId>>(), It.IsAny<CancellationToken>()), Times.Never);
         store.Verify(s => s.SaveLifecycleChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -340,13 +364,13 @@ public class ExpiredReservationProcessorTests
                 .Take(maxResults)
                 .ToList());
         store
-            .Setup(s => s.GetReservationByIdAsync(It.IsAny<InventoryReservationId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((InventoryReservationId id, CancellationToken _) =>
-                reservations.FirstOrDefault(reservation => reservation.Id == id));
+            .Setup(s => s.GetReservationsByIdsAsync(It.IsAny<IReadOnlyCollection<InventoryReservationId>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyCollection<InventoryReservationId> ids, CancellationToken _) =>
+                reservations.Where(reservation => ids.Contains(reservation.Id)).ToList());
         store
-            .Setup(s => s.GetItemBySkuAsync(It.IsAny<InventorySku>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((InventorySku sku, CancellationToken _) =>
-                items.FirstOrDefault(item => item.Id == sku));
+            .Setup(s => s.GetItemsBySkusAsync(It.IsAny<IReadOnlyCollection<InventorySku>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyCollection<InventorySku> skus, CancellationToken _) =>
+                items.Where(item => skus.Contains(item.Id)).ToList());
         store
             .Setup(s => s.SaveLifecycleChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);

@@ -7,16 +7,17 @@ using Microsoft.Extensions.Logging;
 namespace FluxCommerce.Modules.Orders.Infrastructure.Consuming;
 
 /// <summary>
-/// Phase 11.4: the Orders consumer for the <c>inventory.reservation_expired</c> result event. It is a
+/// Phase 11.4/11.6: the Orders consumer for the <c>inventory.reservation_expired</c> result event. It is a
 /// thin transport-agnostic adapter (like <see cref="InventoryReservationFailedConsumer"/>): it reads the
 /// order id and the Phase 7.8 trace identifiers from the contract and envelope, validates the payload, and
-/// delegates to <see cref="OrderSagaOrchestrator.ApplyReservationExpiredAsync"/>. Sub-phase 11.4 deliberately
-/// wires the cross-module publication/consumption end-to-end so Inventory's reservation deadline is consumed
-/// and acknowledged exactly-once inside the Orders idempotent-processing boundary (Business State +
-/// ProcessedMessage commit atomically) — the orchestrator stub performs a safe no-op while the reservation-
-/// expiry state model lands in sub-phases 11.5/11.6. Its stable <see cref="HandlerName"/>
-/// (<c>Orders.ApplyReservationExpired</c>) scopes the idempotency identity (<c>EventId + HandlerName</c>).
-/// The consumer never touches RabbitMQ, messaging transport types, or the DbContext directly.
+/// delegates to <see cref="OrderSagaOrchestrator.ApplyReservationExpiredAsync"/>. Sub-phase 11.4 wired the
+/// cross-module publication/consumption end-to-end (with an orchestrator no-op) so Inventory's reservation
+/// deadline is never lost; sub-phase 11.6 completes it by cancelling the expired order's workflow. The whole
+/// operation runs inside the Orders idempotent-processing boundary (Business State + ProcessedMessage commit
+/// atomically), so a valid expiry is applied exactly-once and a redelivered expiry is acknowledged without
+/// re-execution. Its stable <see cref="HandlerName"/> (<c>Orders.ApplyReservationExpired</c>) scopes the
+/// idempotency identity (<c>EventId + HandlerName</c>). The consumer never touches RabbitMQ, messaging
+/// transport types, or the DbContext directly.
 /// </summary>
 public sealed class InventoryReservationExpiredConsumer : IIntegrationEventHandler<InventoryReservationExpiredIntegrationEvent>
 {
@@ -46,12 +47,15 @@ public sealed class InventoryReservationExpiredConsumer : IIntegrationEventHandl
         Validate(@event);
 
         _logger.LogInformation(
-            "Reservation {ReservationId} for order {OrderId} (sku '{Sku}', quantity {Quantity}) expired at {ExpiredAtUtc}; acknowledging the reservation-expiry event.",
+            "Reservation {ReservationId} for order {OrderId} (sku '{Sku}', quantity {Quantity}) expired at {ExpiredAtUtc}; acknowledging the reservation-expiry event {EventId} (correlation {CorrelationId}, causation {CausationId}).",
             @event.ReservationId,
             @event.OrderId,
             @event.Sku,
             @event.Quantity,
-            @event.ExpiredAtUtc);
+            @event.ExpiredAtUtc,
+            envelope.EventId,
+            envelope.CorrelationId,
+            envelope.CausationId);
 
         return _orchestrator.ApplyReservationExpiredAsync(
             new OrderId(@event.OrderId),

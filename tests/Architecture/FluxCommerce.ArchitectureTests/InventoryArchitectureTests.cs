@@ -162,6 +162,66 @@ public class InventoryArchitectureTests
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
+    // ---- Phase 11.11: reservation ownership & expiration orchestration ----
+
+    [Fact]
+    public void Inventory_ReservationExpirationTypes_ShouldBeOwnedByInventory()
+    {
+        // Phase 11.11: the reservation expiration lifecycle (processor, background driver, store
+        // persistence) is owned entirely by Inventory. The ownership is pinned by locating each
+        // Phase 11 orchestration type in its intended Inventory layer so a future move to Orders
+        // (or any other module) is caught by the architecture tests.
+        var expected = new (string TypeName, string Namespace)[]
+        {
+            ("ExpiredReservationProcessor", "FluxCommerce.Modules.Inventory.Application.Expiration"),
+            ("ReservationExpirationBackgroundService", "FluxCommerce.Modules.Inventory.Infrastructure.Background"),
+            ("InventoryReservationExpiredIntegrationEvent", "FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents"),
+            ("InventoryReservationExpired", "FluxCommerce.Modules.Inventory.Domain.Events"),
+        };
+
+        var failures = new List<string>();
+
+        foreach (var (typeName, ns) in expected)
+        {
+            var located = InventoryAssemblies
+                .Select(assembly => Types.InAssembly(assembly).That().HaveName(typeName).GetTypes().ToArray())
+                .SelectMany(types => types)
+                .FirstOrDefault(type => type.Namespace == ns);
+
+            if (located is null)
+            {
+                failures.Add($"Phase 11.11: '{typeName}' is not hosted in Inventory namespace '{ns}'.");
+                continue;
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_ShouldNotReference_OrdersForReservationExpiration()
+    {
+        // Phase 11.11: the Inventory expiration path must never cross into Orders. Expiration is
+        // detected and applied inside Inventory; Orders learns about it only later through the
+        // Inventory.Contracts.IntegrationEvents outbox hop (which is Orders.Infrastructure's concern,
+        // not Inventory's). Every Inventory layer stays free of every Orders layer.
+        var failures = new List<string>();
+
+        foreach (var assembly in InventoryAssemblies)
+        {
+            foreach (var layer in new[] { "Domain", "Application", "Infrastructure", "Contracts" })
+            {
+                AssertNoDependencies(
+                    assembly,
+                    $"FluxCommerce.Modules.Orders.{layer}",
+                    "Inventory -> Orders (reservation expiry)",
+                    failures);
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
     // ---- Domain layer rules ----
 
     [Fact]
