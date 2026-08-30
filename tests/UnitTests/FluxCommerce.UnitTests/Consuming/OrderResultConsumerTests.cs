@@ -4,6 +4,7 @@ using FluxCommerce.Modules.Inventory.Contracts.Enums;
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Infrastructure.Consuming;
+using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 using FluxCommerce.UnitTests.Sagas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,6 +19,13 @@ namespace FluxCommerce.UnitTests.Consuming;
 /// the transition (saga Completed on success; saga Failed + Order cancelled on failure); a malformed one
 /// throws before the orchestrator is ever reached (the consumer infrastructure retries then dead-letters,
 /// per Phase 7.7).
+///
+/// <para>
+/// Phase 11.4 adds <c>inventory.reservation_expired</c>: its consumer is wired so the expiry is consumed and
+/// acknowledged exactly-once, but the orchestrator stub performs a safe no-op (returns
+/// <see cref="OrderSagaTransitionOutcome.Ignored"/> without mutating saga state) until sub-phases 11.5/11.6
+/// deliver the real reservation-expiry state model.
+/// </para>
 /// </summary>
 public class OrderResultConsumerTests : OrderSagaTestBase
 {
@@ -173,6 +181,125 @@ public class OrderResultConsumerTests : OrderSagaTestBase
         await Assert.ThrowsAsync<ArgumentException>(() => consumer.HandleAsync(@event, EnvelopeFrom(@event)));
     }
 
+    [Fact]
+    public void InventoryReservationExpiredConsumer_HandlerName_IsStableAndUnique()
+    {
+        Assert.Equal("Orders.ApplyReservationExpired", InventoryReservationExpiredConsumer.StableHandlerName);
+    }
+
+    [Fact]
+    public async Task Expired_ValidEvent_StreamsThrough_DoesNotMutateSagaState()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = CreateOrchestrator(context);
+        await orchestrator.StartFromOrderCreatedAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc);
+        await context.SaveChangesAsync();
+
+        var consumer = new InventoryReservationExpiredConsumer(
+            orchestrator,
+            NullLogger<InventoryReservationExpiredConsumer>.Instance);
+        var @event = CreateExpiredEvent(order.Id.Value);
+
+        await consumer.HandleAsync(@event, EnvelopeFrom(@event));
+        await context.SaveChangesAsync();
+
+        // Phase 11.4 stub: no saga state change (sub-phases 11.5/11.6 add the expiry transition), but the
+        // event still flows through and is safely acknowledged rather than dead-lettered.
+        var saga = await context.OrderSagas.SingleAsync();
+        Assert.Equal(OrderSagaState.WaitingForInventory, saga.State);
+        Assert.Equal(OrderStatus.Pending, (await context.Orders.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Expired_ValidEvent_OrchestratorReturnsIgnoredOutcome()
+    {
+        await using var context = CreateContext();
+        var order = await CreatePlacedOrderAsync(("SKU-1", 2));
+        var orchestrator = CreateOrchestrator(context);
+        await orchestrator.StartFromOrderCreatedAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc);
+        await context.SaveChangesAsync();
+
+        var result = await orchestrator.ApplyReservationExpiredAsync(
+            order.Id,
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            PlacedAtUtc.AddMinutes(30));
+
+        Assert.Equal(OrderSagaTransitionOutcome.Ignored, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Expired_EmptyReservationId_Throws()
+    {
+        await using var context = CreateContext();
+        var orchestrator = CreateOrchestrator(context);
+        var consumer = new InventoryReservationExpiredConsumer(
+            orchestrator,
+            NullLogger<InventoryReservationExpiredConsumer>.Instance);
+        var @event = CreateExpiredEvent(Guid.NewGuid()) with { ReservationId = Guid.Empty };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => consumer.HandleAsync(@event, EnvelopeFrom(@event)));
+    }
+
+    [Fact]
+    public async Task Expired_EmptyOrderId_Throws()
+    {
+        await using var context = CreateContext();
+        var orchestrator = CreateOrchestrator(context);
+        var consumer = new InventoryReservationExpiredConsumer(
+            orchestrator,
+            NullLogger<InventoryReservationExpiredConsumer>.Instance);
+        var @event = CreateExpiredEvent(Guid.Empty);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => consumer.HandleAsync(@event, EnvelopeFrom(@event)));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task Expired_InvalidSku_Throws(string? sku)
+    {
+        await using var context = CreateContext();
+        var orchestrator = CreateOrchestrator(context);
+        var consumer = new InventoryReservationExpiredConsumer(
+            orchestrator,
+            NullLogger<InventoryReservationExpiredConsumer>.Instance);
+        var @event = CreateExpiredEvent(Guid.NewGuid()) with { Sku = sku ?? string.Empty };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => consumer.HandleAsync(@event, EnvelopeFrom(@event)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Expired_NonPositiveQuantity_Throws(int quantity)
+    {
+        await using var context = CreateContext();
+        var orchestrator = CreateOrchestrator(context);
+        var consumer = new InventoryReservationExpiredConsumer(
+            orchestrator,
+            NullLogger<InventoryReservationExpiredConsumer>.Instance);
+        var @event = CreateExpiredEvent(Guid.NewGuid()) with { Quantity = quantity };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => consumer.HandleAsync(@event, EnvelopeFrom(@event)));
+    }
+
+    [Fact]
+    public async Task Expired_DefaultExpiryTimestamp_Throws()
+    {
+        await using var context = CreateContext();
+        var orchestrator = CreateOrchestrator(context);
+        var consumer = new InventoryReservationExpiredConsumer(
+            orchestrator,
+            NullLogger<InventoryReservationExpiredConsumer>.Instance);
+        var @event = CreateExpiredEvent(Guid.NewGuid()) with { ExpiredAtUtc = default };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => consumer.HandleAsync(@event, EnvelopeFrom(@event)));
+    }
+
     private static InventoryReservedIntegrationEvent CreateReservedEvent(Guid orderId) =>
         new(
             Guid.NewGuid(),
@@ -188,8 +315,18 @@ public class OrderResultConsumerTests : OrderSagaTestBase
     private static InventoryReservationFailedIntegrationEvent CreateFailedEvent(Guid orderId) =>
         new(orderId, "SKU-RESULT", 3, "Inventory.InsufficientStock");
 
+    private static InventoryReservationExpiredIntegrationEvent CreateExpiredEvent(Guid orderId) =>
+        new(
+            Guid.NewGuid(),
+            orderId,
+            "SKU-RESULT",
+            3,
+            DateTimeOffset.UtcNow.AddMinutes(30));
+
     private static IntegrationEventEnvelope EnvelopeFrom(IIntegrationEvent @event) =>
         IntegrationEventEnvelope.From(@event, @event is InventoryReservedIntegrationEvent
             ? InventoryReservedIntegrationEvent.EventType
-            : InventoryReservationFailedIntegrationEvent.EventType);
+            : @event is InventoryReservationFailedIntegrationEvent
+                ? InventoryReservationFailedIntegrationEvent.EventType
+                : InventoryReservationExpiredIntegrationEvent.EventType);
 }

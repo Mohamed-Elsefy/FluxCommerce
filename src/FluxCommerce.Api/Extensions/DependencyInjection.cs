@@ -200,6 +200,14 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.refunded");
         services.AddIntegrationEventConsumer<PaymentRefundedIntegrationEvent, PaymentRefundedConsumer, OrdersIdempotentProcessor>();
 
+        // Phase 11.4: Orders consumer for inventory.reservation_expired. Inventory publishes
+        // inventory.reservation_expired via its outbox when a reservation reaches its deterministic
+        // deadline; the Orders consumer acknowledges the event inside the Orders idempotent-processing
+        // boundary so it is neither lost nor dead-lettered while the reservation-expiry state model is
+        // delivered in sub-phases 11.5/11.6. The orchestrator stub returns Ignored (a safe no-op) until then.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.inventory.expired");
+        services.AddIntegrationEventConsumer<InventoryReservationExpiredIntegrationEvent, InventoryReservationExpiredConsumer, OrdersIdempotentProcessor>();
+
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])

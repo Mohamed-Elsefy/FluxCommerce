@@ -462,6 +462,58 @@ public sealed class OrderSagaOrchestrator
     }
 
     /// <summary>
+    /// Phase 11.4 placeholder: acknowledges an <c>inventory.reservation_expired</c> result to the saga.
+    /// Sub-phase 11.4 wires the cross-module publication/consumption end-to-end so Inventory's reservation
+    /// deadline is no longer lost when no subscriber is ready, but the reservation-expiry state model itself
+    /// is delivered in sub-phases 11.5/11.6 — the state transitions that cancel the expired order's workflow
+    /// and the <see cref="OrderSaga"/> changes are intentionally NOT implemented here. This stub therefore
+    /// performs a safe, observable no-op: it validates the payload, resolves the order's saga, and returns
+    /// an <see cref="OrderSagaTransitionOutcome.Ignored"/> result WITHOUT mutating saga state or the Order.
+    /// Running inside the Orders idempotent-processing boundary, the consumer commits the processed-message
+    /// record and acknowledges the event, so every well-formed expiry is consumed exactly-once (no retry
+    /// storm, no dead-letter backlog) until 11.5/11.6 replace this stub with the real transition.
+    /// </summary>
+    /// <param name="orderId">The order whose reservation expired.</param>
+    /// <param name="reservationId">The expired reservation's identifier.</param>
+    /// <param name="correlationId">The correlation id carried by the consumed message.</param>
+    /// <param name="causationId">The consumed message's event id.</param>
+    /// <param name="occurredAtUtc">The moment the reservation expired (from the consumed message).</param>
+    /// <param name="cancellationToken">A token that can cancel the orchestration.</param>
+    /// <exception cref="InvalidOperationException">No saga exists for the order (anomaly → retry/dead-letter).</exception>
+    public async Task<OrderSagaTransitionResult> ApplyReservationExpiredAsync(
+        OrderId orderId,
+        Guid reservationId,
+        Guid correlationId,
+        Guid? causationId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderId);
+
+        if (occurredAtUtc == default)
+            throw new ArgumentException("A valid timestamp is required.", nameof(occurredAtUtc));
+
+        var saga = await _sagaStore
+            .GetByOrderIdAsync(orderId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (saga is null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot apply a reservation expiration for order '{orderId.Value}': no saga exists for the order.");
+        }
+
+        _logger.LogInformation(
+            "Reservation {ReservationId} for order {OrderId} expired (correlation {CorrelationId}, causation {CausationId}); Phase 11.4 placeholder — no saga state change yet (the expiry state model lands in sub-phases 11.5/11.6).",
+            reservationId,
+            orderId.Value,
+            correlationId,
+            causationId);
+
+        return new OrderSagaTransitionResult(OrderSagaTransitionOutcome.Ignored, saga.Id);
+    }
+
+    /// <summary>
     /// Applies an <c>inventory.reservation_failed</c> result to the saga (Phase 8.6):
     /// <c>WaitingForInventory → Failed</c> and the Order transitions through its own <c>Cancel</c>
     /// (Pending → Cancelled), so the failure is reflected in the Order domain model — never bypassed.

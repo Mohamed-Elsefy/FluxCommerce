@@ -50,7 +50,10 @@ public class InventoryOutboxMessageFactoryTests
         Assert.Equal(orderId.Value, payload.OrderId);
         Assert.Equal("SKU-1", payload.Sku);
         Assert.Equal(3, payload.Quantity);
-        Assert.Equal(occurredAt, payload.OccurredAt);
+        Assert.Equal(occurredAt, payload.ExpiredAtUtc);
+        Assert.Equal(domainEvent.OccurredAtUtc, payload.OccurredAtUtc);
+        Assert.Equal(CorrelationId, payload.CorrelationId);
+        Assert.Null(payload.CausationId);
     }
 
     [Fact]
