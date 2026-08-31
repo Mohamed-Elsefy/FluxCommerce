@@ -23,6 +23,7 @@ using FluxCommerce.Modules.Cart.Contracts.Responses;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FluxCommerce.Api.Controllers.Cart;
@@ -85,6 +86,8 @@ public sealed class CartController : ApiControllerBase
     /// <summary>Creates a new empty Guest Cart.</summary>
     [HttpPost("guest")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateGuestCart([FromBody] CreateGuestCartRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateGuestCartCommand();
@@ -95,6 +98,8 @@ public sealed class CartController : ApiControllerBase
     /// <summary>Retrieves a Guest Cart by its opaque identifier.</summary>
     [HttpGet("guest/{cartId:guid}")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetGuestCart(Guid cartId, CancellationToken cancellationToken)
     {
         var query = new GetGuestCartQuery(cartId);
@@ -105,6 +110,9 @@ public sealed class CartController : ApiControllerBase
     /// <summary>Adds an item to a Guest Cart.</summary>
     [HttpPost("guest/{cartId:guid}/items")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AddGuestCartItem(Guid cartId, [FromBody] AddGuestCartItemRequest request, CancellationToken cancellationToken)
     {
         var command = new AddGuestCartItemCommand(
@@ -120,6 +128,9 @@ public sealed class CartController : ApiControllerBase
     /// <summary>Updates an item quantity in a Guest Cart.</summary>
     [HttpPut("guest/{cartId:guid}/items/{variantId:guid}")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateGuestCartItemQuantity(Guid cartId, Guid variantId, [FromBody] UpdateGuestCartItemQuantityRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateGuestCartItemQuantityCommand(cartId, variantId, request.Quantity);
@@ -130,6 +141,8 @@ public sealed class CartController : ApiControllerBase
     /// <summary>Removes an item from a Guest Cart.</summary>
     [HttpDelete("guest/{cartId:guid}/items/{variantId:guid}")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveGuestCartItem(Guid cartId, Guid variantId, CancellationToken cancellationToken)
     {
         var command = new RemoveGuestCartItemCommand(cartId, variantId);
@@ -140,6 +153,8 @@ public sealed class CartController : ApiControllerBase
     /// <summary>Clears all items from a Guest Cart.</summary>
     [HttpDelete("guest/{cartId:guid}")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ClearGuestCart(Guid cartId, CancellationToken cancellationToken)
     {
         var command = new ClearGuestCartCommand(cartId);
@@ -153,7 +168,9 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Creates the authenticated user's active Cart (or returns the existing one).</summary>
     [HttpPost]
-    public async Task<IActionResult> CreateAuthenticatedCart([FromBody] CreateGuestCartRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CreateAuthenticatedCart(CancellationToken cancellationToken)
     {
         var command = new CreateAuthenticatedCartCommand();
         var result = await _createAuthenticatedCartHandler.HandleAsync(command, cancellationToken);
@@ -162,6 +179,9 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Retrieves the current authenticated user's active Cart.</summary>
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAuthenticatedCart(CancellationToken cancellationToken)
     {
         var query = new GetAuthenticatedCartQuery();
@@ -171,6 +191,9 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Adds an item to the authenticated user's Cart.</summary>
     [HttpPost("items")]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddAuthenticatedCartItem([FromBody] AddAuthenticatedCartItemRequest request, CancellationToken cancellationToken)
     {
         var command = new AddAuthenticatedCartItemCommand(
@@ -184,6 +207,9 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Updates an item quantity in the authenticated user's Cart.</summary>
     [HttpPut("items/{variantId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateAuthenticatedCartItemQuantity(Guid variantId, [FromBody] UpdateAuthenticatedCartItemQuantityRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateAuthenticatedCartItemQuantityCommand(variantId, request.Quantity);
@@ -193,6 +219,9 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Removes an item from the authenticated user's Cart.</summary>
     [HttpDelete("items/{variantId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveAuthenticatedCartItem(Guid variantId, CancellationToken cancellationToken)
     {
         var command = new RemoveAuthenticatedCartItemCommand(variantId);
@@ -202,6 +231,8 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Clears all items from the authenticated user's Cart.</summary>
     [HttpDelete]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ClearAuthenticatedCart(CancellationToken cancellationToken)
     {
         var command = new ClearAuthenticatedCartCommand();
@@ -211,6 +242,9 @@ public sealed class CartController : ApiControllerBase
 
     /// <summary>Merges a Guest Cart into the authenticated user's Cart.</summary>
     [HttpPost("merge")]
+    [ProducesResponseType(typeof(ApiResponse<CartResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> MergeCart([FromBody] MergeCartRequest request, CancellationToken cancellationToken)
     {
         var command = new MergeCartCommand(request.GuestCartId);

@@ -3,6 +3,7 @@ using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
+using FluxCommerce.BuildingBlocks.Web.Responses;
 using FluxCommerce.Modules.Identity.Application.Commands.ChangePassword;
 using FluxCommerce.Modules.Identity.Application.Commands.ForgotPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.GetCurrentUser;
@@ -22,6 +23,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FluxCommerce.Api.Controllers.Identity;
 
 [ApiController]
+[Tags(EndpointTags.Identity)]
 [Route("auth")]
 [Authorize]
 public sealed class AuthController : ApiControllerBase
