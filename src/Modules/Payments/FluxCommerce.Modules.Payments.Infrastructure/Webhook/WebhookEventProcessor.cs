@@ -1,7 +1,8 @@
 ﻿using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
-using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Enums;
+using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Entities;
 using FluxCommerce.Modules.Payments.Domain.Enums;
@@ -15,22 +16,20 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 
 public sealed class WebhookEventProcessor : IWebhookEventProcessor
 {
-    private static readonly HashSet<string> SupportedEvents = new(StringComparer.Ordinal)
-    {
-        "payment_intent.succeeded",
-        "payment_intent.payment_failed",
-        "payment_intent.canceled",
-        "payment_intent.processing"
-    };
-
     private readonly PaymentsDbContext _dbContext;
     private readonly IntegrationEventOutboxMessageFactory _outboxFactory;
+    private readonly IPaymentWebhookInterpreter _interpreter;
     private readonly ILogger<WebhookEventProcessor> _logger;
 
-    public WebhookEventProcessor(PaymentsDbContext dbContext, IntegrationEventOutboxMessageFactory outboxFactory, ILogger<WebhookEventProcessor> logger)
+    public WebhookEventProcessor(
+        PaymentsDbContext dbContext,
+        IntegrationEventOutboxMessageFactory outboxFactory,
+        IPaymentWebhookInterpreter interpreter,
+        ILogger<WebhookEventProcessor> logger)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _outboxFactory = outboxFactory ?? throw new ArgumentNullException(nameof(outboxFactory));
+        _interpreter = interpreter ?? throw new ArgumentNullException(nameof(interpreter));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -61,12 +60,13 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
         PaymentStatus statusBefore = default;
         bool stateChanged = false;
         string? failureReason = null;
+        var action = _interpreter.Interpret(eventType);
 
-        if (!string.IsNullOrWhiteSpace(eventType) && SupportedEvents.Contains(eventType))
+        if (action != PaymentWebhookAction.Ignore)
         {
             if (string.IsNullOrWhiteSpace(paymentIntentId))
             {
-                _logger.LogWarning("Supported webhook {EventType} arrived without PaymentIntentId. StripeEventId={StripeEventId}", eventType, stripeEventId);
+                _logger.LogWarning("Supported webhook {EventType} ({Action}) arrived without PaymentIntentId. StripeEventId={StripeEventId}", eventType, action, stripeEventId);
             }
             else
             {
@@ -82,15 +82,15 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
                     statusBefore = payment.Status;
                     try
                     {
-                        stateChanged = ApplyEventToPayment(payment, eventType, paymentIntentId, out failureReason);
+                        stateChanged = ApplyEventToPayment(payment, action, paymentIntentId, out failureReason);
                         if (stateChanged)
-                            _logger.LogInformation("Payment state transition applied via webhook. StripeEventId={StripeEventId}, EventType={EventType}, PaymentId={PaymentId}, {OldStatus}->{NewStatus}", stripeEventId, eventType, payment.Id, statusBefore, payment.Status);
+                            _logger.LogInformation("Payment state transition applied via webhook. StripeEventId={StripeEventId}, EventType={EventType}, Action={Action}, PaymentId={PaymentId}, {OldStatus}->{NewStatus}", stripeEventId, eventType, action, payment.Id, statusBefore, payment.Status);
                         else
-                            _logger.LogInformation("Payment webhook event received but no state change required. StripeEventId={StripeEventId}, EventType={EventType}, PaymentId={PaymentId}", stripeEventId, eventType, payment.Id);
+                            _logger.LogInformation("Payment webhook event received but no state change required. StripeEventId={StripeEventId}, EventType={EventType}, Action={Action}, PaymentId={PaymentId}", stripeEventId, eventType, action, payment.Id);
                     }
                     catch (InvalidOperationException ex)
                     {
-                        _logger.LogWarning(ex, "Out-of-order or invalid transition ignored. StripeEventId={StripeEventId}, EventType={EventType}, PaymentId={PaymentId}, CurrentStatus={Status}", stripeEventId, eventType, payment.Id, payment.Status);
+                        _logger.LogWarning(ex, "Out-of-order or invalid transition ignored. StripeEventId={StripeEventId}, EventType={EventType}, Action={Action}, PaymentId={PaymentId}, CurrentStatus={Status}", stripeEventId, eventType, action, payment.Id, payment.Status);
                     }
                 }
             }
@@ -103,13 +103,15 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
         var processedEvent = new ProcessedWebhookEvent(Guid.NewGuid(), stripeEventId, eventType, DateTimeOffset.UtcNow);
         _dbContext.Set<ProcessedWebhookEvent>().Add(processedEvent);
 
-        // 9.11: map domain state change â†’ integration event + Outbox in same transaction
+        // 9.11: map domain state change → integration event + Outbox in same transaction
+        // Event interpretation already done via Application interpreter; outbox creation now
+        // depends on the interpreted action + resulting domain status, not raw Stripe string.
         if (payment != null && stateChanged)
         {
             OutboxMessage? outbox = null;
             var now = DateTimeOffset.UtcNow;
 
-            if (payment.Status == PaymentStatus.Succeeded && eventType == "payment_intent.succeeded")
+            if (payment.Status == PaymentStatus.Succeeded && action == PaymentWebhookAction.Succeed)
             {
                 var evt = new PaymentSucceededIntegrationEvent(
                     payment.OrderId,
@@ -128,7 +130,7 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
                 };
                 outbox = _outboxFactory.Create(PaymentSucceededIntegrationEvent.EventType, evt);
             }
-            else if (payment.Status == PaymentStatus.Failed && eventType == "payment_intent.payment_failed")
+            else if (payment.Status == PaymentStatus.Failed && action == PaymentWebhookAction.Fail)
             {
                 var evt = new PaymentFailedIntegrationEvent(
                     payment.OrderId,
@@ -167,23 +169,27 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
         }
     }
 
-    private static bool ApplyEventToPayment(FluxCommerce.Modules.Payments.Domain.Aggregates.Payment payment, string eventType, string paymentIntentId, out string? failureReason)
+    private static bool ApplyEventToPayment(
+        FluxCommerce.Modules.Payments.Domain.Aggregates.Payment payment,
+        PaymentWebhookAction action,
+        string paymentIntentId,
+        out string? failureReason)
     {
         failureReason = null;
         var before = payment.Status;
-        switch (eventType)
+        switch (action)
         {
-            case "payment_intent.succeeded":
+            case PaymentWebhookAction.Succeed:
                 payment.Succeed(paymentIntentId);
                 return payment.Status == PaymentStatus.Succeeded && before != PaymentStatus.Succeeded;
-            case "payment_intent.payment_failed":
+            case PaymentWebhookAction.Fail:
                 failureReason = "Stripe payment_failed";
                 payment.Fail(failureReason);
                 return payment.Status == PaymentStatus.Failed && before != PaymentStatus.Failed;
-            case "payment_intent.canceled":
+            case PaymentWebhookAction.Cancel:
                 payment.Cancel();
                 return payment.Status == PaymentStatus.Cancelled && before != PaymentStatus.Cancelled;
-            case "payment_intent.processing":
+            case PaymentWebhookAction.Process:
                 payment.Process();
                 return payment.Status == PaymentStatus.Processing && before != PaymentStatus.Processing;
             default:

@@ -1,7 +1,8 @@
 ﻿using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
-using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Enums;
+using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Domain.Entities;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
@@ -63,7 +64,7 @@ public sealed class WebhookEventProcessorTests : IDisposable
         // Two processors sharing the same underlying Sqlite connection (same DB)
         var (ctx1, processor1) = CreateProcessor();
         using var ctx2 = CreateContext();
-        var processor2 = new WebhookEventProcessor(ctx2, new IntegrationEventOutboxMessageFactory(), NullLogger<WebhookEventProcessor>.Instance);
+        var processor2 = new WebhookEventProcessor(ctx2, new IntegrationEventOutboxMessageFactory(), new PaymentWebhookInterpreter(), NullLogger<WebhookEventProcessor>.Instance);
 
         const string eventId = "evt_concurrent_789";
         const string eventType = "payment_intent.succeeded";
@@ -247,7 +248,7 @@ public sealed class WebhookEventProcessorTests : IDisposable
     private (PaymentsDbContext Context, WebhookEventProcessor Processor) CreateProcessor()
     {
         var ctx = CreateContext();
-        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<WebhookEventProcessor>.Instance);
+        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), new PaymentWebhookInterpreter(), NullLogger<WebhookEventProcessor>.Instance);
         return (ctx, processor);
     }
 
