@@ -1,5 +1,6 @@
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.Modules.Identity.Application.Commands.AssignRole;
 using FluxCommerce.Modules.Identity.Application.Commands.ChangePassword;
 using FluxCommerce.Modules.Identity.Application.Commands.ForgotPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.GetCurrentUser;
@@ -10,6 +11,7 @@ using FluxCommerce.Modules.Identity.Application.Commands.RegisterAdmin;
 using FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 using FluxCommerce.Modules.Identity.Application.Commands.ResendVerification;
 using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
+using FluxCommerce.Modules.Identity.Application.Commands.UnlockUser;
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
@@ -18,6 +20,7 @@ using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Infrastructure.Authentication;
 using FluxCommerce.Modules.Identity.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Identity.Infrastructure.Emailing;
+using FluxCommerce.Modules.Identity.Infrastructure.Persistence.Seeding;
 using FluxCommerce.Modules.Identity.Infrastructure.Repositories;
 using FluxCommerce.Modules.Identity.Infrastructure.Security;
 using FluxCommerce.Modules.Identity.Infrastructure.Services;
@@ -59,6 +62,14 @@ public static class DependencyInjection
 
         services.AddOptions<JwtOptions>();
 
+        services.AddOptions<IdentitySeederOptions>()
+            .BindConfiguration(IdentitySeederOptions.SectionName)
+            .ValidateDataAnnotations()
+            .Validate(options => !options.Enabled || (!string.IsNullOrWhiteSpace(options.SuperAdmin.Email) && !string.IsNullOrWhiteSpace(options.SuperAdmin.Password)), "SuperAdmin Email and Password are required when Identity:Seeder is enabled.")
+            .ValidateOnStart();
+
+        services.AddScoped<IdentitySeeder>();
+
         services.AddScoped<ICommandHandler<RegisterCustomerCommand, Result<UserResponse>>, RegisterCustomerCommandHandler>();
         services.AddScoped<ICommandHandler<RegisterAdminCommand, Result<UserResponse>>, RegisterAdminCommandHandler>();
         services.AddScoped<ICommandHandler<LoginCommand, Result<LoginResponse>>, LoginCommandHandler>();
@@ -70,6 +81,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<ResetPasswordCommand, Result>, ResetPasswordCommandHandler>();
         services.AddScoped<ICommandHandler<ChangePasswordCommand, Result>, ChangePasswordCommandHandler>();
         services.AddScoped<ICommandHandler<GetCurrentUserCommand, Result<UserResponse>>, GetCurrentUserCommandHandler>();
+        services.AddScoped<ICommandHandler<AssignRoleCommand, Result<UserResponse>>, AssignRoleCommandHandler>();
+        services.AddScoped<ICommandHandler<UnlockUserCommand, Result<UserResponse>>, UnlockUserCommandHandler>();
 
         return services;
     }

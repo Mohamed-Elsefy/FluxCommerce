@@ -40,6 +40,48 @@ http://localhost:5000
 
 ---
 
+## Identity Seeder (SuperAdmin Bootstrap)
+
+The Identity seeder is **config-driven and idempotent**. It runs automatically on startup via `IdentitySeeder.SeedAsync()` (`Infrastructure/Persistence/Seeding/IdentitySeeder.cs`):
+
+*   `MigrateAsync` is invoked first to ensure `Identity` schema (including `Roles` table) is up-to-date.
+*   If `Identity:Seeder:Enabled=false` (default in `appsettings.json`), seeding is skipped.
+*   If `Enabled=true` (default in `appsettings.Development.json`), the seeder checks idempotency via `UserRepository.ExistsByEmailAsync(seederEmail)` — if the SuperAdmin already exists, it logs `SuperAdmin already exists, skipping seeding` and exits.
+*   Otherwise it reads the plain-text password from `Identity:Seeder:SuperAdmin:Password`, hashes it at runtime via `IPasswordHasher` (PBKDF2), creates `User.Register(..., [Roles.SuperAdmin])`, marks `IsEmailVerified=true` / `Status=Active`, and persists via `UserRepository.AddAsync` + `SaveChangesAsync`. It logs `Seeded SuperAdmin {Email}` (never password/hash).
+
+### Configure SuperAdmin Password (Development)
+
+`appsettings.Development.json` contains `Identity:Seeder:SuperAdmin:Email=admin@flux.local` with an **empty** `Password` (expects `UserSecrets` override):
+
+```bash
+# From repository root, set the seeder password (plain text, hashed at runtime):
+dotnet user-secrets set "Identity:Seeder:SuperAdmin:Password" "Test123!" --project src/FluxCommerce.Api
+
+# Or via environment variable (e.g., Docker, CI):
+# IDENTIY__SEEDER__SUPERADMIN__PASSWORD=Test123!
+# (Note: double underscore __ separates sections: Identity:Seeder:SuperAdmin:Password)
+```
+
+**Verify seeding:**
+
+```bash
+dotnet run --project src/FluxCommerce.Api
+# Log: Seeded SuperAdmin admin@flux.local  (first boot)
+# Log: SuperAdmin already exists, skipping seeding. Email: admin@flux.local  (second boot, idempotent)
+```
+
+**Login as SuperAdmin:**
+
+```bash
+curl -X POST https://localhost:7119/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"admin@flux.local","password":"Test123!"}'
+# → 200 { accessToken, refreshToken } with role SuperAdmin in JWT (ClaimTypes.Role)
+```
+
+> **Security:** Never hard-code or bake hashes via `HasData` migrations. The seeder reads the plain password from `appsettings+UserSecrets`/env only when `Enabled=true` and hashes via `IPasswordHasher` at runtime. `appsettings.json` ships with `Enabled:false` for production.
+
+---
+
 ## Messaging (Phase 6 — Outbox + RabbitMQ)
 
 The transactional Outbox publishes integration events to a durable RabbitMQ **topic** exchange
