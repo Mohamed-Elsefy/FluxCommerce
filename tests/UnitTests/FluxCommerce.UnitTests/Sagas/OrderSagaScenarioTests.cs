@@ -266,6 +266,54 @@ public class OrderSagaScenarioTests : OrderSagaTestBase
         Assert.True(saga.State == OrderSagaState.Completed || saga.State == OrderSagaState.ReleasingInventory);
         Assert.Equal(4, saga.Version);
     }
+
+    // --------------------------------------------------------------------------------------------
+    // Phase 11.7 Scenario R: ReservationExpired vs PaymentSucceeded racing concurrently. Optimistic
+    // concurrency guard (version token) ensures exactly one commits; the loser is rejected, so a lost
+    // update or double effect (double release / duplicate refund / resurrected workflow) is impossible.
+    // --------------------------------------------------------------------------------------------
+
+    [Fact(DisplayName = "Scenario R: ReservationExpired vs PaymentSucceeded race → Optimistic concurrency guard")]
+    public async Task Scenario_R_ExpiryVsPayment_RaceProtectedByConcurrency()
+    {
+        var order = await CreatePlacedOrderAsync(("SKU-1", 1));
+        await using (var seed = CreateContext())
+        {
+            var orchestrator = CreateOrchestrator(seed);
+            await orchestrator.StartFromOrderCreatedAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc);
+            await seed.SaveChangesAsync();
+            await orchestrator.ApplyReservationSuccessAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), At);
+            await seed.SaveChangesAsync();
+        }
+
+        // Two isolated consumers read the same WaitingForPayment saga (same optimistic-concurrency
+        // version) before either writes, simulating two high-frequency consumers dispatched together.
+        await using var ctxA = CreateContext();
+        await using var ctxB = CreateContext();
+        var orchA = CreateOrchestrator(ctxA);
+        var orchB = CreateOrchestrator(ctxB);
+
+        var expiryResult = await orchA.ApplyReservationExpiredAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), At);
+        var paymentResult = await orchB.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test", Guid.NewGuid(), Guid.NewGuid(), At);
+
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, expiryResult.Outcome);
+        Assert.Equal(OrderSagaTransitionOutcome.Applied, paymentResult.Outcome);
+
+        await ctxA.SaveChangesAsync();
+        // The slower concurrent consumer is rejected by the optimistic concurrency token instead of
+        // silently overwriting the winner — it must re-read the saga and re-evaluate the new state.
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => ctxB.SaveChangesAsync());
+
+        await using var fresh = CreateContext();
+        var saga = await fresh.OrderSagas.SingleAsync();
+        Assert.True(
+            saga.State == OrderSagaState.Cancelled || saga.State == OrderSagaState.Completed,
+            $"Saga should be deterministically Cancelled or Completed, was {saga.State}.");
+        var finalOrder = await fresh.Orders.SingleAsync();
+        Assert.True(
+            finalOrder.Status == OrderStatus.Cancelled || finalOrder.Status == OrderStatus.Confirmed,
+            $"Order should be deterministically Cancelled or Confirmed, was {finalOrder.Status}.");
+    }
 }
 
 

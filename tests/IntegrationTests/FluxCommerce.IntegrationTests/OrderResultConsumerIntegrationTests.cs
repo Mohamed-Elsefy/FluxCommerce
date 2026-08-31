@@ -26,9 +26,9 @@ namespace FluxCommerce.IntegrationTests;
 /// Phase 8.5/8.6: the Orders consumers for the Inventory result events against the real broker and real
 /// SQL Server. Verifies the <c>InventoryReservedConsumer</c> and <c>InventoryReservationFailedConsumer</c>
 /// end to end: delivery → deserialize → Orders idempotent-processing boundary (ProcessedMessage + saga
-/// state commit atomically) → ACK. A success applies the saga <c>Completed</c> transition while the
-/// Order stays Pending; a failure applies <c>Failed</c> and cancels the Order. Duplicate deliveries
-/// produce exactly one processed-message record and one transition, and nothing is dead-lettered.
+/// state commit atomically) → ACK. A success advances the saga to <c>WaitingForPayment</c> (reservation
+/// recorded) while the Order stays Pending; a failure applies <c>Failed</c> and cancels the Order. Duplicate
+/// deliveries produce exactly one processed-message record and one transition, and nothing is dead-lettered.
 /// </summary>
 [Collection(RabbitMQOrdersConsumerTestCollection.Name)]
 public class OrderResultConsumerIntegrationTests
@@ -64,7 +64,7 @@ public class OrderResultConsumerIntegrationTests
             await consumer.StopAsync(CancellationToken.None);
 
             Assert.Equal(1, await CountProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName));
-            Assert.Equal(OrderSagaState.Completed, (await GetSagaAsync(orderId))!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, (await GetSagaAsync(orderId))!.State);
             Assert.Equal(OrderStatus.Pending, (await GetOrderAsync(orderId))!.Status);
 
             var connectionProvider = provider.GetRequiredService<IRabbitMQConnectionProvider>();
@@ -143,7 +143,7 @@ public class OrderResultConsumerIntegrationTests
             await consumer.StopAsync(CancellationToken.None);
 
             Assert.Equal(1, await CountProcessedAsync(@event.EventId, InventoryReservedConsumer.StableHandlerName));
-            Assert.Equal(OrderSagaState.Completed, (await GetSagaAsync(orderId))!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, (await GetSagaAsync(orderId))!.State);
             Assert.Equal(0u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
         }
         finally

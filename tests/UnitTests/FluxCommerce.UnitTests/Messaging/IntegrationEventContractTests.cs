@@ -184,7 +184,7 @@ public class IntegrationEventContractTests
         AssertFlatPrimitivePayload(
             json,
             "InventoryReservationExpiredIntegrationEvent",
-            ["EventId", "CorrelationId", "CausationId", "Version", "OccurredAtUtc", "ReservationId", "OrderId", "Sku", "Quantity", "OccurredAt"]);
+            ["EventId", "CorrelationId", "CausationId", "Version", "OccurredAtUtc", "ReservationId", "OrderId", "Sku", "Quantity", "ExpiredAtUtc"]);
     }
 
     [Fact]

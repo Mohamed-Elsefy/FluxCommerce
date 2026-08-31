@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Domain.Events;
@@ -6,6 +7,7 @@ using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Inventory.Domain.Events;
 using FluxCommerce.Modules.Inventory.Domain.ValueObjects;
 using FluxCommerce.Modules.Inventory.Infrastructure.Outbox;
+using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
 
 namespace FluxCommerce.UnitTests.Persistence;
@@ -17,6 +19,11 @@ namespace FluxCommerce.UnitTests.Persistence;
 /// </summary>
 public class InventoryOutboxMessageFactoryTests
 {
+    static InventoryOutboxMessageFactoryTests()
+    {
+        Activity.DefaultIdFormat = ActivityIdFormat.W3C;
+    }
+
     private static readonly Guid CorrelationId = new("22222222-2222-2222-2222-222222222222");
 
     [Fact]
@@ -50,7 +57,10 @@ public class InventoryOutboxMessageFactoryTests
         Assert.Equal(orderId.Value, payload.OrderId);
         Assert.Equal("SKU-1", payload.Sku);
         Assert.Equal(3, payload.Quantity);
-        Assert.Equal(occurredAt, payload.OccurredAt);
+        Assert.Equal(occurredAt, payload.ExpiredAtUtc);
+        Assert.Equal(domainEvent.OccurredAtUtc, payload.OccurredAtUtc);
+        Assert.Equal(CorrelationId, payload.CorrelationId);
+        Assert.Null(payload.CausationId);
     }
 
     [Fact]
@@ -79,6 +89,48 @@ public class InventoryOutboxMessageFactoryTests
 
         var message = Assert.Single(messages);
         Assert.Equal(InventoryReservationExpiredIntegrationEvent.EventType, message.Type);
+    }
+
+    [Fact]
+    public void ReservationExpired_UnderActivity_SnapshotsW3CTraceContext()
+    {
+        using var listener = new TestActivityListener();
+        using var activity = new Activity("inventory.expiry.stage.test");
+        activity.TraceStateString = "vendors=test-staging";
+        activity.Start();
+
+        var domainEvent = new InventoryReservationExpired(
+            InventoryReservationId.Create(),
+            OrderId.Create(),
+            new InventorySku("SKU-1"),
+            1,
+            DateTimeOffset.UtcNow);
+
+        var message = Assert.Single(new InventoryOutboxMessageFactory(CreateProvider()).Create([domainEvent]));
+
+        // Phase 11.9: the staged outbox record preserves the producer's traceparent/tracestate so the
+        // Inventory outbox dispatcher can restore it and the reservation-expiry trace survives the outbox hop.
+        Assert.Equal(activity.Id, message.TraceParent);
+        Assert.Equal(activity.TraceStateString, message.TraceState);
+    }
+
+    [Fact]
+    public void ReservationExpired_WithoutActivity_HasNullTraceContext()
+    {
+        using var listener = new TestActivityListener();
+        Assert.Null(Activity.Current);
+
+        var domainEvent = new InventoryReservationExpired(
+            InventoryReservationId.Create(),
+            OrderId.Create(),
+            new InventorySku("SKU-1"),
+            1,
+            DateTimeOffset.UtcNow);
+
+        var message = Assert.Single(new InventoryOutboxMessageFactory(CreateProvider()).Create([domainEvent]));
+
+        Assert.Null(message.TraceParent);
+        Assert.Null(message.TraceState);
     }
 
     private static ICorrelationIdProvider CreateProvider() => new FixedCorrelationIdProvider(CorrelationId);

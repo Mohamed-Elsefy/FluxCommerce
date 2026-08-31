@@ -212,4 +212,68 @@ public class OrderSagaHardeningTests : OrderSagaTestBase
         Assert.Equal(OrderSagaTransitionOutcome.Duplicate, duplicate.Outcome);
         Assert.Equal(versionAfterFirst, (await ctx.OrderSagas.SingleAsync()).Version);
     }
+
+    [Fact]
+    public async Task CrashRecovery_ReservationExpired_OrderCancelledOutbox_DispatchedAfterRestart_RefiresAsDuplicate()
+    {
+        // Simulate crash AFTER ReservationExpired(E1) applied and its compensation outbox
+        // (orders.order_cancelled) was staged Pending, but BEFORE the outbox dispatcher published it.
+        // On restart the dispatcher recovers/publishes the pending message, and a redelivered E1 must be
+        // acknowledged as a non-side-effecting duplicate - no re-cancel, no duplicate outbox, no version bump.
+        int outboxCancelledTypeSeed;
+        await using (var ctx = CreateContext())
+        {
+            var (order, _) = await CreateWaitingForPaymentAsync(ctx);
+            var orchestrator = CreateOrchestrator(ctx);
+            var first = await orchestrator.ApplyReservationExpiredAsync(
+                order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), At);
+            await ctx.SaveChangesAsync();
+
+            // One valid saga transition + order cancelled (business outcome) + one Pending compensation outbox.
+            Assert.Equal(OrderSagaTransitionOutcome.Applied, first.Outcome);
+            Assert.Equal(OrderSagaState.Cancelled, (await ctx.OrderSagas.SingleAsync()).State);
+            Assert.Equal(OrderStatus.Cancelled, (await ctx.Orders.SingleAsync()).Status);
+            var pending = await ctx.OutboxMessages
+                .Where(m => m.Type == "orders.order_cancelled" && m.Status == OutboxStatus.Pending)
+                .ToListAsync();
+            Assert.Single(pending);
+            outboxCancelledTypeSeed = pending.Count;
+        }
+
+        // Simulate restart: new context reads the same DB with the Pending compensation outbox.
+        await using (var afterCrash = CreateContext())
+        {
+            var pendingAfterCrash = await afterCrash.OutboxMessages
+                .Where(m => m.Type == "orders.order_cancelled" && m.Status == OutboxStatus.Pending)
+                .ToListAsync();
+            Assert.Single(pendingAfterCrash);
+
+            // Redelivery of the same E1 after restart is a non-side-effecting duplicate.
+            var orchestratorAfterCrash = CreateOrchestrator(afterCrash);
+            var duplicate = await orchestratorAfterCrash.ApplyReservationExpiredAsync(
+                (await afterCrash.Orders.SingleAsync()).Id,
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), At);
+            Assert.Equal(OrderSagaTransitionOutcome.Ignored, duplicate.Outcome);
+            Assert.Equal(OrderSagaState.Cancelled, (await afterCrash.OrderSagas.SingleAsync()).State);
+            Assert.Equal(outboxCancelledTypeSeed, await afterCrash.OutboxMessages
+                .CountAsync(m => m.Type == "orders.order_cancelled"));
+
+            // The pending compensation outbox is claimable and publishable after restart (dispatcher claim -> publish).
+            var orderCancelledMsg = await afterCrash.OutboxMessages
+                .FirstAsync(m => m.Type == "orders.order_cancelled" && m.Status == OutboxStatus.Pending);
+            var orderCancelledMsgId = orderCancelledMsg.Id;
+            // ExecuteUpdateAsync bypasses the change tracker; detach so the re-read reflects the persisted state.
+            afterCrash.ChangeTracker.Clear();
+            var store = new FluxCommerce.Modules.Orders.Infrastructure.Outbox.OrdersOutboxStore(afterCrash);
+            var claimed = await store.MarkInProgressAsync(orderCancelledMsgId);
+            Assert.True(claimed);
+            Assert.Equal(OutboxStatus.InProgress, (await afterCrash.OutboxMessages
+                .FirstAsync(m => m.Id == orderCancelledMsgId)).Status);
+            var published = await store.MarkPublishedAsync(orderCancelledMsgId);
+            Assert.True(published);
+            afterCrash.ChangeTracker.Clear();
+            Assert.Equal(OutboxStatus.Published, (await afterCrash.OutboxMessages
+                .FirstAsync(m => m.Id == orderCancelledMsgId)).Status);
+        }
+    }
 }

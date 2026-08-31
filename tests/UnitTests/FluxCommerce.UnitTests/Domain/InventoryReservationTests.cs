@@ -304,6 +304,23 @@ public class InventoryReservationTests
         Assert.Equal(0, item.ReservedQuantity);
     }
 
+    [Fact]
+    public void Expire_WhenAlreadyReleased_FailsAndDoesNotRaiseExpired()
+    {
+        var item = CreateItem(onHandQuantity: 10);
+        var reservation = Reserve(item, quantity: 3).Value;
+        reservation.Release(item, UtcNow);
+        reservation.ClearDomainEvents();
+
+        var result = reservation.Expire(item, UtcNow);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(InventoryErrors.InvalidStateTransition, result.Error);
+        Assert.Equal(InventoryReservationStatus.Released, reservation.Status);
+        Assert.Empty(reservation.GetDomainEvents());
+        Assert.Equal(0, item.ReservedQuantity);
+    }
+
     // ---- Terminal state protection ----
 
     [Fact]

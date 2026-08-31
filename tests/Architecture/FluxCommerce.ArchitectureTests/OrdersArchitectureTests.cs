@@ -318,6 +318,47 @@ public class OrdersArchitectureTests
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
+    [Fact]
+    public void Orders_Saga_ShouldNot_ReferenceInventoryReservationPersistence()
+    {
+        // Phase 11.11: the Saga (state model in Domain, orchestrator in Infrastructure) is
+        // Orders-owned. It reacts to reservation expiry only through the approved
+        // Inventory.Contracts.IntegrationEvents surface — never through Inventory's reservation
+        // domain or persistence. The reservation itself (and its expiration) belongs to Inventory.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            new[] { OrdersDomain, OrdersApplication, OrdersContracts },
+            [
+                "FluxCommerce.Modules.Inventory.Domain",
+                "FluxCommerce.Modules.Inventory.Application",
+                "FluxCommerce.Modules.Inventory.Infrastructure",
+                "FluxCommerce.Modules.Inventory.Contracts.Requests",
+                "FluxCommerce.Modules.Inventory.Contracts.Responses",
+                "FluxCommerce.Modules.Inventory.Contracts.Enums",
+            ],
+            "Orders saga -> Inventory reservation persistence",
+            failures);
+
+        // Orders.Infrastructure is the ONLY Orders layer allowed to reach Inventory, and only the
+        // IntegrationEvents surface. This is already pinned by the module isolation carve-out, but
+        // it is re-asserted here for the reservation-expiry path specifically.
+        AssertNoDependencies(
+            [OrdersInfrastructure],
+            [
+                "FluxCommerce.Modules.Inventory.Domain",
+                "FluxCommerce.Modules.Inventory.Application",
+                "FluxCommerce.Modules.Inventory.Infrastructure",
+                "FluxCommerce.Modules.Inventory.Contracts.Requests",
+                "FluxCommerce.Modules.Inventory.Contracts.Responses",
+                "FluxCommerce.Modules.Inventory.Contracts.Enums",
+            ],
+            "Orders.Infrastructure -> Inventory (non-IntegrationEvents)",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
     // ---- Domain layer rules ----
 
     [Fact]

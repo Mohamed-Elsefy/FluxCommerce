@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Domain.Events;
@@ -57,6 +58,14 @@ public sealed class InventoryOutboxMessageFactory
             OccurredAtUtc = domainEvent.OccurredAtUtc
         };
 
+        // Phase 11.9: snapshot the W3C Trace Context of the producing activity (traceparent/tracestate)
+        // onto the outbox record at staging time so the Inventory outbox dispatcher can restore it as the
+        // parent of the producer span and the reservation-expiry trace survives the outbox hop, matching the
+        // Orders integration-event factory (Observability & Distributed Tracing).
+        var current = Activity.Current;
+        var traceParent = current is { IdFormat: ActivityIdFormat.W3C } ? current.Id : null;
+        var traceState = current?.TraceStateString;
+
         return new OutboxMessage
         {
             Id = Guid.NewGuid(),
@@ -70,7 +79,9 @@ public sealed class InventoryOutboxMessageFactory
             ProcessedAtUtc = null,
             Status = OutboxStatus.Pending,
             RetryCount = 0,
-            Error = null
+            Error = null,
+            TraceParent = traceParent,
+            TraceState = traceState
         };
     }
 }

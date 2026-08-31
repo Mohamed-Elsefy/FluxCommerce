@@ -148,6 +148,35 @@ public sealed class OrderSagaInventoryFlowTestFixture : IAsyncDisposable
     }
 
     /// <summary>
+    /// Phase 11.10: the production-like provider for the reservation-expiry flow. It registers
+    /// everything <see cref="BuildProvider"/> does plus the Orders reservation-expiry consumer
+    /// (<c>inventory.reservation_expired</c>) on the same queue — so the full
+    /// <c>Inventory Reservation Expiration → Inventory Outbox → RabbitMQ → Orders Expiry Consumer → Saga → Order Cancelled</c>
+    /// chain can be exercised end to end. The hosted <c>RabbitMQConsumerBackgroundService</c> is started
+    /// per test so the outbox hosted services never run (the dispatchers are driven directly). The optional
+    /// <paramref name="configure"/> callback tunes the consumer host (e.g. concurrency for the 11.10
+    /// concurrent-expiry verification).
+    /// </summary>
+    public ServiceProvider BuildExpiryProvider(string queueName, Action<RabbitMQConsumerOptions>? configure = null)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+        services.AddSingleton<ICurrentUser, AnonymousCurrentUser>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventInterceptor>();
+        services.AddOrdersInfrastructure(OrdersConnectionString);
+        services.AddInventoryInfrastructure(InventoryConnectionString);
+        services.AddRabbitMQ(RabbitMQConnectionString);
+        services.AddRabbitMQPublisher(TestExchangeName);
+        services.AddRabbitMQConsumer(TestExchangeName, queueName, configure);
+        services.AddIntegrationEventConsumer<InventoryReservationRequestedIntegrationEvent, InventoryReservationRequestedConsumer, InventoryIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservedIntegrationEvent, InventoryReservedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationFailedIntegrationEvent, InventoryReservationFailedConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<InventoryReservationExpiredIntegrationEvent, InventoryReservationExpiredConsumer, OrdersIdempotentProcessor>();
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
     /// Phase 8.9: the production-like provider for the distributed-trace verification. It registers
     /// everything <see cref="BuildProvider"/> does plus the <c>orders.order_created</c> saga-boot
     /// consumer, so the complete workflow can be driven end to end from a published OrderCreated: the

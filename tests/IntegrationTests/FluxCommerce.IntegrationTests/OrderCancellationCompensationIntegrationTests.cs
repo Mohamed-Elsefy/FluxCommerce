@@ -114,7 +114,8 @@ public class OrderCancellationCompensationIntegrationTests
                 .ReservationId;
 
             // 3. The Inventory outbox dispatcher publishes inventory.reserved; the Orders result consumer
-            // applies it — the saga completes and the reservation is recorded for later release.
+            // applies it — the saga records the reservation (advancing to WaitingForPayment) for later
+            // release.
             using (var dispatcherScope = provider.CreateScope())
             {
                 var dispatcher = dispatcherScope.ServiceProvider.GetRequiredService<InventoryOutboxDispatcher>();
@@ -126,7 +127,7 @@ public class OrderCancellationCompensationIntegrationTests
 
             var completedSaga = await GetSagaAsync(orderId);
             Assert.NotNull(completedSaga);
-            Assert.Equal(OrderSagaState.Completed, completedSaga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, completedSaga!.State);
             Assert.Equal(reservationId, Assert.Single(completedSaga.ReservationIds));
 
             // 4. The order is cancelled: publish orders.order_cancelled. The compensation consumer issues
@@ -184,10 +185,11 @@ public class OrderCancellationCompensationIntegrationTests
             Assert.Equal(0, item.ReservedQuantity);
             Assert.Equal(10, item.AvailableQuantity);
 
-            // The saga is untouched by the compensation (no state transition, no extra release).
+            // The saga is untouched by the compensation (no state transition, no extra release) — it remains
+            // WaitingForPayment awaiting the payment leg.
             var finalSaga = await GetSagaAsync(orderId);
             Assert.NotNull(finalSaga);
-            Assert.Equal(OrderSagaState.Completed, finalSaga!.State);
+            Assert.Equal(OrderSagaState.WaitingForPayment, finalSaga!.State);
             Assert.Equal(reservationId, Assert.Single(finalSaga.ReservationIds));
 
             // The released outbox record carries the workflow correlation and causal link, and the

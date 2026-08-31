@@ -118,8 +118,9 @@ public class OrderSagaDistributedTraceIntegrationTests
             await provider.GetRequiredService<InventoryOutboxDispatcher>()
                 .DispatchPendingAsync(CancellationToken.None);
 
-            // Leg 3: the Orders result consumer applies the result and completes the saga.
-            await WaitForSagaAsync(orderId, OrderSagaState.Completed);
+            // Leg 3: the Orders result consumer applies the result; the saga records the reservation and
+            // advances to WaitingForPayment (payment is the final leg before Completed).
+            await WaitForSagaAsync(orderId, OrderSagaState.WaitingForPayment);
             await WaitForQueueEmptyAsync(provider, queueName);
 
             await consumer.StopAsync(CancellationToken.None);
@@ -165,7 +166,7 @@ public class OrderSagaDistributedTraceIntegrationTests
             var appliedLog = orchestratorLogs.Entries.SingleOrDefault(entry => entry.Message.Contains("Applied inventory.reserved"));
             Assert.NotNull(appliedLog);
             Assert.Equal(OrderSagaState.WaitingForInventory.ToString(), appliedLog["PreviousState"]?.ToString());
-            Assert.Equal(OrderSagaState.Completed.ToString(), appliedLog["NewState"]?.ToString());
+            Assert.Equal(OrderSagaState.WaitingForPayment.ToString(), appliedLog["NewState"]?.ToString());
             Assert.Equal(rootTraceId.ToString(), appliedLog["TraceId"]);
             Assert.NotNull(appliedLog["SpanId"]);
 
@@ -186,9 +187,9 @@ public class OrderSagaDistributedTraceIntegrationTests
             Assert.DoesNotContain(processorLogs.Entries, entry => entry.Message.Contains(sku));
             Assert.DoesNotContain(orchestratorLogs.Entries, entry => entry.Message.Contains(sku));
 
-            // The workflow completed exactly once: one saga, one reservation, nothing dead-lettered.
-            var completedSaga = await GetSagaAsync(orderId);
-            Assert.Equal(OrderSagaState.Completed, completedSaga!.State);
+            // The workflow advanced exactly once: one saga, one reservation, nothing dead-lettered.
+            var finalSaga = await GetSagaAsync(orderId);
+            Assert.Equal(OrderSagaState.WaitingForPayment, finalSaga!.State);
             Assert.Single(await GetReservationsAsync(orderId));
             Assert.Equal(0u, await GetMessageCountAsync(provider, DeadLetterQueueName(queueName)));
         }
