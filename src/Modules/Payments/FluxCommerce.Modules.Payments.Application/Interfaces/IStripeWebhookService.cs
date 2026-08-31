@@ -1,3 +1,5 @@
+using FluxCommerce.Modules.Payments.Application.Models;
+
 namespace FluxCommerce.Modules.Payments.Application.Interfaces;
 
 public interface IStripeWebhookService
@@ -8,10 +10,3 @@ public interface IStripeWebhookService
     /// </summary>
     StripeWebhookVerificationResult VerifyAndParse(string payload, string signatureHeader);
 }
-
-public sealed record StripeWebhookVerificationResult(
-    bool IsValid,
-    string? EventId,
-    string? EventType,
-    string? PaymentIntentId,
-    string? ErrorMessage);

@@ -1,5 +1,6 @@
-using FluxCommerce.BuildingBlocks.Messaging.Consuming;
+﻿using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
@@ -10,7 +11,7 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Consuming;
 
 /// <summary>
 /// Phase 10.3: Payments consumer for <c>payments.create_payment_requested</c> (saga-to-payment initiation).
-/// The Order Saga stages this event after <c>inventory.reserved → WaitingForPayment</c> via the Orders outbox.
+/// The Order Saga stages this event after <c>inventory.reserved â†’ WaitingForPayment</c> via the Orders outbox.
 /// Payments owns intent creation and Stripe interaction; this consumer executes the payment creation
 /// idempotently inside the Payments boundary (no cross-DbContext, no direct Stripe call from Orders).
 /// Duplicate deliveries for the same <c>OrderId</c> are safe: existing Payment with Provider intent is
@@ -191,3 +192,4 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
                msg.Contains("unique", StringComparison.OrdinalIgnoreCase);
     }
 }
+

@@ -1,4 +1,6 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
 
@@ -9,7 +11,7 @@ namespace FluxCommerce.UnitTests.Infrastructure;
 /// mutation through a single atomic Lua EVAL (compare-and-set on the stored version), so
 /// stale writers are rejected with CartSaveStatus.VersionConflict and no lost update, no
 /// double version increment and no unintended TTL refresh can occur. These tests observe the
-/// resulting persistence behavior — they do not re-implement the script's logic.
+/// resulting persistence behavior â€” they do not re-implement the script's logic.
 /// </summary>
 [Collection(RedisCartTestCollection.Name)]
 public class RedisCartConcurrencyIntegrationTests
@@ -235,3 +237,4 @@ public class RedisCartConcurrencyIntegrationTests
         Assert.Equal(2, loaded!.Version);
     }
 }
+

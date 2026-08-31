@@ -15,7 +15,7 @@ using FluxCommerce.Modules.Cart.Application.Commands.RemoveAuthenticatedCartItem
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateAuthenticatedCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity;
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
 using FluxCommerce.Modules.Cart.Contracts.Requests;

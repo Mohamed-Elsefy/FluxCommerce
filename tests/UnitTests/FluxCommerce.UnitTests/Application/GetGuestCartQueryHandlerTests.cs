@@ -1,5 +1,6 @@
-using FluxCommerce.BuildingBlocks.Application.Errors;
+﻿using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.UnitTests.TestInfrastructure;
@@ -115,3 +116,4 @@ public class GetGuestCartQueryHandlerTests
         return store.Object;
     }
 }
+

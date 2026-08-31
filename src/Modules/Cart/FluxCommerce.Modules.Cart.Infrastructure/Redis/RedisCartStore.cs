@@ -1,5 +1,7 @@
-using FluxCommerce.BuildingBlocks.Infrastructure.Caching;
+﻿using FluxCommerce.BuildingBlocks.Infrastructure.Caching;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.Modules.Cart.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
@@ -203,3 +205,4 @@ public sealed class RedisCartStore : ICartStore
         return TimeSpan.FromMinutes(options.DefaultTtlMinutes);
     }
 }
+

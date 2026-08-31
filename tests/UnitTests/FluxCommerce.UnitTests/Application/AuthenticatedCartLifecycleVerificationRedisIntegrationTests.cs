@@ -4,6 +4,7 @@ using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateAuthenticatedCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.UnitTests.TestInfrastructure;
@@ -211,3 +212,4 @@ public class AuthenticatedCartLifecycleVerificationRedisIntegrationTests
             _inner.ExistsAsync(cartId, cancellationToken);
     }
 }
+

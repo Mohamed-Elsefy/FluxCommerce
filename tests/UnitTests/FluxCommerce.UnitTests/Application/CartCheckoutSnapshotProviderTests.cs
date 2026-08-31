@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Services;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
 using FluxCommerce.Modules.Cart.Contracts.ReadModels;

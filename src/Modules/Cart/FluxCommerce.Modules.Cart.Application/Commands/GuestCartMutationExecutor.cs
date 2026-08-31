@@ -1,7 +1,9 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Domain.Errors;
 using FluxCommerce.Modules.Cart.Domain.Results;
@@ -13,8 +15,8 @@ namespace FluxCommerce.Modules.Cart.Application.Commands;
 /// <summary>
 /// Shared orchestration for Guest Cart item mutations:
 ///
-///     validate identifier → resolve cart → validate Guest ownership → hydrate the aggregate
-///     → invoke the Domain behavior → persist through ICartStore with optimistic concurrency
+///     validate identifier â†’ resolve cart â†’ validate Guest ownership â†’ hydrate the aggregate
+///     â†’ invoke the Domain behavior â†’ persist through ICartStore with optimistic concurrency
 ///
 /// Ownership is validated BEFORE any Domain mutation: the stored cart ownership is checked,
 /// not assumed from the caller-supplied identifier. A Guest operation never touches an
@@ -86,3 +88,4 @@ internal static class GuestCartMutationExecutor
     private static DateTimeOffset ToUtcOffset(DateTime value) =>
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 }
+

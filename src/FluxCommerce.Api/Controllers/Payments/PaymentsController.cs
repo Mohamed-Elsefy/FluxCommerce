@@ -6,11 +6,10 @@ using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text;
 
@@ -165,3 +164,4 @@ public sealed class PaymentsController : ApiControllerBase
         return Success(dummy);
     }
 }
+

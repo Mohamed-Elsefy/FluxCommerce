@@ -1,6 +1,7 @@
-using FluxCommerce.BuildingBlocks.Outbox.Mapping;
+﻿using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Entities;
 using FluxCommerce.Modules.Payments.Domain.Enums;
@@ -102,7 +103,7 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
         var processedEvent = new ProcessedWebhookEvent(Guid.NewGuid(), stripeEventId, eventType, DateTimeOffset.UtcNow);
         _dbContext.Set<ProcessedWebhookEvent>().Add(processedEvent);
 
-        // 9.11: map domain state change → integration event + Outbox in same transaction
+        // 9.11: map domain state change â†’ integration event + Outbox in same transaction
         if (payment != null && stateChanged)
         {
             OutboxMessage? outbox = null;
@@ -198,3 +199,4 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
                || msg.Contains("unique", StringComparison.OrdinalIgnoreCase);
     }
 }
+

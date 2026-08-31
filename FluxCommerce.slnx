@@ -60,6 +60,9 @@
     <File Path="docs/refactoring/REFACTORING_1_COMPLETION.md" />
     <File Path="docs/refactoring/REFACTORING_1_FINDINGS.md" />
     <File Path="docs/refactoring/REFACTORING_1_PLAN.md" />
+    <File Path="docs/refactoring/REFACTORING_2_BASELINE.md" />
+    <File Path="docs/refactoring/REFACTORING_2_FINDINGS.md" />
+    <File Path="docs/refactoring/REFACTORING_2_PLAN.md" />
   </Folder>
 
   <!-- Solution Items -->

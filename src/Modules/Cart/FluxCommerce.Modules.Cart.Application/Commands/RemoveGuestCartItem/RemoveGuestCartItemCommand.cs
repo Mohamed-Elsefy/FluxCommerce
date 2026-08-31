@@ -1,6 +1,7 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 
 namespace FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 
@@ -11,3 +12,4 @@ namespace FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 public sealed record RemoveGuestCartItemCommand(
     Guid CartId,
     Guid VariantId) : ICommand<Result<CartState>>;
+

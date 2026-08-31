@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.Entities;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using CartAggregate = FluxCommerce.Modules.Cart.Domain.Aggregates.Cart;
@@ -53,3 +54,4 @@ public static class CartApplicationMapper
             item.UnitPrice,
             item.Quantity);
 }
+

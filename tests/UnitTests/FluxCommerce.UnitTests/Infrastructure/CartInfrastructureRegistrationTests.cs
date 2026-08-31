@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Infrastructure.Caching;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
@@ -8,6 +8,7 @@ using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
 using FluxCommerce.Modules.Cart.Application.Services;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
@@ -287,3 +288,4 @@ public class CartInfrastructureRegistrationTests
             .Build();
     }
 }
+

@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
@@ -145,3 +146,4 @@ public class RedisCartKeyIsolationIntegrationTests
         Assert.Equal($"{_fixture.KeyNamespace}:{userValue}", _fixture.CartKey(cart.CartId));
     }
 }
+

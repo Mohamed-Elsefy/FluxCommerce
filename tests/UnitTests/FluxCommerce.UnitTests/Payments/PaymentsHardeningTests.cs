@@ -1,7 +1,9 @@
-using FluxCommerce.Api.Controllers.Payments;
+﻿using FluxCommerce.Api.Controllers.Payments;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.Modules.Payments.Application.Commands.CreatePayment;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Enums;
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
@@ -53,7 +55,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         });
         var svc = new StripeWebhookService(opts);
         Assert.NotNull(svc);
-        // No hardcoded secret in code – verified via Options pattern
+        // No hardcoded secret in code â€“ verified via Options pattern
     }
 
     [Fact]
@@ -236,3 +238,4 @@ public sealed class PaymentsHardeningTests : IDisposable
 
     public void Dispose() => _connection.Dispose();
 }
+

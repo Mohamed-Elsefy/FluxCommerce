@@ -1,4 +1,4 @@
-namespace FluxCommerce.Modules.Cart.Application.Interfaces;
+namespace FluxCommerce.Modules.Cart.Application.Enums;
 
 public enum CartSaveStatus
 {

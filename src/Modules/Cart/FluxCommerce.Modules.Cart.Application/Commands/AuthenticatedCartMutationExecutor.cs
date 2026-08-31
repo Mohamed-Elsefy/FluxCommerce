@@ -1,7 +1,9 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Application.Ownership;
 using FluxCommerce.Modules.Cart.Domain.Errors;
@@ -14,9 +16,9 @@ namespace FluxCommerce.Modules.Cart.Application.Commands;
 /// <summary>
 /// Shared orchestration for authenticated Cart item mutations:
 ///
-///     ICurrentUser ──▶ resolve authenticated owner ──▶ resolve the user's Cart
-///     ──▶ validate persisted ownership ──▶ hydrate the aggregate
-///     ──▶ invoke the Domain behavior ──▶ persist through ICartStore with optimistic concurrency
+///     ICurrentUser â”€â”€â–¶ resolve authenticated owner â”€â”€â–¶ resolve the user's Cart
+///     â”€â”€â–¶ validate persisted ownership â”€â”€â–¶ hydrate the aggregate
+///     â”€â”€â–¶ invoke the Domain behavior â”€â”€â–¶ persist through ICartStore with optimistic concurrency
 ///
 /// Ownership is validated BEFORE any Domain mutation, from the persisted Cart state, never from a
 /// request identifier or a client-supplied UserId. An authenticated operation never resolves a Guest
@@ -85,3 +87,4 @@ internal static class AuthenticatedCartMutationExecutor
     private static DateTimeOffset ToUtcOffset(DateTime value) =>
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 }
+

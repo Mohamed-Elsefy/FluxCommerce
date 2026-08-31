@@ -1,6 +1,7 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 
 namespace FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 
@@ -10,3 +11,4 @@ namespace FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 /// active Cart follows the existing Cart-not-found behavior.
 /// </summary>
 public sealed record GetAuthenticatedCartQuery : IQuery<Result<CartState>>;
+

@@ -1,3 +1,5 @@
+using FluxCommerce.Modules.Orders.Application.Enums;
+using FluxCommerce.Modules.Orders.Application.Models;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 
@@ -23,25 +25,3 @@ public interface ICheckoutStore
         CheckoutIdempotencyRecord idempotency,
         CancellationToken cancellationToken = default);
 }
-
-/// <summary>
-/// Application-level projection of the (Customer, Idempotency-Key) checkout record. The persistence
-/// implementation maps to/from its internal entity model.
-/// </summary>
-public sealed record CheckoutIdempotencyRecord(
-    Guid Id,
-    Guid UserId,
-    string IdempotencyKey,
-    Guid OrderId,
-    string RequestFingerprint,
-    DateTimeOffset CreatedAtUtc);
-
-public enum CheckoutPersistStatus
-{
-    Created,
-    Duplicate
-}
-
-public sealed record CheckoutPersistResult(
-    CheckoutPersistStatus Status,
-    CheckoutIdempotencyRecord? Existing);

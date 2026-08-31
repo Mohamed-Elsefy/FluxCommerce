@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 
 namespace FluxCommerce.UnitTests.TestInfrastructure;
@@ -36,3 +37,4 @@ public static class RedisCartTestData
         Xunit.Assert.Equal(expected.Items, actual.Items);
     }
 }
+

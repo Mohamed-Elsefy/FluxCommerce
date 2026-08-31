@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Errors;
+﻿using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
 using FluxCommerce.Modules.Cart.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
@@ -6,6 +6,8 @@ using FluxCommerce.Modules.Catalog.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Orders.Application.Commands.Checkout;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
+using FluxCommerce.Modules.Orders.Application.Models;
+using FluxCommerce.Modules.Orders.Application.Enums;
 using FluxCommerce.Modules.Orders.Application.Services;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Entities;
@@ -641,3 +643,4 @@ public class CheckoutCommandHandlerTests
         }
     }
 }
+

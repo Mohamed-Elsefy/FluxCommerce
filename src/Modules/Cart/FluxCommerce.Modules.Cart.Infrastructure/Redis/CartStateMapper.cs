@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 
 namespace FluxCommerce.Modules.Cart.Infrastructure.Redis;
@@ -50,3 +51,4 @@ public sealed class CartStateMapper
             new Money(item.UnitPrice, item.Currency),
             item.Quantity);
 }
+

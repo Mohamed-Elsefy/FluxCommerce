@@ -1,5 +1,6 @@
-using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
+﻿using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
@@ -147,3 +148,4 @@ public class AuthenticatedCartCreationRedisIntegrationTests
         await Assert.ThrowsAsync<ArgumentException>(() => store.CreateForUserAsync(guest));
     }
 }
+

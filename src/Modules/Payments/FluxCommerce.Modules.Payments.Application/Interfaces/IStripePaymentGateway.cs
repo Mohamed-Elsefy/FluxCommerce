@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Domain.Enums;
 
 namespace FluxCommerce.Modules.Payments.Application.Interfaces;
@@ -21,26 +22,3 @@ public interface IStripePaymentGateway
     /// </summary>
     Task<RefundResult> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken = default);
 }
-
-public sealed record CreatePaymentIntentRequest(
-    Guid OrderId,
-    Guid PaymentId,
-    decimal Amount,
-    string Currency,
-    long Version);
-
-public sealed record PaymentIntentResult(
-    string StripePaymentIntentId,
-    PaymentStatus Status,
-    string? ClientSecret);
-
-public sealed record CreateRefundRequest(
-    Guid OrderId,
-    Guid PaymentId,
-    string ProviderPaymentIntentId,
-    decimal Amount,
-    string Currency);
-
-public sealed record RefundResult(
-    string StripeRefundId,
-    string Status);

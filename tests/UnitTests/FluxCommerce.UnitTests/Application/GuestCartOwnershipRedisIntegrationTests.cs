@@ -4,6 +4,7 @@ using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
 
@@ -139,3 +140,4 @@ public class GuestCartOwnershipRedisIntegrationTests
         Assert.Single((await store.GetAsync(b.Value.CartId))!.Items);
     }
 }
+
