@@ -28,7 +28,12 @@ public class OrdersOutboxStoreIntegrationTests
     [Fact]
     public async Task ClaimPendingAsync_ReturnsPendingMessages_AndMarksThemInProgress()
     {
-        var ids = await SeedAsync(3);
+        // F-TEST-05 isolation: use unique Type per test run so concurrent tests sharing the same
+        // FluxCommerce_Orders DB (different collections) cannot pollute the pending set. The outbox
+        // dispatcher claims by status/RetryAfterUtc only — without a per-test discriminator any
+        // pending row from another running test would be claimed and break the exact-set assertion.
+        var type = $"orders.test_event.{Guid.NewGuid():N}";
+        var ids = await SeedAsync(3, type: type);
 
         try
         {
@@ -36,12 +41,14 @@ public class OrdersOutboxStoreIntegrationTests
             var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
             var claimed = await store.ClaimPendingAsync(batchSize: 10);
+            var relevant = claimed.Where(m => m.Type == type).ToList();
 
             Assert.Equal(
                 ids.OrderBy(id => id),
-                claimed.Select(m => m.Id).OrderBy(id => id));
-            Assert.All(claimed, message => Assert.Equal(OutboxStatus.InProgress, message.Status));
-            Assert.All(claimed, message => Assert.NotNull(message.ProcessedAtUtc));
+                relevant.Select(m => m.Id).OrderBy(id => id));
+            Assert.Equal(ids.Count, relevant.Count);
+            Assert.All(relevant, message => Assert.Equal(OutboxStatus.InProgress, message.Status));
+            Assert.All(relevant, message => Assert.NotNull(message.ProcessedAtUtc));
 
             var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
             var loaded = await context.OutboxMessages
@@ -60,7 +67,8 @@ public class OrdersOutboxStoreIntegrationTests
     [Fact]
     public async Task ClaimPendingAsync_RespectsBatchSize()
     {
-        var ids = await SeedAsync(5);
+        var type = $"orders.test_event.{Guid.NewGuid():N}";
+        var ids = await SeedAsync(5, type: type);
 
         try
         {
@@ -68,9 +76,10 @@ public class OrdersOutboxStoreIntegrationTests
             var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
             var claimed = await store.ClaimPendingAsync(batchSize: 3);
+            var relevant = claimed.Where(m => m.Type == type).ToList();
 
-            Assert.Equal(3, claimed.Count);
-            Assert.All(claimed, message => Assert.Equal(OutboxStatus.InProgress, message.Status));
+            Assert.Equal(3, relevant.Count);
+            Assert.All(relevant, message => Assert.Equal(OutboxStatus.InProgress, message.Status));
 
             var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
             var remaining = await context.OutboxMessages
@@ -89,7 +98,8 @@ public class OrdersOutboxStoreIntegrationTests
     [Fact]
     public async Task ClaimPendingAsync_ClaimsNothing_WhenNothingIsPending()
     {
-        var ids = await SeedAsync(3, OutboxStatus.Published);
+        var type = $"orders.test_event.{Guid.NewGuid():N}";
+        var ids = await SeedAsync(3, OutboxStatus.Published, type: type);
 
         try
         {
@@ -97,8 +107,9 @@ public class OrdersOutboxStoreIntegrationTests
             var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
             var claimed = await store.ClaimPendingAsync(batchSize: 10);
+            var relevant = claimed.Where(m => m.Type == type).ToList();
 
-            Assert.Empty(claimed);
+            Assert.Empty(relevant);
         }
         finally
         {
@@ -112,7 +123,8 @@ public class OrdersOutboxStoreIntegrationTests
     [InlineData(OutboxStatus.Failed)]
     public async Task ClaimPendingAsync_DoesNotClaimNonPendingMessages(OutboxStatus status)
     {
-        var ids = await SeedAsync(3, status);
+        var type = $"orders.test_event.{Guid.NewGuid():N}";
+        var ids = await SeedAsync(3, status, type: type);
 
         try
         {
@@ -120,8 +132,9 @@ public class OrdersOutboxStoreIntegrationTests
             var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
             var claimed = await store.ClaimPendingAsync(batchSize: 10);
+            var relevant = claimed.Where(m => m.Type == type).ToList();
 
-            Assert.Empty(claimed);
+            Assert.Empty(relevant);
 
             var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
             var loaded = await context.OutboxMessages
@@ -140,7 +153,8 @@ public class OrdersOutboxStoreIntegrationTests
     [Fact]
     public async Task ClaimPendingAsync_DoesNotReclaimAlreadyClaimedMessages()
     {
-        var ids = await SeedAsync(3);
+        var type = $"orders.test_event.{Guid.NewGuid():N}";
+        var ids = await SeedAsync(3, type: type);
 
         try
         {
@@ -148,11 +162,13 @@ public class OrdersOutboxStoreIntegrationTests
             var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
             var first = await store.ClaimPendingAsync(batchSize: 10);
-            Assert.Equal(3, first.Count);
+            var firstRelevant = first.Where(m => m.Type == type).ToList();
+            Assert.Equal(3, firstRelevant.Count);
 
             var second = await store.ClaimPendingAsync(batchSize: 10);
+            var secondRelevant = second.Where(m => m.Type == type).ToList();
 
-            Assert.Empty(second);
+            Assert.Empty(secondRelevant);
         }
         finally
         {
@@ -163,7 +179,8 @@ public class OrdersOutboxStoreIntegrationTests
     [Fact]
     public async Task ConcurrentClaims_FromSeparateWorkers_AreDisjoint_AndClaimedExactlyOnce()
     {
-        var ids = await SeedAsync(60);
+        var type = $"orders.test_event.{Guid.NewGuid():N}";
+        var ids = await SeedAsync(60, type: type);
         const int workerCount = 4;
         const int batchSize = 20;
 
@@ -193,7 +210,7 @@ public class OrdersOutboxStoreIntegrationTests
                 .ToArray();
 
             var results = await Task.WhenAll(tasks);
-            var claimedIds = results.SelectMany(messages => messages.Select(message => message.Id)).ToList();
+            var claimedIds = results.SelectMany(messages => messages.Select(message => message.Id)).Where(id => ids.Contains(id)).ToList();
 
             Assert.Equal(ids.Count, claimedIds.Count);
             Assert.Equal(ids.Count, claimedIds.Distinct().Count());
@@ -424,18 +441,31 @@ public class OrdersOutboxStoreIntegrationTests
         int count,
         OutboxStatus status = OutboxStatus.Pending,
         DateTime? claimedAtUtc = null,
-        DateTime? retryAfterUtc = null)
+        DateTime? retryAfterUtc = null,
+        string? type = null)
     {
         using var scope = _fixture.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
 
+        // F-TEST-05: remove stale test-event rows left by a previous run/crash so the pending set is
+        // exactly the seeded rows. This handles the observed 380/381 flake where the first claim saw
+        // 5 rows (3 seeded + 2 leftover). Only the synthetic test-event type is purged — production
+        // types (orders.order_created etc.) are never deleted.
+        if (type is null)
+        {
+            await context.OutboxMessages
+                .Where(m => m.Type == "orders.test_event" || m.Type.StartsWith("orders.test_event."))
+                .ExecuteDeleteAsync();
+        }
+
         var baseTime = DateTime.UtcNow.AddHours(-1);
+        var effectiveType = type ?? "orders.test_event";
         var messages = Enumerable.Range(0, count)
             .Select(index => new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 EventId = Guid.NewGuid(),
-                Type = "orders.test_event",
+                Type = effectiveType,
                 Payload = $"{{\"orderId\":\"00000000-0000-0000-0000-{index:000000000000}\"}}",
                 CorrelationId = Guid.NewGuid(),
                 CausationId = null,

@@ -88,7 +88,6 @@
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Observability/FluxCommerce.BuildingBlocks.Observability.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Outbox/FluxCommerce.BuildingBlocks.Outbox.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Persistence/FluxCommerce.BuildingBlocks.Persistence.csproj" />
-    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Resilience/FluxCommerce.BuildingBlocks.Resilience.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Web/FluxCommerce.BuildingBlocks.Web.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />

@@ -9,6 +9,7 @@
     <ProjectReference Include="..\FluxCommerce.Modules.Payments.Contracts\FluxCommerce.Modules.Payments.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Idempotency\FluxCommerce.BuildingBlocks.Idempotency.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Messaging\FluxCommerce.BuildingBlocks.Messaging.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Outbox\FluxCommerce.BuildingBlocks.Outbox.csproj" />

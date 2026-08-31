@@ -22,7 +22,6 @@
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Web\FluxCommerce.BuildingBlocks.Web.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Outbox\FluxCommerce.BuildingBlocks.Outbox.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Idempotency\FluxCommerce.BuildingBlocks.Idempotency.csproj" />
-    <ProjectReference Include="..\..\..\src\BuildingBlocks\FluxCommerce.BuildingBlocks.Resilience\FluxCommerce.BuildingBlocks.Resilience.csproj" />
   </ItemGroup>
 
   <ItemGroup>
