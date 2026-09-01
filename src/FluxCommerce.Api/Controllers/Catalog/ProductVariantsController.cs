@@ -13,6 +13,8 @@ using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
+using FluxCommerce.Api.Extensions;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -52,6 +54,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Creates a new variant for the specified product.</summary>
     [HttpPost]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Create(Guid productId, [FromBody] CreateProductVariantRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductVariantCommand(productId, request.Sku, request.Name, request.UnitPriceAmount, request.Currency);
@@ -64,6 +67,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Creates multiple variants for the specified product.</summary>
     [HttpPost("batch")]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> CreateBatch(Guid productId, [FromBody] CreateProductVariantsRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductVariantsCommand(
@@ -79,6 +83,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Updates an existing variant.</summary>
     [HttpPut("{variantId:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid variantId, [FromBody] UpdateProductVariantRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductVariantCommand(variantId, request.Sku, request.Name);
@@ -87,6 +92,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Deletes a variant.</summary>
     [HttpDelete("{variantId:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Delete(Guid productId, Guid variantId, CancellationToken cancellationToken)
     {
         var command = new DeleteProductVariantCommand(variantId);

@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
+using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+using Microsoft.Extensions.DependencyInjection;
 using ContractsProductVisibility = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductVisibility;
 
 namespace FluxCommerce.IntegrationTests;
@@ -25,6 +27,21 @@ public abstract class CatalogApiTestBase
     protected HttpClient Client => _client;
 
     protected async Task AuthorizeAsync()
+    {
+        if (_accessToken is not null)
+            return;
+
+        // Catalog mutations now require AdminPolicy (Phase D). Create an Admin JWT directly
+        // (role claim is sufficient for Authorization, no DB user needed for test speed).
+        var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
+        var adminEmail = $"catalog-admin-{Guid.NewGuid():N}@example.com";
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), adminEmail, ["Admin"]);
+        _accessToken = adminToken;
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+        await Task.CompletedTask;
+    }
+
+    protected async Task AuthorizeAsCustomerAsync()
     {
         if (_accessToken is not null)
             return;

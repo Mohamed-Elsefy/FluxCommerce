@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
@@ -11,6 +11,8 @@ using FluxCommerce.Modules.Catalog.Application.Queries.GetProductAttributeValue;
 using FluxCommerce.Modules.Catalog.Application.Queries.ListProductAttributeValues;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
+
+using FluxCommerce.Api.Extensions;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -48,6 +50,7 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
 
     /// <summary>Assigns an attribute value to the specified product.</summary>
     [HttpPost]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Assign(Guid productId, [FromBody] AssignProductAttributeValueRequest request, CancellationToken cancellationToken)
     {
         var command = new AssignProductAttributeValueCommand(productId, request.AttributeDefinitionId, request.Value);
@@ -56,6 +59,7 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
 
     /// <summary>Updates an attribute value of the specified product.</summary>
     [HttpPut("{attributeDefinitionId:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid attributeDefinitionId, [FromBody] UpdateProductAttributeValueRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductAttributeValueCommand(productId, attributeDefinitionId, request.Value);
@@ -64,6 +68,7 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
 
     /// <summary>Removes an attribute value from the specified product.</summary>
     [HttpDelete("{attributeDefinitionId:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Remove(Guid productId, Guid attributeDefinitionId, CancellationToken cancellationToken)
     {
         var command = new RemoveProductAttributeValueCommand(productId, attributeDefinitionId);
@@ -88,3 +93,5 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
         return Success(await _listProductAttributeValuesHandler.HandleAsync(query, cancellationToken));
     }
 }
+
+

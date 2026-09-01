@@ -18,6 +18,7 @@ namespace FluxCommerce.Api.Controllers.Payments;
 
 [ApiController]
 [Route("api/payments")]
+[Authorize]
 [Tags(EndpointTags.Payments)]
 public sealed class PaymentsController : ApiControllerBase
 {
@@ -49,7 +50,6 @@ public sealed class PaymentsController : ApiControllerBase
     /// Retrieves a payment by identifier. Customer ownership is enforced.
     /// </summary>
     [HttpGet("{paymentId:guid}")]
-    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

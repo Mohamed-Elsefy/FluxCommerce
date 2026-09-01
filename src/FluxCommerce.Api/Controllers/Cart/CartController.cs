@@ -20,10 +20,7 @@ using FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
 using FluxCommerce.Modules.Cart.Contracts.Requests;
 using FluxCommerce.Modules.Cart.Contracts.Responses;
-using FluxCommerce.Modules.Cart.Domain.ValueObjects;
-
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FluxCommerce.Api.Controllers.Cart;
@@ -31,6 +28,7 @@ namespace FluxCommerce.Api.Controllers.Cart;
 [ApiController]
 [Route("cart")]
 [Tags(EndpointTags.Cart)]
+[Authorize]
 public sealed class CartController : ApiControllerBase
 {
     private readonly ICommandHandler<CreateGuestCartCommand, Result<CartState>> _createGuestCartHandler;

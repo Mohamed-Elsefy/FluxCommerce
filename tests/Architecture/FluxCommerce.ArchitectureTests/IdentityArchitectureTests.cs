@@ -121,6 +121,117 @@ public class IdentityArchitectureTests
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
+    [Fact]
+    public void AdminController_ShouldRequire_SuperAdminPolicy()
+    {
+        var apiAssembly = ArchitectureRegistry.Api;
+        var adminController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AdminController");
+
+        Assert.NotNull(adminController);
+
+        var classAuth = adminController!.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+            .FirstOrDefault();
+
+        Assert.NotNull(classAuth);
+        Assert.Equal("SuperAdmin", classAuth!.Policy);
+
+        var methods = adminController.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(m => m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false).Any());
+
+        Assert.True(methods.Any(), "AdminController should have POST actions");
+
+        foreach (var method in methods)
+        {
+            var methodAuth = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                .FirstOrDefault();
+
+            // Class-level SuperAdmin covers all, but if method has its own it must also be SuperAdmin
+            if (methodAuth != null)
+            {
+                Assert.Equal("SuperAdmin", methodAuth.Policy);
+            }
+        }
+    }
+
+    [Fact]
+    public void RegisterAdmin_ShouldRequire_SuperAdminPolicy()
+    {
+        var apiAssembly = ArchitectureRegistry.Api;
+        var authController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AuthController");
+
+        Assert.NotNull(authController);
+
+        var method = authController!.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .FirstOrDefault(m => m.Name == "RegisterAdmin");
+
+        Assert.NotNull(method);
+
+        var authAttr = method!.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+            .FirstOrDefault();
+
+        Assert.NotNull(authAttr);
+        Assert.Equal("SuperAdmin", authAttr!.Policy);
+    }
+
+    [Fact]
+    public void CatalogMutations_ShouldRequire_AdminPolicy()
+    {
+        var apiAssembly = ArchitectureRegistry.Api;
+        var catalogControllers = apiAssembly.GetTypes()
+            .Where(t => t.Namespace == "FluxCommerce.Api.Controllers.Catalog" && t.Name.EndsWith("Controller"))
+            .ToList();
+
+        Assert.True(catalogControllers.Any(), "Catalog controllers should exist");
+
+        var failures = new List<string>();
+
+        foreach (var controller in catalogControllers)
+        {
+            var methods = controller.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
+
+            foreach (var method in methods)
+            {
+                var httpAttrs = method.GetCustomAttributes(false)
+                    .Where(a => a.GetType().Name.StartsWith("HttpPost") || a.GetType().Name.StartsWith("HttpPut") || a.GetType().Name.StartsWith("HttpDelete") || a.GetType().Name.StartsWith("HttpPatch"))
+                    .ToList();
+
+                if (!httpAttrs.Any())
+                    continue;
+
+                // Allow anonymous reads are HttpGet with AllowAnonymous — skip those
+                var allowAnon = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), true).Any();
+                if (allowAnon)
+                    continue;
+
+                var authorizeAttrs = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                    .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                    .ToList();
+
+                // Must have Authorize with Admin policy either on method or class
+                var hasAdminPolicy = authorizeAttrs.Any(a => a.Policy == "Admin");
+
+                if (!hasAdminPolicy)
+                {
+                    var classAuth = controller.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                        .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                        .FirstOrDefault();
+
+                    hasAdminPolicy = classAuth != null && classAuth.Policy == "Admin";
+                }
+
+                if (!hasAdminPolicy)
+                {
+                    failures.Add($"{controller.Name}.{method.Name} is a mutation but does not require AdminPolicy");
+                }
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
     private static void AssertNoDependencies(
         System.Reflection.Assembly assembly,
         string forbiddenNamespace,
