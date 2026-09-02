@@ -23,6 +23,9 @@ public class IdentitySeederTests
 
         services.AddLogging();
         services.AddSingleton(NullLogger<IdentitySeeder>.Instance);
+        services.AddSingleton<FluxCommerce.BuildingBlocks.Application.Abstractions.IDateTimeProvider>(new FakeDateTimeProvider());
+        services.AddSingleton<FluxCommerce.BuildingBlocks.Application.Abstractions.ICurrentUser>(new FakeCurrentUser());
+        services.AddScoped<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor>(_ => new FakeSaveChangesInterceptor());
 
         var sqliteProvider = new ServiceCollection()
             .AddEntityFrameworkSqlite()
@@ -156,4 +159,19 @@ public class IdentitySeederTests
             Assert.Equal(1, count);
         }
     }
+
+    private sealed class FakeDateTimeProvider : FluxCommerce.BuildingBlocks.Application.Abstractions.IDateTimeProvider
+    {
+        public DateTime UtcNow => DateTime.UtcNow;
+    }
+
+    private sealed class FakeCurrentUser : FluxCommerce.BuildingBlocks.Application.Abstractions.ICurrentUser
+    {
+        public Guid? UserId => null;
+        public string? Email => null;
+        public string[] Roles => [];
+        public bool IsAuthenticated => false;
+    }
+
+    private sealed class FakeSaveChangesInterceptor : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor { }
 }

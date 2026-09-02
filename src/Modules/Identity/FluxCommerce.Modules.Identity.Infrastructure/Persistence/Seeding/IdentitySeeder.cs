@@ -36,7 +36,14 @@ public sealed class IdentitySeeder
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        await _dbContext.Database.MigrateAsync(cancellationToken);
+        if (string.Equals(_dbContext.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+        {
+            await _dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        }
+        else
+        {
+            await _dbContext.Database.MigrateAsync(cancellationToken);
+        }
 
         // Seed Roles table (lookup) — idempotent via RoleRepository.AddAsync duplicate check + unique index
         foreach (var roleName in new[] { Roles.Customer, Roles.Admin, Roles.SuperAdmin })
