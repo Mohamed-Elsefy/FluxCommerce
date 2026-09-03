@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Abstractions\" />
+    <Folder Include="Results\" />
+    <Folder Include="Errors\" />
+    <Folder Include="Behaviors\" />
+    <Folder Include="Interfaces\" />
+  </ItemGroup>
+
+</Project>

@@ -1209,6 +1209,363 @@ Phase 20
 Production Hardening
 ```
 
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below), and **Phase 10** (Payment Saga & Compensation Workflows — `docs/completed/PHASE_10_COMPLETION_REPORT.md`, summarized in §14.9 below), and **Phase 11** (Reservation Expiry Orchestration — `docs/completed/PHASE_11_COMPLETION_REPORT.md`, summarized in §14.10 below), and **Refactoring Cycle 2 (R2)** (Structural Hardening — `docs/refactoring/REFACTORING_2_COMPLETION.md`, summarized in §14.11 below). Next is **Phase 12** (Failure Testing).
+
+### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
+
+The core MVP roadmap is extended by the Internationalization Foundation (Phase 1.6), completed as subphases 1.6.1–1.6.10.
+
+**Scope.** Shared cross-cutting localization infrastructure used by every module — not multilingual business data (Products, Categories, Brands, etc.). Business data remains single-language; only user-facing strings (validation messages, ProblemDetails, identity/auth errors, transactional emails, API docs) are localized.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 1.6.1 | Localization architecture (culture registry, resolution strategy, resource organization) | Implemented |
+| 1.6.2 | ASP.NET Core localization infrastructure (middleware, options, services) | Implemented |
+| 1.6.3 | Shared resource system (neutral + `fr`/`de`/`es`/`ar` satellites) | Implemented |
+| 1.6.4 | Localization abstractions (`ILocalizer`, `ICurrentCulture`) | Implemented |
+| 1.6.5 | Validation localization | Implemented |
+| 1.6.6 | ProblemDetails localization | Implemented |
+| 1.6.7 | Identity localization | Implemented |
+| 1.6.8 | Email localization | Implemented |
+| 1.6.9 | API documentation localization support | Implemented |
+| 1.6.10 | Final verification & phase closure (this entry) | Implemented |
+
+**Key decisions (localization architecture).**
+
+- Abstractions-only rule: Domain/Application layers depend only on `ILocalizer`/`ICurrentCulture` (BuildingBlocks.Localization), never on ASP.NET Core localization types.
+- Single culture registry `LocalizationConfiguration.SupportedCultures` (`en`, `fr`, `de`, `es`, `ar`, default `en`); no `ResourcesPath` (resources resolved by type namespace).
+- Single shared resource repository (`SharedResources` + satellites, 75 keys each, full parity).
+- Stable `Error.Code` unchanged; `IErrorCodeLocalizer` maps code → resource key only at the presentation boundary (API host); status codes and ProblemDetails shape unchanged.
+
+**Source of truth.** The full i18n subphase breakdown, decisions, deliverables and verification results are recorded in `docs/completed/PHASE_1_COMPLETION_REPORT.md` (§14).
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 12/12, Unit tests 183/183, Integration tests 42/42.
+
+**Deferred.** Storage-backed per-user `PreferredLanguage` provider — future subphase; current culture resolution is request-scoped (query, cookie, `Accept-Language`).
+
+### 14.2 Phase 1.5 — Runtime Preparation & First Startup — Implemented & Verified
+
+The runtime preparation phase (see `docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md` and `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) transformed the solution into a runnable application:
+
+- **Runtime configuration & hosting** — `Program.cs`, per-module connection strings, JWT/Email/Cache/broker settings in `appsettings.Development.json`, `http`/`https` launch profiles.
+- **Swagger / OpenAPI** — Swagger UI + OpenAPI document (`v1`), XML docs, JWT bearer security definition/requirement for in-Swagger authorization.
+- **Database initialization** — design-time DbContext factories for all module persistence projects; Identity migrations `InitialIdentity`, `EnrichUserProfile`, `AdjustDisplayNameLength` (3/3 applied).
+- **Docker environment** — `docker-compose.yml` (SQL Server, Redis, RabbitMQ, smtp4dev) with health checks.
+- **Verification** — first end-to-end runtime verification of Identity (register → verify → login → authorize → refresh → logout), health endpoints operational.
+
+**Deferred per scope** — API versioning, rate limiting, refresh-token hashing, CI/CD, production secret management, OAuth/external login, MFA, passkeys (SMTP email provider was delivered within Phase 1 instead).
+
+---
+
+### 14.3 Phase 3 — Cart Module — Implemented & Verified
+
+The Cart Module (Phase 3) delivers the shopping cart domain — the first customer-facing commerce domain. It introduces the **Cart** aggregate with **CartItem** entities, supporting both **Guest** and **Authenticated** carts, **Redis-backed persistence**, **Catalog contract integration** for variant validation and snapshots, **Guest → Authenticated merge**, a complete **REST API**, full **localization**, and a green test suite.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 3.1 | Cart Module Foundation — Redis setup, module structure, DI, ICartStore, architecture tests | Implemented |
+| 3.2 | Cart Domain Model — Cart aggregate, CartItem, ownership, quantity rules, Add/Update/Remove/Clear/Merge, domain errors | Implemented |
+| 3.3 | Redis Cart Persistence — ICartStore, RedisCartStore, serialization, key naming, TTL, CAS, merge-and-consume script | Implemented |
+| 3.4 | Guest Cart — Opaque CartId, create/get/add/update/remove/clear/expiration, ownership protection | Implemented |
+| 3.5 | Authenticated Cart — ICurrentUser integration, UserId ownership, one active cart per user | Implemented |
+| 3.6 | Cart Merge — Guest → Authenticated, duplicate variant handling, quantity aggregation, guest consumption, idempotency, concurrency | Implemented |
+| 3.7 | Catalog Contract Integration — ICatalogVariantCartLookup, variant eligibility, price/snapshot data | Implemented |
+| 3.8 | Cart Application Use Cases — 11 commands, 2 queries, 13 handlers, ownership, Domain/Catalog/Store coordination | Implemented |
+| 3.9 | Cart API — CartController, request/response DTOs, guest/auth endpoints, ProblemDetails, Swagger | Implemented |
+| 3.10 | Localization & Error Handling — 16 Cart keys, 12 error codes, ErrorCodeLocalizer, Arabic/English parity | Implemented |
+| 3.11 | Testing & Hardening — 722 Cart tests (509 unit + 178 integration + 35 architecture) | Implemented |
+| 3.12 | Documentation & Closure — PROJECT_CONTEXT sync, Architecture review, Swagger review, Phase 4 readiness | Implemented |
+
+**Key decisions (Cart architecture).**
+
+- Redis is the primary Cart persistence — no SQL schema/EF migrations for Cart state.
+- Cart owns temporary shopping state; Catalog owns product state; Orders will own order state.
+- Guest Cart identity is an opaque, non-sequential CartId; Authenticated Cart uses ICurrentUser.
+- Cart Merge is Guest → Authenticated only; merge is idempotent, atomic (target persist + source consume), and concurrency-safe.
+- Catalog integration uses explicit contract (`ICatalogVariantCartLookup`) — zero CatalogDbContext dependency.
+- Cart snapshots (ProductId, SKU, ProductName, UnitPrice, Currency) come from Catalog at add-time; Cart price is a temporary snapshot, not final order price.
+- Optimistic concurrency via Cart version + Redis CAS; all mutations validate expected version.
+- Single batch Catalog call per add/merge (no N+1); malformed Catalog results fail safely.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 74/74, Unit tests 1,259/1,259, Integration tests 178/178; Cart-specific: 509 unit + 178 integration + 35 architecture = 722 green.
+
+**Deferred.** Cart expiration background worker (Redis TTL handles it), Inventory reservation (Phase 5), Final pricing/checkout (Phase 4), RabbitMQ/Outbox events (Phase 6), Wishlist (future phase).
+
+---
+
+### 14.4 Phase 4 — Orders & Checkout — Implemented & Verified
+
+The Orders & Checkout phase (see `docs/phases/PHASE_4_ORDERS_CHECKOUT.md` and `docs/completed/PHASE_4_COMPLETION_REPORT.md`) converts an authenticated customer's Cart into a durable, immutable commercial Order. It introduces the **Orders module** (Domain/Application/Infrastructure/Contracts) with the **Order aggregate**, **OrderLineItem**, **Money**, the **Pending → Cancelled** lifecycle, **authenticated Checkout** with persistent **SQL-backed idempotency**, **Catalog revalidation** and **current-price resolution**, immutable **Order snapshots**, **Cart consumption**, customer **Order queries** (list + details), **cancellation**, full **localization**, and a green test suite.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 4.1 | Orders module foundation & architecture (skeleton review, `OrdersDbContext`, DI, config, migrations infrastructure, architecture boundaries) | Implemented |
+| 4.2 | Order domain model & monetary model (Order aggregate, OrderLineItem, Money, totals, snapshots, address) | Implemented |
+| 4.3 | Order lifecycle, cancellation & domain errors (OrderStatus, Pending/Cancelled, domain errors/events) | Implemented |
+| 4.4 | Orders persistence & database schema (EF configurations, monetary precision, indexes, `CheckoutIdempotency`, `InitialOrders` migration) | Implemented |
+| 4.5 | Cart & Catalog checkout contracts (`ICartCheckoutSnapshotProvider`, `ICatalogVariantCheckoutLookup`, `ICartCheckoutConsumption`) | Implemented |
+| 4.6 | Checkout pricing & immutable Order snapshot (current-price resolution, line totals, subtotal, snapshot builder) | Implemented |
+| 4.7 | Checkout application workflow & idempotency (Checkout command, ownership, empty-cart, persistent `(Customer, Key)` idempotency, request fingerprint, atomic persistence) | Implemented |
+| 4.8 | Cart consumption & checkout failure semantics (best-effort post-commit clear, safe retry, no duplicate Orders on failure) | Implemented |
+| 4.9 | Order queries & REST API (`GET /orders`, `GET /orders/{orderId}`, `POST /orders/{orderId}/cancel`, pagination, ownership, Swagger) | Implemented |
+| 4.10 | Hardening, testing, documentation & completion (validation/authorization/localization/Swagger/security/performance/EF reviews, docs sync, completion report) | Implemented |
+
+**Key decisions (Orders architecture).**
+
+- Orders owns Order state exclusively; it never touches Cart Redis, Catalog DbContext, Inventory, Payments, RabbitMQ, or Outbox. Cross-module interaction uses only the approved checkout contracts (`Cart.Contracts`, `Catalog.Contracts`).
+- Checkout is authenticated-only and idempotent: the `Idempotency-Key` header participates in a unique `(UserId, IdempotencyKey)` constraint; the same request+key returns the original Order, a different request reusing the key is rejected with a conflict, and Order + idempotency record persist atomically in one `SaveChanges`.
+- The Cart price snapshot is never authoritative: Checkout revalidates variants against current Catalog state (batch — no per-item calls) and builds the Order from the revalidated price, SKU, product name, and eligibility.
+- The Order stores an immutable commercial snapshot (ProductId, VariantId, SKU, ProductName, UnitPrice, Quantity) and does not depend on live Catalog data after creation.
+- The Order aggregate enforces lifecycle rules (`Pending → Cancelled` only) and all monetary invariants (positive amounts, ISO 4217 currency, single-currency enforcement, deterministic arithmetic, `decimal(18,6)` SQL precision).
+- Customer queries and cancellation are ownership-scoped by the authenticated `ICurrentUser`; another customer's Order is indistinguishable from a missing one (404), preventing IDOR.
+- Order list reads use a lightweight projection (no owned line-item materialization); the page is ordered newest-first with a two-step approach because SQLite cannot `ORDER BY` a `DateTimeOffset` column.
+- Cart clearing is a best-effort step after the Order is durably committed; its failure never rolls back or duplicates the Order.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 103/103, Unit tests 1,497/1,497, Integration tests 207/207. EF model in sync with the `InitialOrders` migration (no pending model changes).
+
+**Deferred (at Phase 4).** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). At Phase 4 completion, order cancellation performed no inventory/payment compensation by design; compensation (Phase 10) and reservation expiry (Phase 11) are now implemented, with failure testing (Phase 12) next. `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
+
+### 14.5 Phase 6 — Outbox + RabbitMQ — Implemented & Verified
+
+The Outbox + RabbitMQ phase (see `docs/phases/PHASE_6_OUTBOX_RABBITMQ.md` and `docs/completed/PHASE_6_COMPLETION_REPORT.md`) establishes the reliable asynchronous messaging foundation: a module persists **Business State Change + Outbox Message** in the **same database transaction** and an Outbox Dispatcher publishes the resulting Integration Event to **RabbitMQ** asynchronously, under **At-Least-Once** delivery.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 6.1 | Baseline & messaging architecture audit (doc intentionally removed) | Implemented |
+| 6.2 | Outbox persistence model (doc intentionally removed) | Implemented |
+| 6.3 | Domain Event → Outbox integration (doc intentionally removed) | Implemented |
+| 6.4 | Integration Event contracts & versioning (ADR-007) | Implemented |
+| 6.5 | Outbox store & atomic claiming semantics | Implemented |
+| 6.6 | RabbitMQ publishing infrastructure (durable topic exchange, confirms) | Implemented |
+| 6.7 | Outbox dispatcher background services (Orders + Inventory) | Implemented |
+| 6.8 | Retry & failure recovery (exponential backoff, stale-claim recovery) | Implemented |
+| 6.9 | Correlation/Causation & observability | Implemented |
+| 6.10 | End-to-end integration tests (7 scenarios, real SQL + RabbitMQ) | Implemented |
+| 6.11 | Architecture & security hardening | Implemented |
+| 6.12 | Performance & operational hardening (publisher channel reuse) | Implemented |
+| 6.13 | Documentation synchronization | Implemented |
+| 6.14 | Final verification & completion report | Implemented |
+
+**Key decisions (messaging architecture).**
+
+- **Transactional Outbox, module-per-DbContext**: `OrdersDbContext` and `InventoryDbContext` each own their `OutboxMessages` table; business state + Outbox record commit atomically in one `SaveChanges`; no distributed or cross-module transaction.
+- **Integration Events live in module Contracts** and derive from the contract-only `IntegrationEvent` base in `BuildingBlocks.Messaging` (ADR-007, G12) — no internal implementation details leak; Domain/Application never touch Messaging or the RabbitMQ client.
+- **RabbitMQ** is a durable **topic** exchange with the event `Type` as the **routing key**; publishing uses **publisher confirms**; the publisher reuses one shared confirm-enabled channel (self-healing on closure, disposed on shutdown) to avoid per-message topology round trips.
+- **Atomic claiming**: a single conditional UPDATE (CTE + `UPDLOCK, READPAST` + `OUTPUT`) transitions `Pending → InProgress`; concurrent workers claim disjoint batches; a message is only eligible once its exponential-backoff `RetryAfterUtc` has elapsed.
+- **Retry/failure**: retryable failures return to `Pending` with backoff + error metadata; unknown/corrupt/exhausted messages go to the terminal `Failed` state; stale `InProgress` claims (post-crash) are recovered to `Pending`.
+- **At-Least-Once**: a confirmed-but-never-marked publish is republished on recovery — duplicates are possible and consumer idempotency is explicitly Phase 7.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 157/157, Unit tests 1796/1796, Integration tests 300/300 (54 Phase 6 messaging-specific) against real SQL Server + RabbitMQ, including E2E (success, broker nack + recovery, atomic rollback, stale-claim recovery, batch, duplicate boundary, cancellation). Orders and Inventory EF models are in sync with migrations (no pending changes). No Phase 7 consumers/Inbox/Saga were introduced.
+
+**Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7). Phase 10 (payment compensation) and Phase 11 (reservation expiry) are now implemented; next is Phase 12 — failure testing.
+
+### 14.6 Phase 7 — Idempotent Consumers — Implemented & Verified
+
+The Idempotent Consumers phase (see `docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md` and `docs/completed/PHASE_7_COMPLETION_REPORT.md`) completes the reliable messaging foundation with real RabbitMQ consumers, Inbox / ProcessedMessage persistence, atomic idempotent processing, bounded in-process retry with backoff, dead-lettering of terminal failures, correlation/causation propagation, structured consumer observability, and the first real production consumer — the Order Summary projection.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 7.1 | Baseline & consumer architecture audit | Implemented |
+| 7.2 | Consumer contract & processing model | Implemented |
+| 7.3 | Inbox / ProcessedMessage persistence | Implemented |
+| 7.4 | Atomic idempotent processing | Implemented |
+| 7.5 | RabbitMQ consumer infrastructure | Implemented |
+| 7.6 | ACK / retry / failure handling | Implemented |
+| 7.7 | Retry & dead-letter strategy | Implemented |
+| 7.8 | Correlation / causation & observability | Implemented |
+| 7.9 | First real integration consumer (Order Summary projection) | Implemented |
+| 7.10 | Duplicate / concurrency / failure tests | Implemented |
+| 7.11 | Architecture & security hardening | Implemented |
+| 7.12 | Performance & operational hardening | Implemented |
+| 7.13 | Documentation synchronization | Implemented |
+| 7.14 | Final verification & completion report | Implemented |
+
+**Key decisions (consumer architecture).**
+
+- Consumers consume from the SAME Phase 6 durable topic exchange (no parallel messaging architecture); delivery is manual ACK — a message is acknowledged only after Business State + ProcessedMessage commit.
+- The idempotency identity is `EventId + HandlerName`, stored as the canonical `ProcessedMessage` in each consuming module's own DbContext; the composite `(Key, Handler)` PRIMARY KEY is the SQL concurrency arbiter (module-local, never cross-module).
+- `IIdempotentProcessor.TryProcessAsync` is the single atomic processing boundary: Business State + ProcessedMessage commit in ONE module-local transaction; a business failure rolls both back (message stays retryable); a duplicate is acknowledged without re-execution; a concurrent duplicate race is resolved by the database (exactly one effect).
+- **Module-owned processors (critical):** each consumer resolves BOTH its handler and its `IIdempotentProcessor` by the concrete type declared on its descriptor via `AddIntegrationEventConsumer<TEvent, THandler, TProcessor>` — never the container-wide `IIdempotentProcessor` interface (last-registration-wins across modules). Orders consumers always use `OrdersIdempotentProcessor`/`OrdersDbContext`; Inventory consumers always use `InventoryIdempotentProcessor`/`InventoryDbContext`.
+- Retry is in-process, bounded (`MaxAttempts`, exponential backoff capped by `MaxDelay`, attempt counter seeded from the broker `x-death` count), and deliberately separate from the Phase 6 outbox publication retry.
+- Terminal failures (malformed, permanent, exhausted) reach a durable DLX/DLQ topology; permanent/exhausted failures are dead-lettered as enriched copies with failure metadata, malformed ones verbatim.
+- Consumer observability uses a consistent structured field set (MessageId, EventId, EventType, EventVersion, CorrelationId, CausationId, Consumer, Attempt, Result, FailureClassification, DeadLetterReason, DurationMs); business payloads are never logged.
+- Graceful shutdown cancels in-flight processing (leaving uncommitted deliveries unacknowledged so the broker redelivers them, at-least-once), then disposes channels.
+- `ProcessedMessage` records are retained indefinitely with no automated cleanup by design (documented constraint in `docs/ARCHITECTURE.md` §14.1.1); a controlled purge is only safe once a workflow has a confirmed end-of-life.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 163/163, Unit tests 1910/1910, Integration tests 343/343 (real SQL Server + RabbitMQ), including Phase 6 outbox/publisher regression 47/47 and Phase 7 consumer/idempotency/ProcessedMessage scenarios 40/40. Module isolation is proven by dedicated integration tests (Orders consumer writes only the Orders database, Inventory consumer writes only the Inventory database, regardless of container registration order).
+
+**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; next is Phase 12 — failure testing.
+
+---
+
+### 14.7 Phase 8 — Order/Inventory Saga — Implemented & Verified
+
+The Order/Inventory Saga phase (see `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IMPLEMENTATION_PLAN.md` and `docs/completed/PHASE_8_COMPLETION_REPORT.md`) implements the first reliable cross-module business workflow: on `orders.order_created` the Saga starts, publishes `inventory.reservation_requested`, and consumes `inventory.reserved` / `inventory.reservation_failed`. A success completes the Saga while the Order stays Pending; a failure fails the Saga, cancels the Order, and publishes `orders.order_cancelled`; a cancellation with an active reservation publishes `inventory.release_requested`, compensated by the Inventory module.
+
+**Subphases completed.**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 8.1 | Saga architecture & baseline audit | Implemented |
+| 8.2 | Saga state model & persistence | Implemented |
+| 8.3 | Order saga orchestration | Implemented |
+| 8.4 | Inventory reservation command flow | Implemented |
+| 8.5 | Inventory result events | Implemented |
+| 8.6 | Order state transitions | Implemented |
+| 8.7 | Compensation & release inventory | Implemented |
+| 8.8 | Idempotency, concurrency & recovery hardening | Implemented |
+| 8.9 | Observability & distributed trace verification | Implemented |
+| 8.10 | Final verification, hardening & completion | Implemented |
+
+**Key decisions (saga architecture).**
+
+- The Saga is Orders-owned orchestration living in `Orders.Infrastructure`; its state table holds only workflow progress (Id, OrderId, CorrelationId, State, timestamps, concurrency Version) and never duplicates Order or Inventory business state (ADR-009).
+- Wire contracts live in `Inventory.Contracts` (the module that owns the operations/state); Orders.Infrastructure gets the narrow approved reference to `Inventory.Contracts` (`Integration`/`IntegrationEvents` namespaces only), encoded in the architecture tests; Inventory never references Orders.
+- Coordination flows only through explicit Integration Event contracts over RabbitMQ via each module's Outbox and idempotent consumer infrastructure — no cross-module database access, no distributed transactions.
+- Saga transitions are guarded by the Saga row's optimistic concurrency token in addition to each consumer's idempotent-processing boundary, so duplicate or conflicting results (Reserved vs Failed, concurrent duplicates) apply at most once — exactly one business effect.
+- Every Saga-produced event carries correlation/causation: `OrderCreated(C1)` → `ReservationRequested(C1)` → `Reserved`/`Failed(C1)` → Order transition, with a W3C trace propagated and exported across every async hop (TraceParent/TraceState in Outbox rows and broker headers).
+- Failure compensation: a reservation failure cancels the Order (Order stays Cancelled; the summary projection stays fresh via an `orders.order_cancelled` consumer) and a cancelled order with an active reservation issues a compensating `inventory.release_requested` that is idempotent and durable.
+
+**Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2095/2095, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure) plus 22 Phase 10 workflow tests (Payment Succeeded, Payment Failed, Refund, Inventory Compensation, Idempotency races, Concurrency safety, 8 Failure/Recovery scenarios A–H, Tracing validation). Integration tests require Redis server (unavailable in this environment; 110 Redis-dependent tests excluded). Phase 6/7 messaging and idempotency behavior remain green (regression).
+
+**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; next is Phase 12 — failure testing.
+
+---
+
+### 14.8 Phase 9 — Stripe Payments — Implemented & Verified
+
+Phase 9 (see `PHASE_9_COMPLETION_REPORT.md` and `docs/phases/PHASE_9_STRIPE_PAYMENTS_IMPLEMENTATION_PLAN.md`) delivers a production-grade **Payments** bounded context that owns Payment state and integrates with Stripe without leaking provider concerns.
+
+**Subphases completed (9.1–9.13):**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 9.1 | Baseline & payment architecture audit (PROJECT_CONTEXT/ARCHITECTURE review, Saga integration point) | Implemented |
+| 9.2 | Payments module foundation (Domain/Application/Infrastructure/Contracts, PaymentsDbContext, StripeOptions externalized, 5 migrations) | Implemented |
+| 9.3 | Payment domain model & lifecycle (Payment `Pending→Processing→Succeeded/Failed/Cancelled`, invariants, domain events, terminal guards) | Implemented |
+| 9.4 | Persistence & concurrency (EF `PaymentConfiguration` filtered unique `ProviderPaymentIntentId`, `OrderId`, concurrency `Version`, `ProcessedWebhookEvents` dedup) | Implemented |
+| 9.5 | Stripe integration boundary (`IStripePaymentGateway` Application → `StripePaymentGateway` Infrastructure, Stripe SDK confined) | Implemented |
+| 9.6 | Payment Intent creation (authoritative `Amount/Currency`, `Error` mapping, no secret logging) | Implemented |
+| 9.7 | Payment Intent idempotency (`intent_{OrderId}_{PaymentId}_{Version}` via `RequestOptions.IdempotencyKey` + app unique `OrderId`) | Implemented |
+| 9.8 | Webhook endpoint & security (`POST /api/payments/webhook` `[AllowAnonymous]`, raw `EnableBuffering` UTF-8, `Stripe-Signature` → `EventUtility.ConstructEvent`, 400/200 non-leaking, `IStripeWebhookService`) | Implemented |
+| 9.9 | Webhook idempotent processing (`ProcessedWebhookEvents` `UX_StripeEventId`, atomic `AnyAsync`+constraint race → `AlreadyProcessed`) | Implemented |
+| 9.10 | Stripe event → Payment state (`succeeded→Succeed`, `payment_failed→Fail`, `canceled→Cancel`, `processing→Process`, unsupported/out-of-order safely ignored) | Implemented |
+| 9.11 | Payment integration events & Outbox (`PaymentSucceeded/FailedIntegrationEvent` in `Payments.Contracts`, `IntegrationEventOutboxMessageFactory` → `OutboxMessages` atomically with Payment + webhook) | Implemented |
+| 9.12 | Testing, observability & hardening (`ActivitySource FluxCommerce` `Payments.*`, structured `OrderId/PaymentId/Stripe* /Correlation/Causation`, `[Authorize]` + ownership `CustomerId` check, 11 Scenarios) | Implemented |
+| 9.13 | Final verification & Phase Completion (this entry, ARCHITECTURE sync, build/tests green) | Implemented |
+
+**Key decisions (payments architecture):**
+
+* **Ownership:** Payments owns `Payment`/`ProcessedWebhookEvent`/`OutboxMessage`; Orders/Saga owns `Order`/`Saga` — no cross-DbContext access, coordination only via `payments.payment_succeeded/failed` integration events (`Payments.Contracts`) over Outbox/RabbitMQ.
+* **Stripe isolation:** `Payments.Domain/Application/Contracts` have zero `Stripe.net` references; only `Payments.Infrastructure` references `Stripe.net` (verified `Payments_Domain/Application/Contracts_ShouldNot_Reference` + `StripeIsolation` tests).
+* **Webhook flow:** `Stripe → webhook [AllowAnonymous] → Verify (IStripeWebhookService) → Idempotent processor (unique `StripeEventId`) → State machine (`Succeed/Fail/...` with terminal protection) → Outbox (same `PaymentsDbContext` transaction) → Dispatcher → RabbitMQ`. Duplicate/concurrent deliveries → `AlreadyProcessed` + `200 OK` (Stripe stops retrying).
+* **Observability:** `PaymentsActivitySource` (`FluxCommerce` name) spans `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process`; logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/CorrelationId( OrderId)/CausationId(ProcessedEventId)`; no `SecretKey`/card data.
+* **Security:** `StripeOptions` via `IOptions<StripeOptions>` (`SecretKey/WebhookSecret` externalized, no hardcoded secrets); `GET /api/payments/{paymentId}` `[Authorize]` enforces `CustomerId==ICurrentUser.UserId` else `404` (ownership); only webhook is `AllowAnonymous`.
+
+**Verification.** `dotnet build FluxCommerce.slnx -c Debug` → 0 warnings 0 errors; `Architecture 166/166`, `Unit 2095/2095` (32 `Payments` + full suite including Phase 10 Sagas/Compensation/Hardening/Refund/Tracing) + `Integration 376/376` (real SQL/RabbitMQ/Redis when infra available; Sqlite-based Payments webhook/outbox tests green, Phase 10 E2E integration tests green). No pending EF model changes (5 Payments migrations).
+
+**Phase 10 (Payment Saga & Compensation) and Phase 11 (Reservation Expiry Orchestration) implemented & verified** (see 14.9 and 14.10 below).
+**Deferred.** Failure testing (Phase 12), Search (Phase 13), Promotions & Coupons (Phase 14), Wishlist (Phase 15), Reviews (Phase 16), Notifications (Phase 17), Shipping (Phase 18), Analytics (Phase 19), Production Hardening (Phase 20).
+
+### 14.9 Phase 10 — Payment Saga & Compensation Workflows — Implemented & Verified
+
+Phase 10 (see `docs/completed/PHASE_10_COMPLETION_REPORT.md` and `docs/phases/PHASE_10_PAYMENT_SAGA_COMPENSATION.md`) delivers the Order/Payment Saga orchestration with compensation, extending the Phase 8 Order/Inventory Saga to incorporate Payment orchestration (`WaitingForInventory → WaitingForPayment → Completed`) and refund compensation (`ReleasingInventory`, `Refunding`) without 2PC or distributed transactions.
+
+**Subphases completed (10.1–10.14):**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 10.1–10.2 | Baseline & Saga/Payment architecture audit; Payment Saga state model (`WaitingForInventory`, `WaitingForPayment`, `Completed`, `Failed`, `Cancelled`, `ReleasingInventory`, `Refunding`) | Implemented |
+| 10.3 | Payment initiation flow (`payments.payment_requested`), outbox dispatcher, consumer in `Orders.Infrastructure` | Implemented |
+| 10.4 | PaymentSucceeded flow → Order Confirmed, Saga `Completed`, `OrderConfirmed` event | Implemented |
+| 10.5–10.6 | PaymentFailed flow → `ReleasingInventory`, Inventory compensation (`inventory.release_requested`) → `Cancelled` | Implemented |
+| 10.7–10.8 | Order cancellation & saga finalization (`Cancelled→Completed`), Payment refund (`PaymentStatus.Refunded`, Stripe refund, Saga `Refunding`) | Implemented |
+| 10.9–10.10 | Idempotency, concurrency & recovery hardening; 8 failure/recovery scenarios (A–H) | Implemented |
+| 10.11–10.12 | Observability & W3C distributed tracing; full E2E integration verification | Implemented |
+| 10.13–10.14 | Architecture/Security/Performance audit; documentation & final completion | Implemented |
+
+**Verification.** Build 0 warnings/0 errors; `Architecture 166/166`, `Unit 2044/2044`, `Integration 376/376`. Documented in `docs/completed/PHASE_10_COMPLETION_REPORT.md` and `docs/adr/ADR-0010-payment-saga-and-compensation-workflows.md`.
+
+**Deferred.** Reservation expiry orchestration (Phase 11), failure testing (Phase 12).
+
+### 14.10 Phase 11 — Reservation Expiry Orchestration — Implemented & Verified
+
+Phase 11 (see `docs/completed/PHASE_11_COMPLETION_REPORT.md` and `docs/phases/PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md`) closes the reservation-timeout path of the Order Processing Saga. When an Inventory reservation expires, the system produces the `InventoryReservationExpiredIntegrationEvent` (`Inventory.Contracts`), persists it transactionally in the Outbox, publishes it through the Outbox Dispatcher to RabbitMQ, and an idempotent consumer in `Orders.Infrastructure` (`InventoryReservationExpiredConsumer`, handler `Orders.ApplyReservationExpired`) drives the Saga from `WaitingForPayment → Cancelled`. No double release, no duplicate refund, terminal states protected.
+
+**Subphases completed (11.1–11.12):**
+
+| SubPhase | Scope | Status |
+|----------|-------|--------|
+| 11.1 | Baseline & reservation-expiry architecture audit | Implemented |
+| 11.2 | Integration contract & Outbox (`InventoryReservationExpiredIntegrationEvent` in `Inventory.Contracts`) | Implemented |
+| 11.3 | Transactional state + Outbox persistence & dispatch to RabbitMQ | Implemented |
+| 11.4 | Orders consumer registration (`InventoryReservationExpiredConsumer`) | Implemented |
+| 11.5 | Saga expiry model (`OrderSaga.ApplyReservationExpired`, `WaitingForPayment → Cancelled`) | Implemented |
+| 11.6 | Consumer + compensation & race handling | Implemented |
+| 11.7 | Idempotency, concurrency & recovery safety | Implemented |
+| 11.8 | Observability & distributed tracing across the async boundary | Implemented |
+| 11.9 | Integration & E2E test coverage | Implemented |
+| 11.10 | Migration of stale Phase 8 `Completed`-after-reservation tests to `WaitingForPayment` post payment-phase | Implemented |
+| 11.11 | Architecture/Security/Performance audit; N+1 batched-load hardening of `ExpiredReservationProcessor` | Implemented |
+| 11.12 | Final verification & this documentation entry | Implemented |
+
+**State transition rule (final `OrderSaga` matrix for `ReservationExpired`):** `WaitingForPayment → Cancelled` is the only valid transition; `WaitingForInventory`, `ReleasingInventory`, `Refunding`, `Completed`, `Failed`, `Cancelled` are benign idempotent no-ops (a late/duplicate `ReservationExpired` never moves a terminal or in-flight-compensation saga); any unspecified state → `InvalidStateTransition`.
+
+**Architectural decisions:** contract lives in `Inventory.Contracts.IntegrationEvents` (`InventoryReservationExpiredIntegrationEvent`) distinct from the domain event `InventoryReservationExpired` (`Inventory.Domain.Events`); release on the expiry path happens in Inventory's expiration processor (released exactly once) — the Saga does not stage `inventory.release_requested` on the `WaitingForPayment→Cancelled` expiry path; the cross-module consumer carve-out is governed by the same `Orders.Infrastructure MAY reference Inventory.Contracts` rule established in Phase 8 / ADR-009.
+
+**Verification.** Build 0 warnings/0 errors; `Architecture 169/169`, `Unit 2264/2264`, `Integration 381/381` (full clean run; ambient parallel-run outbox/broker timing flakiness present in a few pre-existing tests, each passing in isolation). No new ADR required — design decisions are covered by ADR-009 / ADR-0010.
+
+**Deferred.** Failure testing (Phase 12).
+
+### 14.11 Refactoring Cycle 2 (R2) — Structural Hardening — Implemented & Verified
+
+Refactoring Cycle 2 (see `docs/refactoring/REFACTORING_2_PLAN.md`, `REFACTORING_2_BASELINE.md`, `REFACTORING_2_FINDINGS.md`, `REFACTORING_2_COMPLETION.md`) is a standalone engineering cycle after Phase 11 and before Phase 12. It hardens the reliability infrastructure (Phases 6–11) without changing business behavior.
+
+**Sub-phases completed (R2.1–R2.8):**
+
+| Sub-phase | Scope | Status |
+|-----------|-------|--------|
+| R2.1 | Baseline & safety snapshot — 0W/0E build, 169 arch / 2264 unit / 380/381 integration, 39 projects, 1421 `*.cs` | Verified |
+| R2.2 | Architecture & structural audit — 57 findings (1 Critical, 11 High, 9 Medium, 9 Low/Info kept) | Audited |
+| R2.3 | Structural & BuildingBlocks refactoring — file placement, namespace alignment, ghost removal | Implemented |
+| R2.4 | Domain & Application responsibility review — `OrderSaga` cohesive keep, payment/webhook separation | Verified |
+| R2.5 | Infrastructure & persistence — helper extraction, transaction boundary preservation | Implemented |
+| R2.6 | API & contracts hardening — route/auth consistency, thin controllers, contract purity | Implemented |
+| R2.7 | Test & architecture hardening — architecture tests 169→230, unit + identity, integration hardening | Implemented |
+| R2.8 | Final hardening, documentation sync & completion report | Implemented |
+
+**Key structural updates (R2.3–R2.6):**
+
+- **File placement (F-01–F-08, High):** `Application/Interfaces` now hosts only ports. `CartItemState`, `CartState`, `CartSaveResult` moved to `Cart.Application.Models`; `CartSaveStatus` to `Cart.Application.Enums`; `CheckoutIdempotencyRecord` / `CheckoutPersistResult` to `Orders.Application.Models`, `CheckoutPersistStatus` to `Orders.Application.Enums` (split from `ICheckoutStore.cs`); `CreatePaymentIntentRequest` / `PaymentIntentResult` / `CreateRefundRequest` / `RefundResult` to `Payments.Application.Models`, `StripeWebhookVerificationResult` to `Payments.Application.Models`, `WebhookProcessResult` to `Payments.Application.Enums` (split from gateway/webhook interfaces); `PaymentWebhookAction` introduced as owning `Payments.Application.Enums`. Namespaces aligned (`...Application.Models`, `...Application.Enums`, `...Application.Interfaces`).
+- **BuildingBlocks (F-21 Critical, F-14–F-19 High):** Removed `BuildingBlocks.Resilience` ghost (4 interfaces, 0 consumers) — solution 39→38 projects. Introduced `OutboxMessageConfigurationBase` (`BuildingBlocks.Outbox`) and `ProcessedMessageConfigurationBase` (`BuildingBlocks.Idempotency`) as shared EF Core mapping helpers; per-module `OutboxMessageConfiguration` / `ProcessedMessageConfiguration` (Orders, Inventory, Payments) inherit the base and keep isolated tables/transaction boundaries. `BuildingBlocks` count 11→10.
+- **Identity (ADR-015):** Role-based authorization hardening — `Customer`/`Admin`/`SuperAdmin` roles, `IdentitySeeder`/`IdentitySeederOptions` (UserSecrets `Identity:Seeder:SuperAdmin:Password`), `AssignRole`/`UnlockUser` commands, `GET/POST /admin` protection, catalog write guards `[Authorize(Roles=Admin)]`.
+- **Payments webhook (R2.4/9.8):** Extracted `IPaymentWebhookInterpreter` / `PaymentWebhookInterpreter` (Application) separating `IStripeWebhookService` verification from `Stripe event → PaymentWebhookAction → Payment state` interpretation; `WebhookEventProcessor` delegates to interpreter, preserving terminal-state guards and unsupported-event no-ops.
+- **API hardening (R2.6):** `CartController.CreateAuthenticatedCart` no longer takes orphan `CreateGuestCartRequest` body — now body-less `POST /cart/authenticated`. Consistent `ProducesResponseType` / route-tag parity; Swagger culture header preserved.
+- **Outbox/Idempotency duplication (F-22, ADR-007/008):** **KEEP DUPLICATION** with helper extraction — per-module `OutboxMessages` / `ProcessedMessages` tables required for module-local atomic transactions (`Business State + Outbox` / `Business State + ProcessedMessage` per §11). Shared abstraction would couple transactions and ownership. Decided in `REFACTORING_2_COMPLETION.md` §7.
+
+**BuildingBlocks ownership (final, R2.8):**
+
+```
+BuildingBlocks
+├── Domain, Application, Infrastructure, Messaging, Outbox, Idempotency, Persistence, Observability, Localization, Web (10)
+```
+
+`Resilience` removed. Each BuildingBlock is technical, cross-cutting, and consumed by ≥2 modules (or the API as the observability host). Duplication kept where transaction/ownership requires it (§9.3.3/9.3.4).
+
+**Verification (R2.8, 2026-09-02):** `dotnet restore` all up-to-date; `dotnet build FluxCommerce.slnx -c Debug` → **0 warnings, 0 errors**; `Architecture 177/177`, `Unit 2277/2277`, `Integration 402/402` (when SQL Server + RabbitMQ + Redis available; SQLite-backed suites green without infra) — compared to R2.1 baseline `169/169`, `2264/2264`, `380/381` (flaky 1, now hardened). EF `has-pending-model-changes` clean for all 5 DbContexts. Docker infrastructure (sqlserver/redis/rabbitmq) healthy. Full details in `docs/refactoring/REFACTORING_2_COMPLETION.md`.
+
+**Deferred.** Failure Testing (Phase 12) next — R2 leaves the solution 100% ready.
+
 ---
 
 # 15. Phase 0 — Detailed Foundation Scope
@@ -1285,7 +1642,7 @@ Modules
     └── Contracts
 ```
 
-Shared technical capabilities should live in:
+Shared technical capabilities should live in (authoritative list after R2 — 10 BuildingBlocks; `Resilience` removed):
 
 ```text
 BuildingBlocks
@@ -1293,10 +1650,12 @@ BuildingBlocks
 ├── Application
 ├── Infrastructure
 ├── Messaging
-├── Outbox
-├── Idempotency
+├── Outbox           (+ OutboxMessageConfigurationBase shared helper)
+├── Idempotency      (+ ProcessedMessageConfigurationBase shared helper)
+├── Persistence
 ├── Observability
-└── Resilience
+├── Localization
+└── Web
 ```
 
 Do not create shared abstractions simply to avoid duplicating a few lines of code.
@@ -1759,15 +2118,57 @@ When asked to implement a new phase, the AI agent should always follow this sequ
 
 ```text
 /docs
-    PROJECT_CONTEXT.md         
-    ARCHITECTURE.md            
-    IMPLEMENTATION_ROADMAP.md   
-    DOMAIN_MODEL.md           
-    MESSAGING.md        
-    RELIABILITY.md            
-    ADR/
+    PROJECT_CONTEXT.md          (this document — master specification)
+    ARCHITECTURE.md             (architecture specification)
+    adr/
         001-modular-monolith.md
         002-database-boundaries.md
-        003-messaging.md
-        004-order-workflow.md
+        003-building-blocks.md
+        004-messaging-reliability.md
+        005-observability.md
+        006-catalog-variant-unit-price.md
+        007-integration-event-contract-placement.md
+        008-consumer-contract-and-idempotency.md
+        009-saga-orchestration-and-contract-placement.md
+        010-payment-module-ownership-boundary.md
+        011-stripe-integration-boundary.md
+        012-payment-intent-idempotency-strategy.md
+        013-webhook-idempotency.md
+        014-payment-refund-compensation.md
+        015-identity-roles-authorization-and-seeding.md
+    phases/
+        PHASE_0_ARCHITECTURE_FOUNDATION.md
+        PHASE_1_IDENTITY_ACCESS.md
+        PHASE_1_5_RUNTIME_PREPARATION.md
+        PHASE_2_CATALOG_MODULE.md
+        PHASE_3_CART_MODULE.md
+        PHASE_4_ORDERS_CHECKOUT.md
+        PHASE_5_INVENTORY_CONCURRENCY.md
+        PHASE_6_OUTBOX_RABBITMQ.md
+        PHASE_7_IDEMPOTENT_CONSUMERS.md
+        PHASE_8_ORDER_INVENTORY_SAGA.md
+        PHASE_9_STRIPE_PAYMENTS.md
+        PHASE_10_PAYMENT_SAGA_COMPENSATION.md
+        PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md
+    completed/
+        PHASE_0_COMPLETION_REPORT.md
+        PHASE_1_COMPLETION_REPORT.md
+        PHASE_1_5_COMPLETION_REPORT.md
+        PHASE_2_COMPLETION_REPORT.md
+        PHASE_3_COMPLETION_REPORT.md
+        PHASE_4_COMPLETION_REPORT.md
+        PHASE_5_COMPLETION_REPORT.md
+        PHASE_6_COMPLETION_REPORT.md
+        PHASE_7_COMPLETION_REPORT.md
+        PHASE_8_COMPLETION_REPORT.md
+        PHASE_9_COMPLETION_REPORT.md
+        PHASE_10_COMPLETION_REPORT.md
+        PHASE_11_COMPLETION_REPORT.md
+    refactoring/
+        REFACTORING_1_PLAN.md / BASELINE.md / FINDINGS.md / COMPLETION.md
+        REFACTORING_2_PLAN.md / BASELINE.md / FINDINGS.md / COMPLETION.md
+        REFACTORING_IDENTITY_ROLES_SEEDING_PLAN.md
+    current/
+        EF_CORE_COMMANDS.md
+        LOCAL_DEVELOPMENT.md
 ```

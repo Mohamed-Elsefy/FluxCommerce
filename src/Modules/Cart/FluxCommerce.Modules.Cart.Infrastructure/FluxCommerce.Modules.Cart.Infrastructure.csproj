@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <UserSecretsId>efc79ec9-ee91-4d14-aebc-55903c49c60e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FluxCommerce.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FluxCommerce.Modules.Cart.Domain\FluxCommerce.Modules.Cart.Domain.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Cart.Application\FluxCommerce.Modules.Cart.Application.csproj" />
+    <ProjectReference Include="..\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Configuration\" />
+    <Folder Include="Redis\" />
+    <Folder Include="Repositories\" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>efc79ec9-ee91-4d14-aebc-55903c49c60e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BuildingBlocks -->
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Domain\FluxCommerce.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Application\FluxCommerce.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Infrastructure\FluxCommerce.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Localization\FluxCommerce.BuildingBlocks.Localization.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Persistence\FluxCommerce.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Observability\FluxCommerce.BuildingBlocks.Observability.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FluxCommerce.BuildingBlocks.Web\FluxCommerce.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Modules - Application -->
+    <ProjectReference Include="..\Modules\Catalog\FluxCommerce.Modules.Catalog.Application\FluxCommerce.Modules.Catalog.Application.csproj" />
+    <ProjectReference Include="..\Modules\Cart\FluxCommerce.Modules.Cart.Application\FluxCommerce.Modules.Cart.Application.csproj" />
+    <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Application\FluxCommerce.Modules.Orders.Application.csproj" />
+    <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Application\FluxCommerce.Modules.Inventory.Application.csproj" />
+    <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Application\FluxCommerce.Modules.Payments.Application.csproj" />
+    <ProjectReference Include="..\Modules\Identity\FluxCommerce.Modules.Identity.Application\FluxCommerce.Modules.Identity.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Module - Contracts -->
+    <ProjectReference Include="..\Modules\Catalog\FluxCommerce.Modules.Catalog.Contracts\FluxCommerce.Modules.Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Cart\FluxCommerce.Modules.Cart.Contracts\FluxCommerce.Modules.Cart.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Contracts\FluxCommerce.Modules.Orders.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Contracts\FluxCommerce.Modules.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Contracts\FluxCommerce.Modules.Payments.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Identity\FluxCommerce.Modules.Identity.Contracts\FluxCommerce.Modules.Identity.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Module - Infrastructure -->
+    <ProjectReference Include="..\Modules\Catalog\FluxCommerce.Modules.Catalog.Infrastructure\FluxCommerce.Modules.Catalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Cart\FluxCommerce.Modules.Cart.Infrastructure\FluxCommerce.Modules.Cart.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Orders\FluxCommerce.Modules.Orders.Infrastructure\FluxCommerce.Modules.Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Inventory\FluxCommerce.Modules.Inventory.Infrastructure\FluxCommerce.Modules.Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Payments\FluxCommerce.Modules.Payments.Infrastructure\FluxCommerce.Modules.Payments.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\FluxCommerce.Modules.Identity.Infrastructure\FluxCommerce.Modules.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+</Project>

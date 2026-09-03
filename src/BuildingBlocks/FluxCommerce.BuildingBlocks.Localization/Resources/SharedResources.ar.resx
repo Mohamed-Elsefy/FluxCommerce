@@ -1,0 +1,483 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Common.Success" xml:space="preserve">
+    <value>نجاح</value>
+  </data>
+  <data name="Common.Error" xml:space="preserve">
+    <value>خطأ</value>
+  </data>
+  <data name="Common.Warning" xml:space="preserve">
+    <value>تحذير</value>
+  </data>
+  <data name="Common.Save" xml:space="preserve">
+    <value>حفظ</value>
+  </data>
+  <data name="Common.Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="Common.Confirm" xml:space="preserve">
+    <value>تأكيد</value>
+  </data>
+  <data name="Common.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Common.Search" xml:space="preserve">
+    <value>بحث</value>
+  </data>
+  <data name="Common.Language" xml:space="preserve">
+    <value>اللغة</value>
+  </data>
+  <data name="Common.Loading" xml:space="preserve">
+    <value>جارٍ التحميل...</value>
+  </data>
+  <data name="Common.NoResults" xml:space="preserve">
+    <value>لا توجد نتائج.</value>
+  </data>
+  <data name="Common.Unknown" xml:space="preserve">
+    <value>غير معروف</value>
+  </data>
+  <data name="Validation.Field.Required" xml:space="preserve">
+    <value>{0} مطلوب.</value>
+  </data>
+  <data name="Validation.Field.Invalid" xml:space="preserve">
+    <value>{0} غير صالح.</value>
+  </data>
+  <data name="Validation.Field.MinLength" xml:space="preserve">
+    <value>يجب ألا يقل {0} عن {1} أحرف.</value>
+  </data>
+  <data name="Validation.Field.MaxLength" xml:space="preserve">
+    <value>يجب ألا يتجاوز {0} {1} أحرف.</value>
+  </data>
+  <data name="Validation.Field.Range" xml:space="preserve">
+    <value>يجب أن يكون {0} بين {1} و{2}.</value>
+  </data>
+  <data name="Validation.Email.Required" xml:space="preserve">
+    <value>عنوان البريد الإلكتروني مطلوب.</value>
+  </data>
+  <data name="Validation.Email.Invalid" xml:space="preserve">
+    <value>أدخل عنوان بريد إلكتروني صالح.</value>
+  </data>
+  <data name="Validation.Email.MaxLength" xml:space="preserve">
+    <value>يجب ألا يتجاوز عنوان البريد الإلكتروني {0} أحرف.</value>
+  </data>
+  <data name="Validation.Password.Required" xml:space="preserve">
+    <value>كلمة المرور مطلوبة.</value>
+  </data>
+  <data name="Validation.Password.MinLength" xml:space="preserve">
+    <value>يجب أن تتكون كلمة المرور من {0} أحرف على الأقل.</value>
+  </data>
+  <data name="Validation.Password.MaxLength" xml:space="preserve">
+    <value>يجب ألا تتجاوز كلمة المرور {0} حرفًا.</value>
+  </data>
+  <data name="Validation.Password.Uppercase" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.Lowercase" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على حرف صغير واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.Digit" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على رقم واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.Special" xml:space="preserve">
+    <value>يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل.</value>
+  </data>
+  <data name="Validation.Password.TooWeak" xml:space="preserve">
+    <value>كلمة المرور لا تستوفي متطلبات الأمان.</value>
+  </data>
+  <data name="Validation.Password.Mismatch" xml:space="preserve">
+    <value>كلمتا المرور غير متطابقتين.</value>
+  </data>
+  <data name="Validation.Fields.FirstName" xml:space="preserve">
+    <value>الاسم الأول</value>
+  </data>
+  <data name="Validation.Fields.LastName" xml:space="preserve">
+    <value>اسم العائلة</value>
+  </data>
+  <data name="Validation.Fields.Token" xml:space="preserve">
+    <value>الرمز</value>
+  </data>
+  <data name="Validation.Fields.RefreshToken" xml:space="preserve">
+    <value>رمز التحديث</value>
+  </data>
+  <data name="Validation.Fields.CurrentPassword" xml:space="preserve">
+    <value>كلمة المرور الحالية</value>
+  </data>
+  <data name="Authentication.Login.InvalidCredentials" xml:space="preserve">
+    <value>البريد الإلكتروني أو كلمة المرور غير صحيحة.</value>
+  </data>
+  <data name="Authentication.Login.LockedOut" xml:space="preserve">
+    <value>تم قفل حسابك مؤقتًا. يرجى المحاولة لاحقًا.</value>
+  </data>
+  <data name="Authentication.Login.EmailNotConfirmed" xml:space="preserve">
+    <value>يجب التحقق من عنوان بريدك الإلكتروني قبل تسجيل الدخول.</value>
+  </data>
+  <data name="Authentication.Register.EmailAlreadyExists" xml:space="preserve">
+    <value>يوجد حساب بالفعل بعنوان البريد الإلكتروني هذا.</value>
+  </data>
+  <data name="Authentication.VerifyEmail.InvalidToken" xml:space="preserve">
+    <value>رابط التحقق من البريد الإلكتروني غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="Authentication.VerifyEmail.Success" xml:space="preserve">
+    <value>تم التحقق من عنوان بريدك الإلكتروني.</value>
+  </data>
+  <data name="Authentication.PasswordReset.InvalidToken" xml:space="preserve">
+    <value>رابط إعادة تعيين كلمة المرور غير صالح أو منتهي الصلاحية.</value>
+  </data>
+  <data name="Authentication.PasswordReset.Success" xml:space="preserve">
+    <value>تمت إعادة تعيين كلمة المرور بنجاح.</value>
+  </data>
+  <data name="Authorization.Unauthorized" xml:space="preserve">
+    <value>يجب تسجيل الدخول للوصول إلى هذا المورد.</value>
+  </data>
+  <data name="Authorization.Forbidden" xml:space="preserve">
+    <value>ليس لديك إذن لتنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="Authorization.RoleRequired" xml:space="preserve">
+    <value>تحتاج إلى دور '{0}' لتنفيذ هذا الإجراء.</value>
+  </data>
+  <data name="Authorization.ResourceOwner" xml:space="preserve">
+    <value>يمكنك الوصول إلى مواردك الخاصة فقط.</value>
+  </data>
+  <data name="Errors.UnhandledException" xml:space="preserve">
+    <value>حدث خطأ غير متوقع أثناء معالجة طلبك.</value>
+  </data>
+  <data name="Errors.RequestValidation" xml:space="preserve">
+    <value>حدث خطأ تحقق واحد أو أكثر.</value>
+  </data>
+  <data name="Errors.NotFound" xml:space="preserve">
+    <value>لم يتم العثور على المورد المطلوب.</value>
+  </data>
+  <data name="Errors.Conflict" xml:space="preserve">
+    <value>يتعارض الطلب مع الحالة الحالية للمورد.</value>
+  </data>
+  <data name="Errors.Cancelled" xml:space="preserve">
+    <value>تم إلغاء العملية.</value>
+  </data>
+  <data name="Errors.OperationFailed" xml:space="preserve">
+    <value>تعذر إكمال العملية.</value>
+  </data>
+  <data name="Errors.InvalidToken" xml:space="preserve">
+    <value>الرمز غير صالح أو منتهي الصلاحية أو تم استخدامه بالفعل.</value>
+  </data>
+  <data name="Errors.EmailSendFailed" xml:space="preserve">
+    <value>تم إنشاء الحساب، لكن تعذر إرسال بريد التحقق الإلكتروني. يرجى طلب بريد تحقق جديد.</value>
+  </data>
+  <data name="Errors.RoleAlreadyAssigned" xml:space="preserve">
+    <value>الدور مُعيّن بالفعل لهذا المستخدم.</value>
+  </data>
+  <data name="Errors.Title.ValidationFailed" xml:space="preserve">
+    <value>فشل التحقق</value>
+  </data>
+  <data name="Errors.Title.NotFound" xml:space="preserve">
+    <value>غير موجود</value>
+  </data>
+  <data name="Errors.Title.Conflict" xml:space="preserve">
+    <value>تعارض</value>
+  </data>
+  <data name="Errors.Title.Unauthorized" xml:space="preserve">
+    <value>غير مصرح</value>
+  </data>
+  <data name="Errors.Title.Forbidden" xml:space="preserve">
+    <value>ممنوع</value>
+  </data>
+  <data name="Errors.Title.BadRequest" xml:space="preserve">
+    <value>طلب غير صالح</value>
+  </data>
+  <data name="Errors.Title.InternalServerError" xml:space="preserve">
+    <value>خطأ داخلي في الخادم</value>
+  </data>
+  <data name="Email.Verification.Subject" xml:space="preserve">
+    <value>تحقق من حسابك في FluxCommerce</value>
+  </data>
+  <data name="Email.Verification.Heading" xml:space="preserve">
+    <value>تحقق من عنوان بريدك الإلكتروني</value>
+  </data>
+  <data name="Email.Verification.Body" xml:space="preserve">
+    <value>شكرًا لإنشائك حسابًا في FluxCommerce. يرجى تأكيد عنوان بريدك الإلكتروني بالنقر على الزر أدناه.</value>
+  </data>
+  <data name="Email.Verification.TextIntro" xml:space="preserve">
+    <value>شكرًا لإنشائك حسابًا في FluxCommerce. يرجى تأكيد عنوان بريدك الإلكتروني بفتح الرابط أدناه:</value>
+  </data>
+  <data name="Email.Verification.ButtonText" xml:space="preserve">
+    <value>تحقق من البريد الإلكتروني</value>
+  </data>
+  <data name="Email.Verification.ValidityNote" xml:space="preserve">
+    <value>هذا الرابط صالح لمدة 24 ساعة. إذا لم تنشئ هذا الحساب، يمكنك تجاهل هذا البريد بأمان.</value>
+  </data>
+  <data name="Email.PasswordReset.Subject" xml:space="preserve">
+    <value>أعد تعيين كلمة مرور FluxCommerce</value>
+  </data>
+  <data name="Email.PasswordReset.Heading" xml:space="preserve">
+    <value>أعد تعيين كلمة المرور</value>
+  </data>
+  <data name="Email.PasswordReset.Body" xml:space="preserve">
+    <value>لقد تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في FluxCommerce. انقر على الزر أدناه لاختيار كلمة مرور جديدة.</value>
+  </data>
+  <data name="Email.PasswordReset.TextIntro" xml:space="preserve">
+    <value>لقد تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في FluxCommerce. افتح الرابط أدناه لاختيار كلمة مرور جديدة:</value>
+  </data>
+  <data name="Email.PasswordReset.ButtonText" xml:space="preserve">
+    <value>إعادة تعيين كلمة المرور</value>
+  </data>
+  <data name="Email.PasswordReset.ValidityNote" xml:space="preserve">
+    <value>هذا الرابط صالح لمدة ساعة واحدة. إذا لم تطلب إعادة تعيين كلمة المرور، يمكنك تجاهل هذا البريد بأمان.</value>
+  </data>
+  <data name="Email.CopyLinkInstruction" xml:space="preserve">
+    <value>إذا لم يعمل الزر، انسخ هذا الرابط والصقه في متصفحك:</value>
+  </data>
+  <data name="Validation.Fields.CategoryName" xml:space="preserve">
+    <value>اسم الفئة</value>
+  </data>
+  <data name="Validation.Fields.CategoryId" xml:space="preserve">
+    <value>معرّف الفئة</value>
+  </data>
+  <data name="Validation.Fields.Slug" xml:space="preserve">
+    <value>الرابط المختصر</value>
+  </data>
+  <data name="Validation.Fields.Description" xml:space="preserve">
+    <value>الوصف</value>
+  </data>
+  <data name="Validation.Fields.ProductName" xml:space="preserve">
+    <value>اسم المنتج</value>
+  </data>
+  <data name="Validation.Fields.ProductId" xml:space="preserve">
+    <value>معرّف المنتج</value>
+  </data>
+  <data name="Validation.Fields.Visibility" xml:space="preserve">
+    <value>الرؤية</value>
+  </data>
+  <data name="Validation.Fields.Sku" xml:space="preserve">
+    <value>رمز SKU</value>
+  </data>
+  <data name="Validation.Fields.VariantId" xml:space="preserve">
+    <value>معرف النوع البديل</value>
+  </data>
+  <data name="Validation.Fields.VariantName" xml:space="preserve">
+    <value>اسم النوع البديل</value>
+  </data>
+  <data name="Validation.Fields.AttributeName" xml:space="preserve">
+    <value>اسم السمة</value>
+  </data>
+  <data name="Validation.Fields.AttributeId" xml:space="preserve">
+    <value>معرف السمة</value>
+  </data>
+  <data name="Validation.Fields.DataType" xml:space="preserve">
+    <value>نوع البيانات</value>
+  </data>
+  <data name="Validation.Fields.AttributeValue" xml:space="preserve">
+    <value>قيمة السمة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationName" xml:space="preserve">
+    <value>اسم المواصفة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationValue" xml:space="preserve">
+    <value>قيمة المواصفة</value>
+  </data>
+  <data name="Validation.Fields.SpecificationId" xml:space="preserve">
+    <value>معرف المواصفة</value>
+  </data>
+  <data name="Validation.Fields.ImageId" xml:space="preserve">
+    <value>معرّف الصورة</value>
+  </data>
+  <data name="Validation.Fields.ImageUrl" xml:space="preserve">
+    <value>عنوان الصورة</value>
+  </data>
+  <data name="Validation.Fields.AltText" xml:space="preserve">
+    <value>النص البديل</value>
+  </data>
+  <data name="Validation.Fields.DisplayOrder" xml:space="preserve">
+    <value>ترتيب العرض</value>
+  </data>
+  <data name="Validation.Fields.SortOrder" xml:space="preserve">
+    <value>ترتيب الفرز</value>
+  </data>
+  <data name="Validation.Fields.Images" xml:space="preserve">
+    <value>الصور</value>
+  </data>
+  <data name="Validation.Fields.PageNumber" xml:space="preserve">
+    <value>رقم الصفحة</value>
+  </data>
+  <data name="Validation.Fields.PageSize" xml:space="preserve">
+    <value>حجم الصفحة</value>
+  </data>
+  <data name="Catalog.DuplicateCategoryName" xml:space="preserve">
+    <value>توجد فئة بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateCategorySlug" xml:space="preserve">
+    <value>توجد فئة بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.ParentCategoryDeleted" xml:space="preserve">
+    <value>الفئة الأصلية محذوفة ولا يمكن استخدامها.</value>
+  </data>
+  <data name="Catalog.ParentCategoryNotFound" xml:space="preserve">
+    <value>الفئة الأصلية غير موجودة.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل فئة محذوفة.</value>
+  </data>
+  <data name="Catalog.CannotBeOwnParent" xml:space="preserve">
+    <value>لا يمكن أن تكون الفئة أصلًا لنفسها.</value>
+  </data>
+  <data name="Catalog.InvalidSlug" xml:space="preserve">
+    <value>الرابط المختصر غير صالح.</value>
+  </data>
+  <data name="Catalog.DuplicateProductName" xml:space="preserve">
+    <value>يوجد منتج بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSlug" xml:space="preserve">
+    <value>يوجد منتج بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.DeletedCategoryCannotBeUsed" xml:space="preserve">
+    <value>الفئة محذوفة ولا يمكن استخدامها.</value>
+  </data>
+  <data name="Catalog.DeletedProductCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل منتج محذوف.</value>
+  </data>
+  <data name="Catalog.InvalidProductTransition" xml:space="preserve">
+    <value>انتقال الحالة المطلوب غير مسموح به من الحالة الحالية.</value>
+  </data>
+  <data name="Catalog.InvalidSeoMetadata" xml:space="preserve">
+    <value>بيانات تحسين محركات البحث غير صالحة.</value>
+  </data>
+  <data name="Catalog.VariantNotFound" xml:space="preserve">
+    <value>لم يتم العثور على النوع البديل.</value>
+  </data>
+  <data name="Catalog.DuplicateVariantSku" xml:space="preserve">
+    <value>يوجد نوع بديل بهذا الرمز SKU بالفعل.</value>
+  </data>
+  <data name="Catalog.InvalidSku" xml:space="preserve">
+    <value>رمز SKU غير صالح.</value>
+  </data>
+  <data name="Catalog.DeletedVariantCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل نوع بديل محذوف.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotFound" xml:space="preserve">
+    <value>لم يتم العثور على تعريف السمة.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeName" xml:space="preserve">
+    <value>يوجد تعريف سمة بهذا الاسم بالفعل.</value>
+  </data>
+  <data name="Catalog.DuplicateAttributeSlug" xml:space="preserve">
+    <value>يوجد تعريف سمة بهذا الرابط المختصر بالفعل.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeModified" xml:space="preserve">
+    <value>لا يمكن تعديل تعريف سمة محذوف.</value>
+  </data>
+  <data name="Catalog.AttributeValueRequired" xml:space="preserve">
+    <value>قيمة السمة مطلوبة.</value>
+  </data>
+  <data name="Catalog.AttributeValueTooLong" xml:space="preserve">
+    <value>تتجاوز قيمة السمة الحد الأقصى المسموح به.</value>
+  </data>
+  <data name="Catalog.InvalidAttributeValue" xml:space="preserve">
+    <value>قيمة السمة غير صالحة لنوع بيانات السمة.</value>
+  </data>
+  <data name="Catalog.DuplicateProductAttributeValue" xml:space="preserve">
+    <value>يوجد للمنتج قيمة لهذه السمة بالفعل.</value>
+  </data>
+  <data name="Catalog.ProductAttributeValueNotFound" xml:space="preserve">
+    <value>لا يوجد للمنتج قيمة لهذه السمة.</value>
+  </data>
+  <data name="Catalog.DeletedAttributeDefinitionCannotBeUsed" xml:space="preserve">
+    <value>تعريف السمة محذوف ولا يمكن استخدامه.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionNotActive" xml:space="preserve">
+    <value>تعريف السمة غير نشط ولا يمكن استخدامه.</value>
+  </data>
+  <data name="Catalog.AttributeDefinitionCategoryMismatch" xml:space="preserve">
+    <value>تعريف السمة لا ينتمي إلى فئة المنتج.</value>
+  </data>
+  <data name="Catalog.SpecificationNameRequired" xml:space="preserve">
+    <value>اسم المواصفة مطلوب.</value>
+  </data>
+  <data name="Catalog.SpecificationNameTooLong" xml:space="preserve">
+    <value>يتجاوز اسم المواصفة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.SpecificationValueRequired" xml:space="preserve">
+    <value>قيمة المواصفة مطلوبة.</value>
+  </data>
+  <data name="Catalog.SpecificationValueTooLong" xml:space="preserve">
+    <value>تتجاوز قيمة المواصفة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.DuplicateProductSpecification" xml:space="preserve">
+    <value>يحتوي المنتج بالفعل على مواصفة بهذا الاسم.</value>
+  </data>
+  <data name="Catalog.ProductSpecificationNotFound" xml:space="preserve">
+    <value>لا يحتوي المنتج على المواصفة المحددة.</value>
+  </data>
+  <data name="Catalog.ImageUrlRequired" xml:space="preserve">
+    <value>عنوان صورة مطلوب.</value>
+  </data>
+  <data name="Catalog.ImageUrlTooLong" xml:space="preserve">
+    <value>يتجاوز عنوان الصورة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.AltTextTooLong" xml:space="preserve">
+    <value>يتجاوز النص البديل للصورة الحد الأقصى المسموح به للطول.</value>
+  </data>
+  <data name="Catalog.ProductImageNotFound" xml:space="preserve">
+    <value>لا يحتوي المنتج على الصورة المحددة.</value>
+  </data>
+  <data name="Catalog.InvalidImageOrder" xml:space="preserve">
+    <value>ترتيب الصور المطلوب غير صالح.</value>
+  </data>
+  <data name="Cart.InvalidQuantity" xml:space="preserve">
+    <value>يجب أن تكون كمية عنصر السلة عددًا صحيحًا موجبًا.</value>
+  </data>
+  <data name="Cart.QuantityLimitExceeded" xml:space="preserve">
+    <value>تتجاوز كمية عنصر السلة الحد الأقصى المسموح به.</value>
+  </data>
+  <data name="Cart.CartItemNotFound" xml:space="preserve">
+    <value>لا تحتوي السلة على عنصر للنوع البديل المحدد.</value>
+  </data>
+  <data name="Cart.CartNotFound" xml:space="preserve">
+    <value>لم يتم العثور على السلة.</value>
+  </data>
+  <data name="Cart.CartAccessDenied" xml:space="preserve">
+    <value>لا يمكن الوصول إلى السلة باستخدام المعرف المقدم.</value>
+  </data>
+  <data name="Cart.CartConcurrencyConflict" xml:space="preserve">
+    <value>تم تعديل السلة من قبل طلب آخر. أعد تحميل السلة وحاول مرة أخرى.</value>
+  </data>
+  <data name="Cart.InvalidCartItem" xml:space="preserve">
+    <value>بيانات عنصر السلة غير صالحة.</value>
+  </data>
+  <data name="Cart.InvalidCartId" xml:space="preserve">
+    <value>مطلوب معرّف سلة صالح.</value>
+  </data>
+  <data name="Cart.AuthenticationRequired" xml:space="preserve">
+    <value>مطلوب المصادقة للوصول إلى سلة المستخدم.</value>
+  </data>
+  <data name="Cart.VariantNotFound" xml:space="preserve">
+    <value>لم يتم العثور على النوع البديل.</value>
+  </data>
+  <data name="Cart.VariantUnavailable" xml:space="preserve">
+    <value>النوع البديل غير متاح للشراء.</value>
+  </data>
+  <data name="Cart.CatalogOperationFailed" xml:space="preserve">
+    <value>تعذر التحقق من النوع البديل. حاول مرة أخرى.</value>
+  </data>
+  <data name="Validation.Fields.Quantity" xml:space="preserve">
+    <value>الكمية</value>
+  </data>
+  <data name="Validation.Fields.CartId" xml:space="preserve">
+    <value>معرّف السلة</value>
+  </data>
+  <data name="Validation.Fields.Currency" xml:space="preserve">
+    <value>العملة</value>
+  </data>
+  <data name="Validation.Fields.UnitPriceAmount" xml:space="preserve">
+    <value>مبلغ السعر للوحدة</value>
+  </data>
+</root>

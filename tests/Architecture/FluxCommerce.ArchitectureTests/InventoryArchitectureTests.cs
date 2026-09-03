@@ -1,0 +1,612 @@
+using FluxCommerce.BuildingBlocks.Persistence.DbContexts;
+using NetArchTest.Rules;
+using Xunit;
+
+namespace FluxCommerce.ArchitectureTests;
+
+public class InventoryArchitectureTests
+{
+    // ---- Module isolation ----
+
+    [Fact]
+    public void Inventory_ShouldNot_ReferenceOtherModules()
+    {
+        var failures = new List<string>();
+
+        foreach (var assembly in InventoryAssemblies)
+        {
+            foreach (var module in ArchitectureRegistry.ModuleNames.Where(m => m != "Inventory"))
+            {
+                foreach (var layer in new[] { "Domain", "Application", "Infrastructure", "Contracts" })
+                {
+                    AssertNoDependencies(
+                        assembly,
+                        $"FluxCommerce.Modules.{module}.{layer}",
+                        $"Inventory -> {module}.{layer}",
+                        failures);
+                }
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_ShouldNot_ReferenceOtherModulesDbContexts()
+    {
+        var failures = new List<string>();
+
+        foreach (var module in ArchitectureRegistry.ModuleNames.Where(m => m != "Inventory"))
+        {
+            foreach (var assembly in InventoryAssemblies)
+            {
+                AssertNoDependencies(
+                    assembly,
+                    $"FluxCommerce.Modules.{module}.Infrastructure.DbContexts",
+                    $"Inventory -> {module} DbContext",
+                    failures);
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_ShouldNot_ReferenceMessagingOrRabbitMq()
+    {
+        // Phase 6.4 (G12): Inventory.Contracts is the home of the module Integration Event contract,
+        // which derives from the contract-only BuildingBlocks.Messaging metadata base; Infrastructure
+        // necessarily touches that metadata transitively when it serializes the contract into the
+        // Outbox. Domain and Application remain free of Messaging, and the RabbitMQ client stays out
+        // of Domain, Application and Infrastructure.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain, InventoryApplication],
+            ["FluxCommerce.BuildingBlocks.Messaging"],
+            "Inventory -> Messaging",
+            failures);
+
+        AssertNoDependencies(
+            [InventoryDomain, InventoryApplication, InventoryInfrastructure],
+            ["RabbitMQ.Client"],
+            "Inventory -> RabbitMQ",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_ShouldNot_ReferenceOutbox()
+    {
+        // Phase 6.2: Inventory.Infrastructure implements the module Outbox persistence (it maps the
+        // shared OutboxMessage entity into the Inventory DbContext). Domain, Application and Contracts
+        // must remain free of the Outbox abstraction.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain, InventoryApplication, InventoryContracts],
+            ["FluxCommerce.BuildingBlocks.Outbox"],
+            "Inventory -> Outbox",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Infrastructure_IsAllowedToReferenceOutbox()
+    {
+        var referencingTypes = Types.InAssembly(InventoryInfrastructure)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Outbox")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Inventory.Infrastructure must reference the Outbox abstraction to map the module Outbox persistence entity.");
+    }
+
+    // ---- Phase 7.3: Idempotency persistence stays in Infrastructure ----
+
+    [Fact]
+    public void Inventory_ShouldNot_ReferenceIdempotency_OutsideInfrastructure()
+    {
+        // Phase 7.3: the ProcessedMessage persistence model (entity configuration, DbSet, store, and
+        // duplicate detector) is owned by Inventory.Infrastructure. Domain, Application and Contracts
+        // must stay free of the idempotency abstraction, mirroring the Outbox rule.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain, InventoryApplication, InventoryContracts],
+            ["FluxCommerce.BuildingBlocks.Idempotency"],
+            "Inventory -> Idempotency",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Infrastructure_IsAllowedToReferenceIdempotency()
+    {
+        var referencingTypes = Types.InAssembly(InventoryInfrastructure)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Idempotency")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Inventory.Infrastructure must reference the Idempotency abstraction to map the ProcessedMessage persistence entity.");
+    }
+
+    [Fact]
+    public void Inventory_ShouldNot_IntroduceSagaOrOrchestratorTypes()
+    {
+        var failures = new List<string>();
+
+        foreach (var assembly in InventoryAssemblies)
+        {
+            var result = Types.InAssembly(assembly)
+                .That()
+                .HaveNameEndingWith("Saga")
+                .Or()
+                .HaveNameEndingWith("Orchestrator")
+                .GetTypes()
+                .ToArray();
+
+            if (result.Length > 0)
+            {
+                failures.Add($"Inventory introduced saga/orchestrator types: {assembly.GetName().Name} via: {string.Join(", ", result.Select(t => t.FullName))}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // ---- Phase 11.11: reservation ownership & expiration orchestration ----
+
+    [Fact]
+    public void Inventory_ReservationExpirationTypes_ShouldBeOwnedByInventory()
+    {
+        // Phase 11.11: the reservation expiration lifecycle (processor, background driver, store
+        // persistence) is owned entirely by Inventory. The ownership is pinned by locating each
+        // Phase 11 orchestration type in its intended Inventory layer so a future move to Orders
+        // (or any other module) is caught by the architecture tests.
+        var expected = new (string TypeName, string Namespace)[]
+        {
+            ("ExpiredReservationProcessor", "FluxCommerce.Modules.Inventory.Application.Expiration"),
+            ("ReservationExpirationBackgroundService", "FluxCommerce.Modules.Inventory.Infrastructure.Background"),
+            ("InventoryReservationExpiredIntegrationEvent", "FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents"),
+            ("InventoryReservationExpired", "FluxCommerce.Modules.Inventory.Domain.Events"),
+        };
+
+        var failures = new List<string>();
+
+        foreach (var (typeName, ns) in expected)
+        {
+            var located = InventoryAssemblies
+                .Select(assembly => Types.InAssembly(assembly).That().HaveName(typeName).GetTypes().ToArray())
+                .SelectMany(types => types)
+                .FirstOrDefault(type => type.Namespace == ns);
+
+            if (located is null)
+            {
+                failures.Add($"Phase 11.11: '{typeName}' is not hosted in Inventory namespace '{ns}'.");
+                continue;
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_ShouldNotReference_OrdersForReservationExpiration()
+    {
+        // Phase 11.11: the Inventory expiration path must never cross into Orders. Expiration is
+        // detected and applied inside Inventory; Orders learns about it only later through the
+        // Inventory.Contracts.IntegrationEvents outbox hop (which is Orders.Infrastructure's concern,
+        // not Inventory's). Every Inventory layer stays free of every Orders layer.
+        var failures = new List<string>();
+
+        foreach (var assembly in InventoryAssemblies)
+        {
+            foreach (var layer in new[] { "Domain", "Application", "Infrastructure", "Contracts" })
+            {
+                AssertNoDependencies(
+                    assembly,
+                    $"FluxCommerce.Modules.Orders.{layer}",
+                    "Inventory -> Orders (reservation expiry)",
+                    failures);
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // ---- Domain layer rules ----
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferenceApplication()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ["FluxCommerce.Modules.Inventory.Application"],
+            "Inventory.Domain -> Inventory.Application",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferenceContracts()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ["FluxCommerce.Modules.Inventory.Contracts"],
+            "Inventory.Domain -> Inventory.Contracts",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferenceInfrastructure()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ["FluxCommerce.Modules.Inventory.Infrastructure"],
+            "Inventory.Domain -> Inventory.Infrastructure",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferenceEfCore()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ArchitectureRegistry.EfCoreNamespaces,
+            "Inventory.Domain -> EF Core",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferenceAspNetCore()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ArchitectureRegistry.AspNetCoreNamespaces,
+            "Inventory.Domain -> ASP.NET Core",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferenceLocalization()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ["FluxCommerce.BuildingBlocks.Localization"],
+            "Inventory.Domain -> Localization",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Domain_ShouldNot_ReferencePersistence()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryDomain],
+            ["FluxCommerce.BuildingBlocks.Persistence"],
+            "Inventory.Domain -> Persistence",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // ---- Application layer rules ----
+
+    [Fact]
+    public void Inventory_Application_ShouldNot_ReferenceInfrastructure()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryApplication],
+            ["FluxCommerce.Modules.Inventory.Infrastructure"],
+            "Inventory.Application -> Inventory.Infrastructure",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Application_ShouldNot_ReferenceApi()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryApplication],
+            [ArchitectureRegistry.Api.GetName().Name!],
+            "Inventory.Application -> API",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Application_ShouldNot_ReferenceEfCore()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryApplication],
+            ArchitectureRegistry.EfCoreNamespaces,
+            "Inventory.Application -> EF Core",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Application_ShouldNot_ReferenceAspNetCore()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryApplication],
+            ArchitectureRegistry.AspNetCoreNamespaces,
+            "Inventory.Application -> ASP.NET Core",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Application_ShouldNot_ReferencePersistence()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryApplication],
+            ["FluxCommerce.BuildingBlocks.Persistence"],
+            "Inventory.Application -> Persistence",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Application_ShouldNot_ReferenceBuildingBlocksInfrastructure()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryApplication],
+            ["FluxCommerce.BuildingBlocks.Infrastructure"],
+            "Inventory.Application -> BuildingBlocks.Infrastructure",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // ---- Infrastructure layer rules ----
+
+    [Fact]
+    public void Inventory_Infrastructure_ShouldNot_ReferenceApi()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryInfrastructure],
+            [ArchitectureRegistry.Api.GetName().Name!],
+            "Inventory.Infrastructure -> API",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_DbContext_ShouldResideInInfrastructure()
+    {
+        var failures = new List<string>();
+
+        foreach (var assembly in InventoryAssemblies)
+        {
+            var result = Types.InAssembly(assembly)
+                .That()
+                .HaveNameEndingWith("DbContext")
+                .Should()
+                .ResideInNamespace("FluxCommerce.Modules.Inventory.Infrastructure.DbContexts")
+                .GetResult();
+
+            if (!result.IsSuccessful)
+            {
+                var failing = result.FailingTypeNames is null ? [] : result.FailingTypeNames.ToArray();
+                failures.Add($"Inventory DbContexts must reside in Infrastructure.DbContexts: {assembly.GetName().Name} via: {string.Join(", ", failing)}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void InventoryDbContext_ShouldDeriveFromBaseDbContext()
+    {
+        Assert.Equal(typeof(BaseDbContext), typeof(FluxCommerce.Modules.Inventory.Infrastructure.DbContexts.InventoryDbContext).BaseType);
+    }
+
+    // ---- Contracts layer rules ----
+
+    [Fact]
+    public void Inventory_Contracts_ShouldNot_ReferenceModuleLayers()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryContracts],
+            [
+                "FluxCommerce.Modules.Inventory.Domain",
+                "FluxCommerce.Modules.Inventory.Application",
+                "FluxCommerce.Modules.Inventory.Infrastructure",
+            ],
+            "Inventory.Contracts -> Inventory layers",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Contracts_ShouldNot_ReferenceEfCore()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryContracts],
+            ArchitectureRegistry.EfCoreNamespaces,
+            "Inventory.Contracts -> EF Core",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Contracts_ShouldNot_ReferenceAspNetCore()
+    {
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryContracts],
+            ArchitectureRegistry.AspNetCoreNamespaces,
+            "Inventory.Contracts -> ASP.NET Core",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Contracts_ShouldNot_ReferenceRabbitMqOrOutbox()
+    {
+        // Phase 6.4 (G12): Inventory.Contracts may reference BuildingBlocks.Messaging (the
+        // contract-only metadata base its Integration Event contracts derive from), but it must stay
+        // free of the RabbitMQ client and the Outbox abstraction.
+        var failures = new List<string>();
+
+        AssertNoDependencies(
+            [InventoryContracts],
+            ["RabbitMQ.Client", "FluxCommerce.BuildingBlocks.Outbox"],
+            "Inventory.Contracts -> RabbitMQ/Outbox",
+            failures);
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void Inventory_Contracts_IsAllowedToReferenceMessaging()
+    {
+        // Phase 6.4 (G12): pins the intentional dependency — at least one Inventory.Contracts type (the
+        // Integration Event contract) must derive from BuildingBlocks.Messaging, so the decision
+        // cannot be accidentally reverted.
+        var referencingTypes = Types.InAssembly(InventoryContracts)
+            .That()
+            .HaveDependencyOn("FluxCommerce.BuildingBlocks.Messaging")
+            .GetTypes();
+
+        Assert.True(
+            referencingTypes.Any(),
+            "Inventory.Contracts must reference BuildingBlocks.Messaging to host the module Integration Event contracts (G12).");
+    }
+
+    // ---- Contract mirror drift protection ----
+
+    [Fact]
+    public void InventoryReservationStatus_ContractsMirror_ShouldMatchDomain()
+    {
+        var domainNames = Enum.GetNames(typeof(FluxCommerce.Modules.Inventory.Domain.Enums.InventoryReservationStatus));
+        var contractNames = Enum.GetNames(typeof(FluxCommerce.Modules.Inventory.Contracts.Enums.InventoryReservationStatus));
+
+        var domainValues = Enum.GetValues(typeof(FluxCommerce.Modules.Inventory.Domain.Enums.InventoryReservationStatus))
+            .Cast<int>()
+            .ToArray();
+        var contractValues = Enum.GetValues(typeof(FluxCommerce.Modules.Inventory.Contracts.Enums.InventoryReservationStatus))
+            .Cast<int>()
+            .ToArray();
+
+        Assert.Equal(domainNames, contractNames);
+        Assert.Equal(domainValues, contractValues);
+    }
+
+    // ---- Assembly helpers ----
+
+    private const string InventoryRoot = "FluxCommerce.Modules.Inventory";
+
+    private static IReadOnlyList<System.Reflection.Assembly> InventoryAssemblies =>
+        ArchitectureRegistry.ModuleAssemblies
+            .Where(a => a.GetName().Name!.StartsWith($"{InventoryRoot}.", StringComparison.Ordinal))
+            .ToList();
+
+    private static System.Reflection.Assembly InventoryDomain =>
+        ArchitectureRegistry.ModuleAssemblies.Single(a => a.GetName().Name == $"{InventoryRoot}.Domain");
+
+    private static System.Reflection.Assembly InventoryApplication =>
+        ArchitectureRegistry.ModuleAssemblies.Single(a => a.GetName().Name == $"{InventoryRoot}.Application");
+
+    private static System.Reflection.Assembly InventoryInfrastructure =>
+        ArchitectureRegistry.ModuleAssemblies.Single(a => a.GetName().Name == $"{InventoryRoot}.Infrastructure");
+
+    private static System.Reflection.Assembly InventoryContracts =>
+        ArchitectureRegistry.ModuleAssemblies.Single(a => a.GetName().Name == $"{InventoryRoot}.Contracts");
+
+    private static void AssertNoDependencies(
+        System.Reflection.Assembly assembly,
+        string forbiddenNamespace,
+        string rule,
+        List<string> failures)
+    {
+        var result = Types.InAssembly(assembly)
+            .ShouldNot()
+            .HaveDependencyOn(forbiddenNamespace)
+            .GetResult();
+
+        if (result.IsSuccessful)
+        {
+            return;
+        }
+
+        var failing = result.FailingTypeNames is null ? [] : result.FailingTypeNames.ToArray();
+        failures.Add($"{rule}: {assembly.GetName().Name} depends on '{forbiddenNamespace}' via: {string.Join(", ", failing)}");
+    }
+
+    private static void AssertNoDependencies(
+        IEnumerable<System.Reflection.Assembly> assemblies,
+        IReadOnlyList<string> forbiddenNamespaces,
+        string rule,
+        List<string> failures)
+    {
+        foreach (var assembly in assemblies)
+        {
+            foreach (var ns in forbiddenNamespaces)
+            {
+                AssertNoDependencies(assembly, ns, rule, failures);
+            }
+        }
+    }
+}
