@@ -1,1517 +1,385 @@
+# FluxCommerce — Enterprise Commerce & Order Management Platform
 
-````markdown
-# Enterprise Commerce & Order Management Platform
+<p align="center">
+  <img src="https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet" alt=".NET 10" />
+  <img src="https://img.shields.io/badge/ASP.NET%20Core-10.0-512BD4?style=for-the-badge" alt="ASP.NET Core" />
+  <img src="https://img.shields.io/badge/Clean%20Architecture-modular%20monolith-0F766E?style=for-the-badge" alt="Architecture" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License" />
+</p>
 
-A production-oriented Enterprise Commerce & Order Management Platform built with ASP.NET Core and .NET.
+<p align="center">
+  <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build" />
+  <img src="https://img.shields.io/badge/tests-2856%20passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/arch%20tests-177%2F177-brightgreen?style=flat-square" alt="Arch Tests" />
+  <img src="https://img.shields.io/badge/coverage-RabbitMQ%20%7C%20Redis%20%7C%20SQL%20Server-blue?style=flat-square" alt="Infra" />
+</p>
 
-The project is designed to demonstrate how to build a reliable commerce system that goes beyond traditional CRUD-based e-commerce applications.
-
-The primary engineering focus is the reliable processing of the Order lifecycle across distributed business operations such as Inventory and Payments, while handling concurrency, asynchronous messaging, duplicate messages, retries, partial failures, and recovery.
-
----
-
-## Overview
-
-The platform simulates a real-world enterprise e-commerce system that manages the complete commerce lifecycle:
-
-```text
-Customer
-    │
-    ▼
-Browse Products
-    │
-    ▼
-Add to Cart
-    │
-    ▼
-Checkout
-    │
-    ▼
-Validate Cart
-    │
-    ▼
-Recalculate Prices
-    │
-    ▼
-Create Order
-    │
-    ▼
-Reserve Inventory
-    │
-    ▼
-Initiate Payment
-    │
-    ▼
-Customer Pays
-    │
-    ▼
-Payment Webhook
-    │
-    ▼
-Confirm Order
-    │
-    ▼
-Fulfillment
-    │
-    ▼
-Shipping
-    │
-    ▼
-Delivered
-````
-
-The system is intentionally designed to handle failure scenarios such as:
-
-```text
-Inventory Reserved
-        │
-        ▼
-Payment Failed
-        │
-        ▼
-Release Inventory
-        │
-        ▼
-Cancel Order
-```
-
-And:
-
-```text
-Payment Succeeded
-        │
-        ▼
-Order Confirmation Failed
-        │
-        ▼
-Retry
-        │
-        ▼
-Retry Limit Reached
-        │
-        ▼
-Dead Letter Queue / Recovery Policy
-```
-
-And:
-
-```text
-Event Published
-        │
-        ▼
-Consumer Crashes
-        │
-        ▼
-Message Redelivered
-        │
-        ▼
-Idempotency Check
-        │
-        ▼
-Duplicate Detected
-        │
-        ▼
-Safe Reprocessing
-```
-
-The goal is to build a system that remains reliable and recoverable when individual operations fail or when asynchronous processing is interrupted.
+> **Not another CRUD store.** FluxCommerce is a production-oriented reference implementation that proves an order can survive concurrency, duplicate messages, broker crashes, and Stripe retries — without overselling or double-charging.
 
 ---
 
-## Engineering Goals
+## Table of Contents
 
-The project is designed to demonstrate practical knowledge of:
-
-* Software Architecture
-* System Design
-* Domain-Driven Design principles
-* Modular Monolith Architecture
-* Clean Architecture
-* Event-Driven Architecture
-* Distributed Systems concepts
-* Transactional Outbox Pattern
-* Idempotent Consumers
-* Saga Orchestration
-* Compensating Transactions
-* Inventory Reservation
-* Concurrency Control
-* Retry Policies
-* Dead Letter Queues
-* Background Processing
-* Distributed Caching
-* Observability
-* Failure Recovery
-
-The most important engineering objective is:
-
-> Build a reliable Order Processing System rather than simply building a collection of CRUD APIs.
+- [Why FluxCommerce](#why-fluxcommerce)
+- [Architecture at a Glance](#architecture-at-a-glance)
+- [Tech Stack](#tech-stack)
+- [Key Reliability Patterns](#key-reliability-patterns)
+- [Modules](#modules)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [API Reference](#api-reference)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+- [Philosophy](#philosophy)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## Architecture
+## Why FluxCommerce
 
-The initial backend architecture is a **Modular Monolith**.
+Most e-commerce tutorials stop at `POST /orders`. This project starts there and answers the hard questions:
 
-The system is deployed as one application while maintaining explicit boundaries between business modules.
+| Question | Answer in this repo |
+|---|---|
+| Why Modular Monolith over Microservices? | [ADR-001](docs/adr/001-modular-monolith.md) — one deployable, strong boundaries, cheap extraction later |
+| How to prevent overselling with `Available = 1` and two concurrent reserves? | Atomic conditional `UPDATE` + `Version` optimistic token ([Phase 5](docs/completed/PHASE_5_COMPLETION_REPORT.md)) |
+| What if RabbitMQ delivers the same event twice? | `ProcessedMessage (EventId, Handler)` PK + `IIdempotentProcessor` boundary ([ADR-008](docs/adr/008-consumer-contract-and-idempotency.md)) |
+| What if the consumer crashes after DB commit but before ACK? | At-least-once + redelivery → idempotency → exactly-one business effect |
+| Duplicate Stripe webhook? | `ProcessedWebhookEvents` unique `StripeEventId` + 200 on duplicate ([ADR-013](docs/adr/013-webhook-idempotency.md)) |
+| Payment succeeds but order confirmation fails? | Saga retry → DLQ → explicit refund compensation ([ADR-014](docs/adr/014-payment-refund-compensation.md)) |
+| How to trace one order across async hops? | W3C `traceparent` propagated via Outbox → broker headers → consumer ([ADR-005](docs/adr/005-observability.md)) |
 
-The architecture is designed so that selected modules can potentially be extracted into independently deployable services in the future if a real architectural reason exists.
-
-```text
-                    Angular Applications
-                 /                       \
-                /                         \
-       Customer Storefront            Admin Portal
-                \                         /
-                 \                       /
-                  ▼                       ▼
-              ASP.NET Core API Host
-                       │
-                       ▼
-              Modular Monolith
-                       │
-        ┌──────────────┼───────────────┐
-        │              │               │
-        ▼              ▼               ▼
-      Catalog        Orders         Inventory
-        │              │               │
-        │              ▼               │
-        │           Payments            │
-        │              │               │
-        └──────────────┼───────────────┘
-                       │
-                       ▼
-                 SQL Server
-                       │
-                       ├──────────► Redis
-                       │
-                       ▼
-                    Outbox
-                       │
-                       ▼
-                   RabbitMQ
-                       │
-                       ▼
-              Background Workers
-                       │
-                       ▼
-              External Integrations
-                       │
-                       ▼
-                    Stripe
-```
-
-The complete architecture is introduced incrementally.
-
-The entire distributed architecture is intentionally **not** implemented during the initial foundation phase.
+**Core principle:**
+> *Each module owns its business state. The Saga orchestrates. Modules communicate only through explicit contracts.*
 
 ---
 
-## Architectural Principles
+## Architecture at a Glance
 
-### Modular Monolith First
+**Style:** Modular Monolith · Clean Architecture · DDD · Event-Driven
 
-The backend starts as a Modular Monolith.
+```
+                 Angular (Storefront / Admin)          ← future
+                         \        /
+                          \      /
+                    ASP.NET Core API Host
+                             │
+                     Modular Monolith
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+     Catalog              Orders              Inventory
+        │                    │                    │
+        │                 Payments                │
+        └────────────────────┼────────────────────┘
+                             │
+                      SQL Server (1 instance, N DbContexts)
+                             │
+                ┌────────────┼──────────┐
+                │            │          │
+             Redis       Outbox     RabbitMQ (topic: fluxcommerce.events)
+                │            │          │
+                └────────────┼──────────┘
+                             │
+                    Background Workers
+                             │
+                         Stripe
+```
 
-Each module owns:
+**Request → Event flow:**
 
-* Domain logic
-* Application use cases
-* Persistence logic
-* Business state
+```
+Business Operation → DB Transaction (State + Outbox) → Outbox Dispatcher → RabbitMQ
+→ Consumer (manual ACK) → IIdempotentProcessor (State + ProcessedMessage atomic)
+→ Saga transition (Version-guarded) → next IntegrationEvent
+```
 
-Modules communicate through explicit contracts.
-
-A module must not directly access another module's internal implementation.
+> Full spec: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · Master context: [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md)
 
 ---
 
-### Explicit State Ownership
+## Tech Stack
 
-Each module owns its own business state.
-
-```text
-Orders
-    → Order State
-
-Inventory
-    → Stock State
-    → Reservation State
-
-Payments
-    → Payment State
-    → Payment Transaction State
-```
-
-The Saga coordinates workflows but does not own the internal state of other modules.
+| Layer | Technology |
+|---|---|
+| **Runtime** | .NET 10.0, ASP.NET Core 10, C# latest |
+| **Persistence** | EF Core 10, SQL Server 2022 (module-per-DbContext), Redis 8 (Cart) |
+| **Messaging** | RabbitMQ 4 (durable topic exchange + confirms), Transactional Outbox |
+| **Payments** | Stripe.net 42.3 (isolated to `Payments.Infrastructure` only) |
+| **Observability** | Serilog, OpenTelemetry (ActivitySource `FluxCommerce`), W3C Trace Context |
+| **Auth** | ASP.NET Identity + JWT (Access + Refresh), `Roles: Customer/Admin/SuperAdmin` |
+| **Tooling** | Docker Compose, Swashbuckle, NetArchTest, xUnit, Moq, MailKit |
+| **Quality Gates** | `TreatWarningsAsErrors`, `EnforceCodeStyleInBuild`, 177 arch tests |
 
 ---
 
-### No Cross-Module Direct Database Writes
+## Key Reliability Patterns
 
-Incorrect:
-
-```text
-Order Module
-    │
-    ▼
-InventoryDbContext
-    │
-    ▼
-Update Inventory State
-```
-
-Correct:
-
-```text
-Order Module
-    │
-    ▼
-Command / Integration Event
-    │
-    ▼
-Inventory Module
-    │
-    ▼
-Inventory State Change
-```
-
-Modules must communicate through approved contracts and messaging mechanisms.
+- **Transactional Outbox** — `Business State + OutboxMessage` commit atomically per `DbContext`; dispatcher claims via `UPDLOCK, READPAST` CTE, exponential backoff, stale-claim recovery. No distributed transactions.
+- **At-Least-Once + Idempotent Consumers** — `ProcessedMessage` composite PK `(Key, Handler)` is the final arbiter; `TryProcessAsync` guarantees exactly-one effect even on concurrent redelivery.
+- **Saga Orchestration** — Orders-owned `OrderSaga` (`WaitingForInventory → WaitingForPayment → Completed/Failed/ReleasingInventory/Cancelled/Refunding`), `Version` concurrency, compensation via `inventory.release_requested` and `payments.refund_requested`.
+- **Inventory Concurrency** — atomic conditional update prevents overselling; `Available = OnHand - Reserved`.
+- **Stripe Isolation** — `Payments.Domain/Application/Contracts` have zero `Stripe.net` refs; only `Payments.Infrastructure` touches the SDK (enforced by arch tests). Idempotency via `intent_{OrderId}_{PaymentId}_{Version}` + webhook dedup.
+- **Reservation Expiry** — Inventory worker expires → `InventoryReservationExpiredIntegrationEvent` via Outbox → Orders Saga `WaitingForPayment → Cancelled` (terminal-safe, no double release).
+- **Resilience** — bounded retry (Fixed/Linear/Exponential + `MaxDelay`), DLX/DLQ with enriched headers (`x-dead-letter-reason`, `x-attempt`, `x-error-type`), graceful shutdown (unacked → redelivery).
 
 ---
 
-### Eventual Consistency
+## Modules
 
-The system accepts eventual consistency where asynchronous processing is appropriate.
+| Module | Owns | Highlights |
+|---|---|---|
+| **Identity** | Users, Roles, Tokens | JWT + Refresh, `Customer/Admin/SuperAdmin`, email verify, lockout, config-driven seeder |
+| **Catalog** | Products, Variants, SKU | SQL filtering/sorting/pagination, soft delete, `decimal(18,6)` money |
+| **Cart** | Guest & Auth carts | Redis primary, opaque `CartId`, merge Guest→Auth, Catalog contract `ICatalogVariantCartLookup` |
+| **Orders** | Order, OrderLine, Saga | Immutable snapshot, `Idempotency-Key` header `(UserId,Key)` unique, `Pending→Cancelled/Confirmed` |
+| **Inventory** | Stock, Reservations | Reservation lifecycle, expiration worker, oversell-proof |
+| **Payments** | Payment, Webhook, Refund | Stripe intent isolation, `ProcessedWebhookEvents`, Outbox `payments.payment_succeeded/failed` |
+| **BuildingBlocks** | Cross-cutting only | `Domain`, `Application` (Result/Error), `Messaging` (contract-only), `Outbox`, `Idempotency`, `Persistence`, `Observability`, `Localization`, `Web`, `Infrastructure` |
 
-The architecture does not attempt to maintain one large distributed transaction across:
-
-* Orders
-* Inventory
-* Payments
-* Stripe
-
-Instead, the system uses:
-
-* Integration Events
-* Transactional Outbox
-* Message Broker
-* Saga Orchestration
-* Compensating Actions
+> `Pricing`, `Promotions`, `Wishlist`, `Reviews`, `Shipping`, `Notifications`, `Analytics`, `Search` are deferred until Core MVP (Phase 12) is green — see [Roadmap](#roadmap).
 
 ---
 
-### At-Least-Once Delivery
+## Getting Started
 
-The messaging architecture assumes:
+### Prerequisites
 
-```text
-At-Least-Once Delivery
+- [.NET SDK 10.0.302+](https://dotnet.microsoft.com/download) (`global.json`)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- EF Core CLI: `dotnet tool install --global dotnet-ef --version 10.0.10`
+
+### 1. Clone & Configure
+
+```bash
+git clone https://github.com/<your-org>/FluxCommerce.git
+cd FluxCommerce
+
+# create env for compose (gitignored)
+cp .env.example .env
+# edit .env → set MSSQL_SA_PASSWORD, RABBITMQ_DEFAULT_USER/PASS
 ```
 
-Exactly-once delivery is not assumed.
+### 2. Start Infrastructure
 
-Consumers that modify business state must therefore be idempotent.
+```bash
+docker compose up -d
+docker compose ps          # sqlserver :1433, redis :6379, rabbitmq :5672/:15672, smtp4dev :5000
+```
+
+RabbitMQ UI → http://localhost:15672 · smtp4dev → http://localhost:5000
+
+### 3. Configure SuperAdmin Seeder (dev only)
+
+`appsettings.json` ships with `Identity:Seeder:Enabled=false`. Dev enables it with an empty password — override via User Secrets:
+
+```bash
+dotnet user-secrets set "Identity:Seeder:SuperAdmin:Password" "Test123!" --project src/FluxCommerce.Api
+dotnet run --project src/FluxCommerce.Api
+# log: Seeded SuperAdmin admin@flux.local  (first boot)
+# log: SuperAdmin already exists, skipping seeding  (second boot — idempotent)
+```
+
+Login:
+
+```bash
+curl -X POST https://localhost:7119/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@flux.local","password":"Test123!"}'
+```
+
+### 4. Run the API
+
+```bash
+dotnet run --project src/FluxCommerce.Api --launch-profile https
+# Swagger: https://localhost:7119/swagger
+# HTTP:    http://localhost:5260/swagger
+```
+
+### 5. Verify
+
+```bash
+dotnet build FluxCommerce.slnx -c Debug      # 0 warnings, 0 errors
+dotnet test --filter "Architecture"          # 177/177
+```
+
+> More: [`docs/current/LOCAL_DEVELOPMENT.md`](docs/current/LOCAL_DEVELOPMENT.md) · [`docs/current/EF_CORE_COMMANDS.md`](docs/current/EF_CORE_COMMANDS.md)
 
 ---
 
-### Idempotency
+## Configuration
 
-Idempotency is required at multiple levels.
+All secrets are externalized via `IConfiguration` / `IOptions<T>` — never committed.
 
-#### API Idempotency
+| Setting | Source | Example |
+|---|---|---|
+| `ConnectionStrings:Database` | `.env` → `MSSQL_SA_PASSWORD` | `Server=localhost,1433;Database=FluxCommerce_Orders;...` |
+| `MessageBroker:*` | `.env` `RABBITMQ_*` | `fluxcommerce.events` topic exchange |
+| `Jwt:SigningKey` | User Secrets / env | `Jwt__SigningKey` |
+| `Stripe:SecretKey/WebhookSecret` | User Secrets / env | `Stripe__SecretKey` |
+| `Identity:Seeder:SuperAdmin:Password` | User Secrets | `Identity:Seeder:SuperAdmin:Password` |
+| `Cache:ConnectionString` | compose | `localhost:6379` |
 
-Important operations such as Checkout and Payment creation should support idempotency where appropriate.
-
-Example:
-
-```http
-POST /checkout
-Idempotency-Key: ABC123
-```
-
-Repeated requests using the same idempotency key must not create duplicate business operations.
-
-#### Message Idempotency
-
-Consumers must safely handle duplicate messages.
-
-#### Webhook Idempotency
-
-Stripe Webhooks must be processed idempotently.
-
-#### Payment Intent Idempotency
-
-Retries must not create multiple Payment Intents for the same Order.
+`appsettings.Development.json` uses `localhost` hosts with empty secrets; production (`appsettings.json`) ships with `""` defaults and `ValidateOnStart`.
 
 ---
 
-## Main Modules
+## API Reference
 
-```text
-Platform / Cross-Cutting
-├── Identity & Access
-└── Observability
+Swagger is available at `/swagger` when the API is running. Key endpoints:
 
-Core Commerce
-├── Catalog
-├── Cart
-├── Pricing
-├── Orders
-├── Inventory
-└── Payments
+| Area | Method & Path | Auth |
+|---|---|---|
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` | Anonymous |
+| Catalog | `GET /catalog/products`, `POST /catalog/products` | Read anon, Write `Admin` |
+| Cart | `POST /cart/guest`, `POST /cart/authenticated`, `POST /cart/merge` | Guest / Auth |
+| Orders | `POST /orders/checkout` (`Idempotency-Key` header), `GET /orders`, `POST /orders/{id}/cancel` | `Customer` |
+| Inventory | `GET /inventory/items` | `Admin` |
+| Payments | `GET /api/payments/{paymentId}`, `POST /api/payments/webhook` | Owner `Customer` / `AllowAnonymous` (Stripe sig) |
 
-Supporting Commerce
-├── Promotions & Coupons
-├── Wishlist
-├── Reviews
-└── Shipping
-
-Communication & Reporting
-├── Notifications
-└── Analytics
-
-Infrastructure Capabilities
-├── Messaging
-├── Outbox
-├── Idempotency
-├── Background Processing
-└── Resilience
-```
+ProblemDetails are localized (`en/fr/de/es/ar` via `Accept-Language` / `?culture=` / cookie, `Content-Language` header) — see [`docs/ARCHITECTURE.md#26`](docs/ARCHITECTURE.md).
 
 ---
 
-## Module Responsibilities
+## Project Structure
 
-### Identity & Access
-
-Responsibilities:
-
-* Customer registration
-* Admin management
-* Login
-* JWT Access Tokens
-* Refresh Tokens
-* Email Verification
-* Password Reset
-* Account Lockout
-* Role-Based Authorization
-
-Roles:
-
-```text
-Customer
-Admin
-SuperAdmin
+```
+FluxCommerce.slnx
+├── src/
+│   ├── FluxCommerce.Api/                 # Host, Program.cs, middleware, Swagger
+│   ├── BuildingBlocks/                   # Domain, Application, Messaging, Outbox, Idempotency,
+│   │                                     # Persistence, Infrastructure, Observability, Localization, Web
+│   └── Modules/
+│       ├── Identity/   (Domain/Application/Infrastructure/Contracts)
+│       ├── Catalog/    (Domain/Application/Infrastructure/Contracts)
+│       ├── Cart/       (Domain/Application/Infrastructure/Contracts — Redis)
+│       ├── Orders/     (Domain/Application/Infrastructure/Contracts — Saga)
+│       ├── Inventory/  (Domain/Application/Infrastructure/Contracts)
+│       └── Payments/   (Domain/Application/Infrastructure/Contracts — Stripe isolated)
+├── tests/
+│   ├── Architecture/   # 177 tests — dependency & layer rules (NetArchTest)
+│   ├── UnitTests/      # 2277 tests — domain & application
+│   ├── IntegrationTests/ # 402 tests — EF + Redis + RabbitMQ (real infra)
+│   └── Reliability/    # Failure harness (Phase 12)
+└── docs/
+    ├── PROJECT_CONTEXT.md   # Master spec & AI implementation guide
+    ├── ARCHITECTURE.md      # Architecture specification
+    ├── adr/ (15)            # Architecture Decision Records
+    ├── phases/ (11)         # Phase implementation plans
+    ├── completed/ (13)      # Phase completion reports + INDEX
+    ├── refactoring/         # Refactoring cycles R1/R2
+    └── current/             # LOCAL_DEVELOPMENT, EF_CORE_COMMANDS
 ```
 
-Identity is treated as a Platform Capability.
-
-Commerce modules should depend on abstractions such as:
-
-```text
-CurrentUser
-UserId
-Roles
-```
-
-rather than directly depending on Identity implementation details.
+Conventions: `TreatWarningsAsErrors`, `Nullable=enable`, one `DbContext` per module, `Contracts` depend only on `BuildingBlocks.Messaging`.
 
 ---
 
-### Catalog
+## Testing
 
-Responsibilities:
+```bash
+# all — per-suite is authoritative (parallel Redis EVAL can flake in combined run)
+dotnet test tests/Architecture/FluxCommerce.ArchitectureTests -c Debug
+dotnet test tests/UnitTests/FluxCommerce.UnitTests -c Debug
+dotnet test tests/IntegrationTests/FluxCommerce.IntegrationTests -c Debug
 
-* Products
-* Categories
-* Product Variants
-* SKU
-* Product Images
-* Dynamic Attributes and Specifications
-* Product Lifecycle
-* Soft Delete
-* Versioning where required
+# with infra (sqlserver + redis + rabbitmq must be up)
+dotnet test tests/IntegrationTests -c Debug  # 402/402
 
-Initial search strategy:
-
-```text
-SQL Server
-    +
-Filtering
-    +
-Sorting
-    +
-Pagination
+# EF model drift check (should be "No changes")
+dotnet ef migrations has-pending-model-changes --project src/Modules/Orders/FluxCommerce.Modules.Orders.Infrastructure --startup-project src/FluxCommerce.Api
 ```
 
-A dedicated Search Engine is not part of the initial Catalog implementation.
+| Suite | Result (R2.8) | What it proves |
+|---|---|---|
+| Architecture | **177/177** | No cross-module DbContext access, `Stripe` infra-only, layer boundaries |
+| Unit | **2277/2277** | Domain invariants, saga matrix, webhook interpreter, idempotency |
+| Integration | **402/402** | Outbox atomic claim, consumer redelivery, saga E2E, oversell race |
 
 ---
 
-### Product Search
+## Documentation
 
-The initial implementation uses SQL-based querying.
-
-A future architecture may use:
-
-```text
-Catalog
-    │
-    ▼
-ProductChanged Event
-    │
-    ▼
-Search Indexer
-    │
-    ▼
-Search Engine
-```
-
-Search infrastructure is introduced in a later phase.
+| Document | Purpose |
+|---|---|
+| [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) | Master spec — read this first (phases, ownership, reliability) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module structure, BuildingBlocks, messaging, saga, observability |
+| [`docs/adr/`](docs/adr/) | 15 ADRs — modular monolith → refund compensation |
+| [`docs/phases/`](docs/phases/) | Implementation plans per phase (0–12) |
+| [`docs/completed/`](docs/completed/) | Completion reports + [`INDEX.md`](docs/completed/INDEX.md) |
+| [`docs/current/LOCAL_DEVELOPMENT.md`](docs/current/LOCAL_DEVELOPMENT.md) | Docker, seeder, Swagger, troubleshooting |
+| [`docs/current/EF_CORE_COMMANDS.md`](docs/current/EF_CORE_COMMANDS.md) | `dotnet ef` recipes per module |
+| [`docs/refactoring/`](docs/refactoring/) | R1/R2 hardening — findings, moves, verification |
 
 ---
 
-### Cart
+## Roadmap
 
-Responsibilities:
+Incremental — future phases are **not** implemented prematurely.
 
-* Guest Cart
-* Authenticated User Cart
-* Add Item
-* Update Quantity
-* Remove Item
-* Clear Cart
-* Cart Merge after Login
-* Cart Expiration
+| Phase | Status | Summary |
+|---|---|---|
+| 0 Architecture Foundation | ✅ Done | Solution, BuildingBlocks, module skeletons |
+| 1 Identity & Access | ✅ Done | JWT, roles, seeder |
+| 1.5 Runtime Preparation | ✅ Done | Docker, Swagger, DB init |
+| 2 Catalog | ✅ Done | Products, variants, persistence |
+| 3 Cart | ✅ Done | Redis cart, guest→auth merge |
+| 4 Orders & Checkout | ✅ Done | Immutable snapshot, idempotent checkout |
+| 5 Inventory Concurrency | ✅ Done | Reservation, oversell prevention |
+| 6 Outbox + RabbitMQ | ✅ Done | Reliable publication, topic exchange |
+| 7 Idempotent Consumers | ✅ Done | Inbox, retry, DLQ |
+| 8 Order/Inventory Saga | ✅ Done | `order.created → reservation` workflow |
+| 9 Stripe Payments | ✅ Done | Intent isolation, webhook dedup |
+| 10 Payment Saga & Compensation | ✅ Done | Refund, release, cancel orchestration |
+| 11 Reservation Expiry | ✅ Done | Expiration worker → Saga cancel |
+| **12 Failure Testing** | **▶ Next** | Chaos, redelivery, DLQ, timeout harness |
+| 13 Search · 14 Promotions · 15 Wishlist · 16 Reviews · 17 Notifications · 18 Shipping · 19 Analytics · 20 Hardening | ⏳ Planned | Post-MVP |
 
-Redis is used for Cart state.
-
-```text
-Guest
-   │
-   ▼
-Redis Cart
-   │
-   │ Login
-   ▼
-Merge Cart
-   │
-   ▼
-Authenticated Cart
-```
-
-Cart prices are temporary snapshots.
-
-They are not the final source of truth for Orders.
-
-During Checkout:
-
-```text
-Cart
-    │
-    ▼
-Recalculate
-    │
-    ├── Current Product Price
-    ├── Discounts
-    ├── Coupons
-    ├── Tax
-    └── Shipping
-    │
-    ▼
-Create Immutable Order Snapshot
-```
+Core MVP is complete after Phase 12.
 
 ---
 
-### Pricing
+## Philosophy
 
-Responsibilities:
-
-* Base Price
-* Tax
-* Currency
-* Discounts
-* Price Calculation
-* Price History
-
-The monetary model should use a consistent Money concept:
-
-```text
-Money
-├── Amount
-└── Currency
 ```
-
-Money calculations must have explicit rules for rounding and currency handling.
-
----
-
-### Promotions & Coupons
-
-Supported concepts include:
-
-* Percentage Discounts
-* Fixed Discounts
-* Free Shipping
-* Expiration
-* Minimum Order Value
-* Category Restrictions
-* Product Restrictions
-* Global Usage Limits
-* Per-User Usage Limits
-* Stacking Rules
-
-This module is introduced after the Core Order Processing workflow is stable.
-
----
-
-### Orders
-
-Responsibilities:
-
-* Checkout
-* Order Creation
-* Immutable Order Snapshot
-* Order Lifecycle
-* Order History
-* Cancellation
-* Customer Order Queries
-
-Orders preserve the commercial state at the time of purchase.
-
-Example:
-
-```text
-OrderItem
-├── ProductId
-├── SKU
-├── ProductNameSnapshot
-├── UnitPriceSnapshot
-├── Quantity
-└── Total
-```
-
-The Order must not rely on live Catalog data after creation.
-
----
-
-### Inventory
-
-Responsibilities:
-
-* Stock Management
-* Available Quantity
-* Reserved Quantity
-* Inventory Reservations
-* Release
-* Commit
-* Reservation Expiration
-* Low Stock Alerts
-
-Conceptually:
-
-```text
-InventoryItem
-├── SKU
-├── OnHandQuantity
-├── ReservedQuantity
-└── AvailableQuantity
-```
-
-Reservation:
-
-```text
-InventoryReservation
-├── Id
-├── OrderId
-├── SKU
-├── Quantity
-├── Status
-└── ExpiresAt
-```
-
-Inventory must prevent overselling under concurrent requests.
-
-For example:
-
-```text
-Available = 1
-
-Customer A → Reserve 1
-Customer B → Reserve 1
-```
-
-Only one reservation may succeed.
-
-Concurrency techniques may include:
-
-* Atomic Conditional Updates
-* Optimistic Concurrency
-* Transactional Boundaries
-
----
-
-### Payments
-
-Responsibilities:
-
-* Payment Intent
-* Payment Attempts
-* Payment Transactions
-* Payment Status
-* Stripe Integration
-* Webhook Processing
-* Refunds
-
-Payments own their own state.
-
-The Payment module may reference:
-
-```text
-OrderId
-```
-
-but does not directly own or modify Order state.
-
----
-
-### Shipping
-
-Responsibilities:
-
-* Shipping Methods
-* Shipping Rates
-* Address Validation
-* Tracking
-* Shipping Status
-
----
-
-### Reviews
-
-Rules:
-
-* Customer must have purchased the product.
-* Reviews are allowed after Delivery.
-* Reviews represent verified purchases.
-* Reviews may require moderation.
-* Admin can approve or reject reviews.
-
----
-
-### Notifications
-
-Notifications are event-driven.
-
-Examples:
-
-```text
-OrderConfirmed
-OrderShipped
-OrderDelivered
-PaymentFailed
-ReservationExpired
-```
-
-Initial channel:
-
-```text
-Email
-```
-
-Future channels may include:
-
-```text
-SMS
-Push Notifications
-```
-
----
-
-### Analytics
-
-Admin analytics may include:
-
-* Revenue
-* Orders
-* Best Selling Products
-* Order Funnel
-* Abandoned Cart Rate
-* Low Stock Metrics
-* Operational Metrics
-
-Analytics should favor read models and asynchronous processing rather than adding expensive analytical queries to transactional workloads.
-
----
-
-## Core Order Processing Workflow
-
-The primary business workflow is:
-
-```text
-Checkout
-    │
-    ▼
-Validate Cart
-    │
-    ├── Validate Products
-    ├── Validate Prices
-    ├── Validate Promotions
-    ├── Validate Customer
-    └── Validate Shipping Information
-    │
-    ▼
-Create Order
-    │
-    ▼
-Order = Pending
-    │
-    ▼
-Reserve Inventory
-    │
-    ├── Failed
-    │      │
-    │      ▼
-    │   Fail / Cancel Order
-    │
-    └── Success
-           │
-           ▼
-    Create Payment Intent
-           │
-           ▼
-     Customer Pays
-           │
-           ▼
-    Stripe Webhook
-           │
-           ▼
-    Payment Succeeded
-           │
-           ▼
-     Confirm Order
-           │
-           ▼
-       Fulfillment
-           │
-           ▼
-        Shipping
-           │
-           ▼
-       Delivered
-```
-
-The critical ordering rule is:
-
-> Inventory Reservation happens before Payment processing.
-
-This allows the system to compensate more safely when payment fails.
-
----
-
-## Transactional Outbox
-
-The Outbox Pattern is used for reliable event publication.
-
-```text
-Business Operation
-       │
-       ▼
-Database Transaction
-       │
-       ├── Business State Change
-       │
-       └── Outbox Message
-               │
-               ▼
-       Outbox Dispatcher
-               │
-               ▼
-            RabbitMQ
-```
-
-The responsibilities are separated:
-
-```text
-Outbox
-→ Reliable Event Publication
-
-RabbitMQ
-→ Asynchronous Message Delivery
-
-Consumer
-→ Idempotent Processing
-```
-
----
-
-## Messaging
-
-RabbitMQ is the initial Message Broker.
-
-Conceptually:
-
-```text
-Topic Exchange
-    │
-    ├── order.created
-    ├── inventory.reserved
-    ├── inventory.failed
-    ├── payment.succeeded
-    ├── payment.failed
-    └── reservation.expired
-```
-
-Messaging must support:
-
-* Retry
-* Manual Acknowledgement
-* Dead Letter Exchange
-* Dead Letter Queue
-* Idempotent Consumers
-* Correlation IDs
-
----
-
-## Saga Orchestration
-
-The Order Processing Saga is conceptually owned by the Orders module.
-
-```text
-Order Saga
-    │
-    ▼
-Reserve Inventory
-    │
-    ├── Success
-    │      │
-    │      ▼
-    │   Initiate Payment
-    │
-    └── Failure
-           │
-           ▼
-       Fail Order
-```
-
-Later:
-
-```text
-Reserve Inventory
-        ↓
-Payment
-        ↓
-Payment Failed
-        ↓
-Release Inventory
-        ↓
-Cancel Order
-```
-
-The Saga coordinates the workflow.
-
-It does not directly modify the internal state of other modules.
-
-```text
-Orders
-→ Order State
-
-Inventory
-→ Reservation State
-
-Payments
-→ Payment State
-```
-
----
-
-## Compensation and Failure Recovery
-
-Payment failure:
-
-```text
-Inventory Reserved
-        ↓
-Payment Failed
-        ↓
-Release Inventory
-        ↓
-Cancel Order
-```
-
-Order confirmation failure after payment success:
-
-```text
-Payment Succeeded
-        ↓
-Order Confirmation Failed
-        ↓
-Retry with Exponential Backoff
-        ↓
-Retry Limit Reached
-        ↓
-Dead Letter / Manual Recovery
-```
-
-The system should not automatically refund immediately without an explicit recovery policy.
-
-If compensation requires a refund:
-
-```text
-Payment Success
-        ↓
-Refund
-        ↓
-Release Inventory if applicable
-        ↓
-Cancel Order
-```
-
-The exact recovery policy must be explicitly defined and implemented as a business workflow.
-
----
-
-## Reservation Expiration
-
-Inventory owns Reservation expiration.
-
-```text
-HostedService
-      │
-      ▼
-Find Expired Reservations
-      │
-      ▼
-Release Reservation
-      │
-      ▼
-Publish ReservationExpired
-      │
-      ▼
-Order Saga
-      │
-      ▼
-Cancel Order
-```
-
-The Inventory Worker must not directly modify Order state.
-
----
-
-## Observability
-
-The system is designed to support:
-
-* Structured Logging
-* Correlation IDs
-* Trace IDs
-* Distributed Tracing
-* Metrics
-* Health Checks
-
-Technology direction:
-
-```text
-Serilog
-+
-OpenTelemetry
-```
-
-Example:
-
-```text
-Checkout Request
-      │
-      ├── Create Order
-      │
-      ├── Reserve Inventory
-      │
-      ├── Create Payment Intent
-      │
-      ├── Stripe Webhook
-      │
-      └── Confirm Order
-```
-
-The objective is to trace one business operation across synchronous and asynchronous boundaries.
-
----
-
-## Implementation Roadmap
-
-The project is implemented incrementally.
-
-```text
-Phase 0
-Architecture Foundation
-
-Phase 1
-Identity & Access
-
-Phase 2
-Catalog
-
-Phase 3
-Cart
-
-Phase 4
-Orders
-
-Phase 5
-Inventory + Concurrency
-
-Phase 6
-Outbox + RabbitMQ
-
-Phase 7
-Idempotent Consumers
-
-Phase 8
-Order/Inventory Saga
-
-Phase 9
-Stripe Payments
-
-Phase 10
-Payment Saga + Compensation
-
-Phase 11
-Reservation Expiry
-
-Phase 12
-Failure Testing
-
-Phase 13
-Search
-
-Phase 14
-Promotions & Coupons
-
-Phase 15
-Wishlist
-
-Phase 16
-Reviews
-
-Phase 17
-Notifications
-
-Phase 18
-Shipping
-
-Phase 19
-Analytics
-
-Phase 20
-Production Hardening
-```
-
-The current implementation phase determines what may be implemented.
-
-Future phases must not be implemented prematurely.
-
----
-
-## Phase 0 Scope
-
-Phase 0 establishes the technical foundation.
-
-It includes:
-
-* Solution Structure
-* Modular Boundaries
-* ASP.NET Core API
-* Entity Framework Core
-* SQL Server
-* Redis
-* RabbitMQ
-* Docker Compose
-* Result Pattern
-* Domain Event Contracts
-* Integration Event Contracts
-* Outbox Contracts
-* Idempotency Contracts
-* Correlation ID
-* Serilog
-* OpenTelemetry Base Configuration
-
-Phase 0 does not implement:
-
-* Catalog CRUD
-* Cart
-* Checkout
-* Payment
-* Saga
-* Inventory Reservation
-
-Those belong to later phases.
-
----
-
-## Recommended Module Structure
-
-```text
-src/
-│
-├── Api/
-│
-├── Modules/
-│   │
-│   ├── Identity/
-│   │   ├── Domain/
-│   │   ├── Application/
-│   │   ├── Infrastructure/
-│   │   └── Contracts/
-│   │
-│   ├── Catalog/
-│   │   ├── Domain/
-│   │   ├── Application/
-│   │   ├── Infrastructure/
-│   │   └── Contracts/
-│   │
-│   ├── Cart/
-│   │   ├── Domain/
-│   │   ├── Application/
-│   │   ├── Infrastructure/
-│   │   └── Contracts/
-│   │
-│   ├── Orders/
-│   │   ├── Domain/
-│   │   ├── Application/
-│   │   ├── Infrastructure/
-│   │   └── Contracts/
-│   │
-│   ├── Inventory/
-│   │   ├── Domain/
-│   │   ├── Application/
-│   │   ├── Infrastructure/
-│   │   └── Contracts/
-│   │
-│   └── Payments/
-│       ├── Domain/
-│       ├── Application/
-│       ├── Infrastructure/
-│       └── Contracts/
-│
-└── BuildingBlocks/
-    ├── Domain/
-    ├── Application/
-    ├── Infrastructure/
-    ├── Messaging/
-    ├── Outbox/
-    ├── Idempotency/
-    ├── Observability/
-    └── Resilience/
-```
-
-Shared code should represent genuinely shared concepts.
-
-Avoid creating abstractions only to eliminate a small amount of duplication.
-
-Avoid unnecessary:
-
-```text
-GenericRepository<T>
-GenericService<T>
-GenericController<T>
-```
-
----
-
-## Database Strategy
-
-The initial architecture uses one SQL Server instance with separate DbContexts per module.
-
-Conceptually:
-
-```text
-SQL Server
-    │
-    ├── Catalog DbContext
-    ├── Orders DbContext
-    ├── Inventory DbContext
-    ├── Payments DbContext
-    └── ...
-```
-
-Prefer:
-
-> One DbContext per module.
-
-Modules must maintain strong persistence boundaries even when they initially share the same physical database.
-
-Potential future extraction candidates include:
-
-```text
-Orders
-Inventory
-Payments
-```
-
-Future evolution:
-
-```text
-Modular Monolith
-      │
-      ▼
-Extract Bounded Context
-      │
-      ▼
-Independent Database
-      │
-      ▼
-Independent Service
-```
-
-Extraction should only happen when there is a real architectural reason.
-
----
-
-## Testing Strategy
-
-The project must eventually test failure scenarios explicitly.
-
-### Messaging
-
-* RabbitMQ Unavailable
-* Consumer Crash
-* Message Redelivery
-* Duplicate Message
-* Poison Message
-* Retry
-* Dead Letter Queue
-
-### Payments
-
-* Payment Failure
-* Payment Timeout
-* Duplicate Webhook
-* Invalid Webhook Signature
-* Duplicate Payment Intent
-
-### Inventory
-
-* Concurrent Reservations
-* Insufficient Stock
-* Reservation Expiration
-* Reservation Release
-
-### Database
-
-* Database Failure
-* Transaction Failure
-* Outbox Failure
-
-### Distributed Workflow
-
-* Payment Success + Order Confirmation Failure
-* Inventory Reserved + Payment Failure
-* Reservation Expired + Order Cancellation
-
----
-
-## Core MVP Definition of Done
-
-The Core MVP is complete after Phase 12.
-
-The end-to-end workflow must support:
-
-```text
-Customer
-   ↓
-Login
-   ↓
-Browse Catalog
-   ↓
-Add Product to Cart
-   ↓
-Checkout
-   ↓
-Recalculate Price
-   ↓
-Create Order
-   ↓
-Reserve Inventory
-   ↓
-Create Payment Intent
-   ↓
-Customer Pays
-   ↓
-Stripe Webhook
-   ↓
-Payment Succeeded
-   ↓
-Order Confirmed
-```
-
-Failure scenarios must include:
-
-```text
-Inventory Failure
-    → Order Failed
-```
-
-```text
-Payment Failure
-    → Release Inventory
-    → Cancel Order
-```
-
-```text
-Reservation Expired
-    → Release Inventory
-    → ReservationExpired Event
-    → Order Cancellation
-```
-
-```text
-Duplicate Message
-    → Idempotency Check
-    → No Duplicate Business Operation
-```
-
-```text
-Consumer Crash
-    → Message Redelivery
-    → Safe Reprocessing
-```
-
-```text
-Order Confirmation Failure
-    → Retry
-    → DLQ / Recovery Policy
-```
-
----
-
-## Project Success Criteria
-
-The project succeeds when it demonstrates more than a collection of APIs.
-
-It should demonstrate:
-
-```text
-Business Domain Modeling
-        +
-Modular Architecture
-        +
-Reliable Order Processing
-        +
-Inventory Concurrency
-        +
-Asynchronous Messaging
-        +
-Transactional Outbox
-        +
-Idempotency
-        +
-Saga Orchestration
-        +
-Compensation
-        +
-Failure Recovery
-        +
-Observability
-```
-
-The system should be explainable through real implementation and tests when discussing questions such as:
-
-* Why Modular Monolith instead of Microservices?
-* Why is Inventory reserved before Payment?
-* How is overselling prevented?
-* What happens if Payment succeeds but Order confirmation fails?
-* What happens if RabbitMQ delivers the same message twice?
-* How are duplicate Stripe Webhooks handled?
-* Why is the Outbox Pattern required?
-* What happens if a Consumer crashes after processing but before ACK?
-* How does the Saga coordinate multiple modules?
-* Who owns Order State?
-* Who owns Reservation State?
-* How could Inventory be extracted into a Microservice later?
-* How is one Order traced across asynchronous operations?
-
----
-
-## Development Philosophy
-
-The project follows this progression:
-
-```text
 Simple Correct Architecture
         ↓
 Strong Module Boundaries
         ↓
 Reliable Business Workflow
         ↓
-Concurrency
-        ↓
-Asynchronous Processing
-        ↓
-Failure Handling
-        ↓
-Observability
-        ↓
-Production Hardening
+Concurrency → Async → Failure Handling → Observability → Hardening
 ```
 
-Do not add complexity before the business problem requires it.
-
-The core architectural principle is:
-
-> Build a strong Modular Monolith first, then introduce distributed-systems patterns only where they solve real reliability and scalability problems.
-
-The final system should remain understandable, testable, maintainable, and capable of evolving into independently deployable services when justified.
+> Build a strong Modular Monolith first, then introduce distributed-systems patterns only where they solve real reliability or scalability problems.
 
 ---
 
-## Development Guidelines
+## Contributing
 
-When implementing a new phase:
+Contributions are welcome — especially failure-scenario tests for Phase 12.
 
-1. Read the project context and current architecture.
-2. Identify the current implementation phase.
-3. Inspect the existing codebase.
-4. Identify existing conventions.
-5. Do not rewrite unrelated modules.
-6. Define the domain model.
-7. Define module boundaries and dependencies.
-8. Implement the Domain layer.
-9. Implement the Application layer.
-10. Implement Infrastructure and Persistence.
-11. Implement API endpoints.
-12. Integrate with existing modules only through approved contracts.
-13. Add validation and error handling.
-14. Add tests.
-15. Verify architectural boundaries.
-16. Verify failure and concurrency behavior where applicable.
-17. Document important architectural decisions.
+1. Read `docs/PROJECT_CONTEXT.md` and `docs/ARCHITECTURE.md`
+2. Check the current phase in `docs/completed/INDEX.md` — do not implement future phases early
+3. Respect module boundaries (`No cross-DbContext`, `Contracts` only via `BuildingBlocks.Messaging`)
+4. Add/maintain Architecture + Unit + Integration tests
+5. Run `dotnet build` (0W/0E) and `dotnet test` per-suite before PR
 
-The current implementation phase determines what is allowed to be implemented.
-
----
-
-## Documentation
-
-Project documentation is maintained under:
-
-```text
-docs/
-├── PROJECT_CONTEXT.md
-├── ARCHITECTURE.md
-├── IMPLEMENTATION_ROADMAP.md
-├── DOMAIN_MODEL.md
-├── MESSAGING.md
-├── RELIABILITY.md
-└── ADR/
-    ├── 001-modular-monolith.md
-    ├── 002-database-boundaries.md
-    ├── 003-messaging.md
-    └── 004-order-workflow.md
-```
+See `docs/refactoring/REFACTORING_2_PLAN.md` for the hardening bar that gates Phase 12.
 
 ---
 
 ## License
 
-This project is intended as a portfolio and educational software engineering project.
+MIT — intended as a portfolio and educational reference. See `LICENSE` if present; otherwise treat as MIT for learning and reuse.
+
+---
+
+<p align="center">
+  Built to demonstrate <strong>reliable order processing</strong> — not just CRUD.
+  <br/>
+  <sub>FluxCommerce · Modular Monolith · Outbox · Idempotent Consumers · Saga · Compensation</sub>
+</p>
