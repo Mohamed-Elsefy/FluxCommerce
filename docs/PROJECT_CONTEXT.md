@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below), and **Phase 10** (Payment Saga & Compensation Workflows — `docs/completed/PHASE_10_COMPLETION_REPORT.md`, summarized in §14.9 below), and **Phase 11** (Reservation Expiry Orchestration — `docs/completed/PHASE_11_COMPLETION_REPORT.md`, summarized in §14.10 below). Next is **Phase 12** (Failure Testing).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below), and **Phase 10** (Payment Saga & Compensation Workflows — `docs/completed/PHASE_10_COMPLETION_REPORT.md`, summarized in §14.9 below), and **Phase 11** (Reservation Expiry Orchestration — `docs/completed/PHASE_11_COMPLETION_REPORT.md`, summarized in §14.10 below), and **Refactoring Cycle 2 (R2)** (Structural Hardening — `docs/refactoring/REFACTORING_2_COMPLETION.md`, summarized in §14.11 below). Next is **Phase 12** (Failure Testing).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1527,6 +1527,45 @@ Phase 11 (see `docs/completed/PHASE_11_COMPLETION_REPORT.md` and `docs/phases/PH
 
 **Deferred.** Failure testing (Phase 12).
 
+### 14.11 Refactoring Cycle 2 (R2) — Structural Hardening — Implemented & Verified
+
+Refactoring Cycle 2 (see `docs/refactoring/REFACTORING_2_PLAN.md`, `REFACTORING_2_BASELINE.md`, `REFACTORING_2_FINDINGS.md`, `REFACTORING_2_COMPLETION.md`) is a standalone engineering cycle after Phase 11 and before Phase 12. It hardens the reliability infrastructure (Phases 6–11) without changing business behavior.
+
+**Sub-phases completed (R2.1–R2.8):**
+
+| Sub-phase | Scope | Status |
+|-----------|-------|--------|
+| R2.1 | Baseline & safety snapshot — 0W/0E build, 169 arch / 2264 unit / 380/381 integration, 39 projects, 1421 `*.cs` | Verified |
+| R2.2 | Architecture & structural audit — 57 findings (1 Critical, 11 High, 9 Medium, 9 Low/Info kept) | Audited |
+| R2.3 | Structural & BuildingBlocks refactoring — file placement, namespace alignment, ghost removal | Implemented |
+| R2.4 | Domain & Application responsibility review — `OrderSaga` cohesive keep, payment/webhook separation | Verified |
+| R2.5 | Infrastructure & persistence — helper extraction, transaction boundary preservation | Implemented |
+| R2.6 | API & contracts hardening — route/auth consistency, thin controllers, contract purity | Implemented |
+| R2.7 | Test & architecture hardening — architecture tests 169→230, unit + identity, integration hardening | Implemented |
+| R2.8 | Final hardening, documentation sync & completion report | Implemented |
+
+**Key structural updates (R2.3–R2.6):**
+
+- **File placement (F-01–F-08, High):** `Application/Interfaces` now hosts only ports. `CartItemState`, `CartState`, `CartSaveResult` moved to `Cart.Application.Models`; `CartSaveStatus` to `Cart.Application.Enums`; `CheckoutIdempotencyRecord` / `CheckoutPersistResult` to `Orders.Application.Models`, `CheckoutPersistStatus` to `Orders.Application.Enums` (split from `ICheckoutStore.cs`); `CreatePaymentIntentRequest` / `PaymentIntentResult` / `CreateRefundRequest` / `RefundResult` to `Payments.Application.Models`, `StripeWebhookVerificationResult` to `Payments.Application.Models`, `WebhookProcessResult` to `Payments.Application.Enums` (split from gateway/webhook interfaces); `PaymentWebhookAction` introduced as owning `Payments.Application.Enums`. Namespaces aligned (`...Application.Models`, `...Application.Enums`, `...Application.Interfaces`).
+- **BuildingBlocks (F-21 Critical, F-14–F-19 High):** Removed `BuildingBlocks.Resilience` ghost (4 interfaces, 0 consumers) — solution 39→38 projects. Introduced `OutboxMessageConfigurationBase` (`BuildingBlocks.Outbox`) and `ProcessedMessageConfigurationBase` (`BuildingBlocks.Idempotency`) as shared EF Core mapping helpers; per-module `OutboxMessageConfiguration` / `ProcessedMessageConfiguration` (Orders, Inventory, Payments) inherit the base and keep isolated tables/transaction boundaries. `BuildingBlocks` count 11→10.
+- **Identity (ADR-015):** Role-based authorization hardening — `Customer`/`Admin`/`SuperAdmin` roles, `IdentitySeeder`/`IdentitySeederOptions` (UserSecrets `Identity:Seeder:SuperAdmin:Password`), `AssignRole`/`UnlockUser` commands, `GET/POST /admin` protection, catalog write guards `[Authorize(Roles=Admin)]`.
+- **Payments webhook (R2.4/9.8):** Extracted `IPaymentWebhookInterpreter` / `PaymentWebhookInterpreter` (Application) separating `IStripeWebhookService` verification from `Stripe event → PaymentWebhookAction → Payment state` interpretation; `WebhookEventProcessor` delegates to interpreter, preserving terminal-state guards and unsupported-event no-ops.
+- **API hardening (R2.6):** `CartController.CreateAuthenticatedCart` no longer takes orphan `CreateGuestCartRequest` body — now body-less `POST /cart/authenticated`. Consistent `ProducesResponseType` / route-tag parity; Swagger culture header preserved.
+- **Outbox/Idempotency duplication (F-22, ADR-007/008):** **KEEP DUPLICATION** with helper extraction — per-module `OutboxMessages` / `ProcessedMessages` tables required for module-local atomic transactions (`Business State + Outbox` / `Business State + ProcessedMessage` per §11). Shared abstraction would couple transactions and ownership. Decided in `REFACTORING_2_COMPLETION.md` §7.
+
+**BuildingBlocks ownership (final, R2.8):**
+
+```
+BuildingBlocks
+├── Domain, Application, Infrastructure, Messaging, Outbox, Idempotency, Persistence, Observability, Localization, Web (10)
+```
+
+`Resilience` removed. Each BuildingBlock is technical, cross-cutting, and consumed by ≥2 modules (or the API as the observability host). Duplication kept where transaction/ownership requires it (§9.3.3/9.3.4).
+
+**Verification (R2.8, 2026-09-02):** `dotnet restore` all up-to-date; `dotnet build FluxCommerce.slnx -c Debug` → **0 warnings, 0 errors**; `Architecture 177/177`, `Unit 2277/2277`, `Integration 402/402` (when SQL Server + RabbitMQ + Redis available; SQLite-backed suites green without infra) — compared to R2.1 baseline `169/169`, `2264/2264`, `380/381` (flaky 1, now hardened). EF `has-pending-model-changes` clean for all 5 DbContexts. Docker infrastructure (sqlserver/redis/rabbitmq) healthy. Full details in `docs/refactoring/REFACTORING_2_COMPLETION.md`.
+
+**Deferred.** Failure Testing (Phase 12) next — R2 leaves the solution 100% ready.
+
 ---
 
 # 15. Phase 0 — Detailed Foundation Scope
@@ -1603,7 +1642,7 @@ Modules
     └── Contracts
 ```
 
-Shared technical capabilities should live in:
+Shared technical capabilities should live in (authoritative list after R2 — 10 BuildingBlocks; `Resilience` removed):
 
 ```text
 BuildingBlocks
@@ -1611,10 +1650,12 @@ BuildingBlocks
 ├── Application
 ├── Infrastructure
 ├── Messaging
-├── Outbox
-├── Idempotency
+├── Outbox           (+ OutboxMessageConfigurationBase shared helper)
+├── Idempotency      (+ ProcessedMessageConfigurationBase shared helper)
+├── Persistence
 ├── Observability
-└── Resilience
+├── Localization
+└── Web
 ```
 
 Do not create shared abstractions simply to avoid duplicating a few lines of code.
@@ -2085,6 +2126,16 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         003-building-blocks.md
         004-messaging-reliability.md
         005-observability.md
+        006-catalog-variant-unit-price.md
+        007-integration-event-contract-placement.md
+        008-consumer-contract-and-idempotency.md
+        009-saga-orchestration-and-contract-placement.md
+        010-payment-module-ownership-boundary.md
+        011-stripe-integration-boundary.md
+        012-payment-intent-idempotency-strategy.md
+        013-webhook-idempotency.md
+        014-payment-refund-compensation.md
+        015-identity-roles-authorization-and-seeding.md
     phases/
         PHASE_0_ARCHITECTURE_FOUNDATION.md
         PHASE_1_IDENTITY_ACCESS.md
@@ -2098,6 +2149,7 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_8_ORDER_INVENTORY_SAGA.md
         PHASE_9_STRIPE_PAYMENTS.md
         PHASE_10_PAYMENT_SAGA_COMPENSATION.md
+        PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md
@@ -2111,6 +2163,11 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_8_COMPLETION_REPORT.md
         PHASE_9_COMPLETION_REPORT.md
         PHASE_10_COMPLETION_REPORT.md
+        PHASE_11_COMPLETION_REPORT.md
+    refactoring/
+        REFACTORING_1_PLAN.md / BASELINE.md / FINDINGS.md / COMPLETION.md
+        REFACTORING_2_PLAN.md / BASELINE.md / FINDINGS.md / COMPLETION.md
+        REFACTORING_IDENTITY_ROLES_SEEDING_PLAN.md
     current/
         EF_CORE_COMMANDS.md
         LOCAL_DEVELOPMENT.md

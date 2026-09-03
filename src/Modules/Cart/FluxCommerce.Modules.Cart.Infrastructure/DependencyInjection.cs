@@ -1,4 +1,4 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
@@ -12,6 +12,7 @@ using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateAuthenticatedCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Queries.GetAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
 using FluxCommerce.Modules.Cart.Application.Services;
@@ -58,3 +59,4 @@ public static class DependencyInjection
         return services;
     }
 }
+

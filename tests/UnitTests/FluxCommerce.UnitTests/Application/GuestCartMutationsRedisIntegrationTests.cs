@@ -5,6 +5,8 @@ using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.UpdateGuestCartItemQuantity;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Application.Queries.GetGuestCart;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
@@ -254,3 +256,4 @@ public class GuestCartMutationsRedisIntegrationTests
             _inner.ExistsAsync(cartId, cancellationToken);
     }
 }
+

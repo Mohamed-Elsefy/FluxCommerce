@@ -1,5 +1,7 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;

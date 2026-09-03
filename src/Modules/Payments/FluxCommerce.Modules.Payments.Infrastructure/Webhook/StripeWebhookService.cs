@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Payments.Application.Interfaces;
+﻿using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Domain.Options;
 using Microsoft.Extensions.Options;
 using Stripe;
@@ -59,3 +60,4 @@ public sealed class StripeWebhookService : IStripeWebhookService
         return null;
     }
 }
+

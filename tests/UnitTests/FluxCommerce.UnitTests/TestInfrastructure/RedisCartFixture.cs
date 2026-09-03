@@ -1,5 +1,6 @@
-using FluxCommerce.BuildingBlocks.Infrastructure.Caching;
+﻿using FluxCommerce.BuildingBlocks.Infrastructure.Caching;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.Modules.Cart.Infrastructure.Configuration;
 using FluxCommerce.Modules.Cart.Infrastructure.Redis;
@@ -12,14 +13,14 @@ namespace FluxCommerce.UnitTests.TestInfrastructure;
 /// Shared, fail-fast Redis fixture for the Cart integration test collection.
 ///
 /// Lifecycle (per Phase 3.3.3):
-///   1. Initialize — resolve the connection string (FLUXCOMMERCE_REDIS_CONNECTION, default localhost:6379).
-///   2. Connect    — create the project's RedisConnectionProvider and connect to Redis.
-///   3. Verify     — PING the server. Redis tests FAIL FAST (throw) when Redis is unreachable so that
+///   1. Initialize â€” resolve the connection string (FLUXCOMMERCE_REDIS_CONNECTION, default localhost:6379).
+///   2. Connect    â€” create the project's RedisConnectionProvider and connect to Redis.
+///   3. Verify     â€” PING the server. Redis tests FAIL FAST (throw) when Redis is unreachable so that
 ///                   the suite never silently passes without real Redis.
-///   4. Isolate    — allocate a unique per-run key namespace ("cart-it-{guid}:"). Every test in the
+///   4. Isolate    â€” allocate a unique per-run key namespace ("cart-it-{guid}:"). Every test in the
 ///                   collection writes under this namespace only.
-///   5. Run tests  — tests exercise RedisCartStore against real Redis.
-///   6. Cleanup    — delete only the keys created by the suite (deterministic cleanup; no KEYS/SCAN/flush).
+///   5. Run tests  â€” tests exercise RedisCartStore against real Redis.
+///   6. Cleanup    â€” delete only the keys created by the suite (deterministic cleanup; no KEYS/SCAN/flush).
 /// </summary>
 public sealed class RedisCartFixture : IDisposable
 {
@@ -139,7 +140,7 @@ public sealed class RedisCartFixture : IDisposable
     {
         // Safety net: remove any key created under this run's exclusive namespace that was not
         // explicitly tracked. SCAN (never KEYS) is scoped with MATCH to the unique per-run
-        // namespace, so it touches only keys owned by this test run — never development data,
+        // namespace, so it touches only keys owned by this test run â€” never development data,
         // another test run, or another module.
         try
         {
@@ -168,3 +169,4 @@ public sealed class RedisCartFixture : IDisposable
         }
     }
 }
+

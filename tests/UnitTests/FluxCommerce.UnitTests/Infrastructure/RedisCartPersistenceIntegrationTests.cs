@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
@@ -210,3 +211,4 @@ public class RedisCartPersistenceIntegrationTests
         Assert.False(await store.ExistsAsync(cart.CartId));
     }
 }
+

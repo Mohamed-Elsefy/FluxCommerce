@@ -1,7 +1,9 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Moq;
@@ -138,3 +140,4 @@ public class ClearAuthenticatedCartCommandHandlerTests
         return store;
     }
 }
+

@@ -19,6 +19,8 @@
     <File Path="docs/adr/011-stripe-integration-boundary.md" />
     <File Path="docs/adr/012-payment-intent-idempotency-strategy.md" />
     <File Path="docs/adr/013-webhook-idempotency.md" />
+    <File Path="docs/adr/014-payment-refund-compensation.md" />
+    <File Path="docs/adr/015-identity-roles-authorization-and-seeding.md" />
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/INDEX.md" />
@@ -60,6 +62,10 @@
     <File Path="docs/refactoring/REFACTORING_1_COMPLETION.md" />
     <File Path="docs/refactoring/REFACTORING_1_FINDINGS.md" />
     <File Path="docs/refactoring/REFACTORING_1_PLAN.md" />
+    <File Path="docs/refactoring/REFACTORING_2_BASELINE.md" />
+    <File Path="docs/refactoring/REFACTORING_2_FINDINGS.md" />
+    <File Path="docs/refactoring/REFACTORING_2_PLAN.md" />
+    <File Path="docs/refactoring/REFACTORING_IDENTITY_ROLES_SEEDING_PLAN.md" />
   </Folder>
 
   <!-- Solution Items -->
@@ -85,7 +91,6 @@
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Observability/FluxCommerce.BuildingBlocks.Observability.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Outbox/FluxCommerce.BuildingBlocks.Outbox.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Persistence/FluxCommerce.BuildingBlocks.Persistence.csproj" />
-    <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Resilience/FluxCommerce.BuildingBlocks.Resilience.csproj" />
     <Project Path="src/BuildingBlocks/FluxCommerce.BuildingBlocks.Web/FluxCommerce.BuildingBlocks.Web.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />

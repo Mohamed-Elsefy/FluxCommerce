@@ -18,11 +18,11 @@ public sealed class CatalogDbContext : BaseDbContext
     {
     }
 
-    public DbSet<Category> Categories { get; set; } = null!;
+    public DbSet<Category> Categories => Set<Category>();
 
-    public DbSet<Product> Products { get; set; } = null!;
+    public DbSet<Product> Products => Set<Product>();
 
-    public DbSet<Variant> Variants { get; set; } = null!;
+    public DbSet<Variant> Variants => Set<Variant>();
 
-    public DbSet<AttributeDefinition> AttributeDefinitions { get; set; } = null!;
+    public DbSet<AttributeDefinition> AttributeDefinitions => Set<AttributeDefinition>();
 }

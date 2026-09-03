@@ -6,19 +6,20 @@ using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text;
+using FluxCommerce.BuildingBlocks.Web.Responses;
 
 namespace FluxCommerce.Api.Controllers.Payments;
 
 [ApiController]
 [Route("api/payments")]
-[Tags("Payments")]
+[Authorize]
+[Tags(EndpointTags.Payments)]
 public sealed class PaymentsController : ApiControllerBase
 {
     private readonly ILogger<PaymentsController> _logger;
@@ -50,6 +51,9 @@ public sealed class PaymentsController : ApiControllerBase
     /// </summary>
     [HttpGet("{paymentId:guid}")]
     [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPayment(Guid paymentId, CancellationToken cancellationToken = default)
     {
         using var activity = TraceContext.Source.StartActivity("Payments.GetPayment", ActivityKind.Server);
@@ -97,6 +101,8 @@ public sealed class PaymentsController : ApiControllerBase
     /// </remarks>
     [HttpPost("webhook")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Webhook(CancellationToken cancellationToken = default)
     {
         using var activity = TraceContext.Source.StartActivity("Payments.Webhook", ActivityKind.Server);
@@ -165,3 +171,4 @@ public sealed class PaymentsController : ApiControllerBase
         return Success(dummy);
     }
 }
+

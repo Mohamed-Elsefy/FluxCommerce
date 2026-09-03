@@ -1,7 +1,9 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
+using FluxCommerce.Modules.Orders.Application.Models;
+using FluxCommerce.Modules.Orders.Application.Enums;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Entities;
 using FluxCommerce.Modules.Orders.Domain.Events;

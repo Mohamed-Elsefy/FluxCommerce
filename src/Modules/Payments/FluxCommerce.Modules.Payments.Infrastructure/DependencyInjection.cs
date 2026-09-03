@@ -5,6 +5,7 @@ using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.Background;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
@@ -50,6 +51,7 @@ public static class DependencyInjection
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
+        services.AddSingleton<IPaymentWebhookInterpreter, PaymentWebhookInterpreter>();
         services.AddScoped<IStripeWebhookService, StripeWebhookService>();
         services.AddScoped<IWebhookEventProcessor, WebhookEventProcessor>();
 

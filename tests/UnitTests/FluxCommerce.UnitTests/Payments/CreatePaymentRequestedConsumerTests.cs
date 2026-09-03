@@ -1,5 +1,6 @@
-using FluxCommerce.BuildingBlocks.Messaging.Consuming;
+﻿using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Infrastructure.Consuming;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
@@ -124,3 +125,4 @@ public sealed class CreatePaymentRequestedConsumerTests : IDisposable
 
     public void Dispose() => _connection.Dispose();
 }
+

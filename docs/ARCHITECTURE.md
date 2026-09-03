@@ -182,18 +182,22 @@ Outbox abstraction stay out of Contracts, and Domain, Application and Infrastruc
 
 BuildingBlocks contains genuinely cross-cutting technical primitives.
 
-Possible areas:
+Current BuildingBlocks (10, after Refactoring Cycle 2 — R2.8):
 
     BuildingBlocks
     |
-    +-- Domain
-    +-- Application
-    +-- Infrastructure
-    +-- Observability
-    +-- Messaging
-    +-- Persistence
-    +-- Web
-    +-- Localization
+    +-- Domain              (Entity, AggregateRoot, DomainEvent, IDateTimeProvider abstraction point)
+    +-- Application         (Result, Error, ICommand/IQuery, ICurrentUser)
+    +-- Infrastructure      (RabbitMQ publisher/consumer, Redis connection, tracing TraceContext)
+    +-- Messaging           (IIntegrationEvent / IntegrationEvent / EventVersion / IIntegrationEventHandler — contract-only)
+    +-- Outbox              (OutboxMessage, IOutboxStore, IntegrationEventOutboxMessageFactory, OutboxMessageConfigurationBase)
+    +-- Idempotency         (ProcessedMessage, IIdempotentProcessor, IIdempotencyStore, IDuplicateDetector, ProcessedMessageConfigurationBase)
+    +-- Persistence         (BaseDbContext, design-time helpers)
+    +-- Observability       (OpenTelemetry Resource/ActivitySources)
+    +-- Localization        (ILocalizer, ICurrentCulture, SharedResources)
+    +-- Web                 (ApiControllerBase, ProblemDetails mapping, EndpointTags, middleware)
+
+> **R2 note:** `BuildingBlocks.Resilience` (`IClock`/`IRetryPolicy` ghost) was removed in R2.3 — zero consumers, see `docs/refactoring/REFACTORING_2_FINDINGS.md` F-21 / `REFACTORING_2_COMPLETION.md` §7. `OutboxMessageConfigurationBase` (`BuildingBlocks.Outbox.Configuration`) and `ProcessedMessageConfigurationBase` (`BuildingBlocks.Idempotency.Configuration`) were introduced in R2.3 as shared EF Core mapping helpers so the per-module `OutboxMessageConfiguration` / `ProcessedMessageConfiguration` (Orders, Inventory, Payments) keep isolated tables/transaction boundaries (`Business State + Outbox` / `Business State + ProcessedMessage` atomic per module) while sharing column mapping and preventing schema drift — duplication is intentional and approved (KEEP with helper extraction).
 
 Only concepts that are truly shared across multiple modules should be placed here.
 

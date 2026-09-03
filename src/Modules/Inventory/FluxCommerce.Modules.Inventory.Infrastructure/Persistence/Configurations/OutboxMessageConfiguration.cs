@@ -1,74 +1,12 @@
-using FluxCommerce.BuildingBlocks.Outbox.Messages;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 
 namespace FluxCommerce.Modules.Inventory.Infrastructure.Persistence.Configurations;
 
-public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>
+/// <summary>
+/// Module-specific outbox mapping. Inherits the shared column mapping from
+/// <see cref="OutboxMessageConfigurationBase"/> to keep the schema consistent while
+/// retaining an isolated <c>OutboxMessages</c> table per DbContext (transactional boundary).
+/// </summary>
+public sealed class OutboxMessageConfiguration : OutboxMessageConfigurationBase
 {
-    public void Configure(EntityTypeBuilder<OutboxMessage> builder)
-    {
-        builder.ToTable("OutboxMessages");
-
-        builder.HasKey(message => message.Id);
-
-        builder.Property(message => message.Id)
-            .HasColumnName("Id");
-
-        builder.Property(message => message.EventId)
-            .HasColumnName("EventId");
-
-        builder.Property(message => message.Type)
-            .HasColumnName("Type")
-            .HasMaxLength(512);
-
-        builder.Property(message => message.Payload)
-            .HasColumnName("Payload");
-
-        builder.Property(message => message.CorrelationId)
-            .HasColumnName("CorrelationId");
-
-        builder.Property(message => message.CausationId)
-            .HasColumnName("CausationId");
-
-        builder.Property(message => message.OccurredAtUtc)
-            .HasColumnName("OccurredAtUtc")
-            .HasColumnType("datetime2");
-
-        builder.Property(message => message.CreatedAtUtc)
-            .HasColumnName("CreatedAtUtc")
-            .HasColumnType("datetime2");
-
-        builder.Property(message => message.ProcessedAtUtc)
-            .HasColumnName("ProcessedAtUtc")
-            .HasColumnType("datetime2");
-
-        builder.Property(message => message.Status)
-            .HasColumnName("Status")
-            .HasConversion<int>();
-
-        builder.Property(message => message.RetryCount)
-            .HasColumnName("RetryCount");
-
-        builder.Property(message => message.RetryAfterUtc)
-            .HasColumnName("RetryAfterUtc")
-            .HasColumnType("datetime2");
-
-        builder.Property(message => message.Error)
-            .HasColumnName("Error");
-
-        builder.Property(message => message.TraceParent)
-            .HasColumnName("TraceParent")
-            .HasMaxLength(55);
-
-        builder.Property(message => message.TraceState)
-            .HasColumnName("TraceState")
-            .HasMaxLength(512);
-
-        builder.HasIndex(message => new { message.Status, message.CreatedAtUtc })
-            .HasDatabaseName("IX_OutboxMessages_Status_CreatedAtUtc");
-
-        builder.HasIndex(message => new { message.Status, message.ProcessedAtUtc })
-            .HasDatabaseName("IX_OutboxMessages_Status_ProcessedAtUtc");
-    }
 }

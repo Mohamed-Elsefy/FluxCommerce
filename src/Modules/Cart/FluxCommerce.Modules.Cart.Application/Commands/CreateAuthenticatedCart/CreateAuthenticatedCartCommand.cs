@@ -1,6 +1,7 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 
 namespace FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 
@@ -10,3 +11,4 @@ namespace FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart
 /// has an active Cart it is returned unchanged (one active Cart per user).
 /// </summary>
 public sealed record CreateAuthenticatedCartCommand : ICommand<Result<CartState>>;
+

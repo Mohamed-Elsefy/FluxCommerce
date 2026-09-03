@@ -1,7 +1,8 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
 using FluxCommerce.Modules.Payments.Domain.Errors;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
@@ -131,3 +132,4 @@ public sealed class CreatePaymentIntentCommandHandler : ICommandHandler<CreatePa
         return Result.Success(stripeResult);
     }
 }
+

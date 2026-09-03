@@ -5,6 +5,8 @@ using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.MergeCart;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Xunit;
@@ -570,3 +572,4 @@ public class MergeCartRedisIntegrationTests
     private static FakeCurrentUser CreateUser(Guid? userId) =>
         new() { UserId = userId, IsAuthenticated = userId is not null };
 }
+

@@ -98,6 +98,91 @@ public class AuthorizationTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // Phase E — Authorization Matrix for Admin/SuperAdmin endpoints
+
+    [Fact]
+    public async Task Unauthenticated_RegisterAdmin_Returns401()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+        var response = await _client.PostAsJsonAsync("auth/register-admin", new { email = $"admin-{Guid.NewGuid():N}@example.com", password = "Str0ng!Pass1", firstName = "Admin", lastName = "Test" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Customer")]
+    [InlineData("Admin")]
+    public async Task NonSuperAdmin_RegisterAdmin_Returns403(string role)
+    {
+        var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
+        var token = jwtProvider.CreateAccessToken(Guid.NewGuid(), $"{role.ToLower()}@example.com", [role]);
+        _client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+
+        var response = await _client.PostAsJsonAsync("auth/register-admin", new { email = $"newadmin-{Guid.NewGuid():N}@example.com", password = "Str0ng!Pass1", firstName = "Admin", lastName = "Test" });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SuperAdmin_RegisterAdmin_Returns201()
+    {
+        var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
+        var superAdminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "super@flux.local", ["SuperAdmin"]);
+        _client.DefaultRequestHeaders.Authorization = new("Bearer", superAdminToken);
+
+        var email = $"admin-{Guid.NewGuid():N}@example.com";
+        var response = await _client.PostAsJsonAsync("auth/register-admin", new { email, password = "Str0ng!Pass1", firstName = "Admin", lastName = "Test" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Customer")]
+    [InlineData("Admin")]
+    public async Task NonSuperAdmin_AdminUsers_Roles_Returns403(string role)
+    {
+        var email = $"user-{Guid.NewGuid():N}@example.com";
+        await RegisterAndVerify(email);
+        var userId = TestDatabase.GetUserId(_factory, email);
+
+        var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
+        var token = jwtProvider.CreateAccessToken(Guid.NewGuid(), $"{role.ToLower()}@example.com", [role]);
+        _client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+
+        var response = await _client.PostAsJsonAsync($"admin/users/{userId}/roles", new { role = "Admin" });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Customer")]
+    [InlineData("Admin")]
+    public async Task NonSuperAdmin_AdminUsers_Unlock_Returns403(string role)
+    {
+        var email = $"user-{Guid.NewGuid():N}@example.com";
+        await RegisterAndVerify(email);
+        var userId = TestDatabase.GetUserId(_factory, email);
+
+        var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
+        var token = jwtProvider.CreateAccessToken(Guid.NewGuid(), $"{role.ToLower()}@example.com", [role]);
+        _client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+
+        var response = await _client.PostAsJsonAsync($"admin/users/{userId}/unlock", new { });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Unauthenticated_AdminUsers_Roles_Returns401()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+        var response = await _client.PostAsJsonAsync($"admin/users/{Guid.NewGuid()}/roles", new { role = "Admin" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Unauthenticated_AdminUsers_Unlock_Returns401()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+        var response = await _client.PostAsJsonAsync($"admin/users/{Guid.NewGuid()}/unlock", new { });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     private string MakeExpired(string token)
     {
         var handler = new JwtSecurityTokenHandler();

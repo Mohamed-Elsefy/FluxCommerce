@@ -17,5 +17,7 @@ public sealed class IdentityDbContext : BaseDbContext
     {
     }
 
-    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<User> Users => Set<User>();
+
+    public DbSet<Role> Roles => Set<Role>();
 }

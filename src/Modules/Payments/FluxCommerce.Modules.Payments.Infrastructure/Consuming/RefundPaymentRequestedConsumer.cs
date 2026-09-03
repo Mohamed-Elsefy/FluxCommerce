@@ -1,6 +1,7 @@
-using FluxCommerce.BuildingBlocks.Messaging.Consuming;
+﻿using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
@@ -174,3 +175,4 @@ public sealed class RefundPaymentRequestedConsumer : IIntegrationEventHandler<Re
                ex is TaskCanceledException;
     }
 }
+

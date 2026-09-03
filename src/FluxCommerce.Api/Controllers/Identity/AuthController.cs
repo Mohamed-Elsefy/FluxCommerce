@@ -3,12 +3,14 @@ using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
+using FluxCommerce.BuildingBlocks.Web.Responses;
 using FluxCommerce.Modules.Identity.Application.Commands.ChangePassword;
 using FluxCommerce.Modules.Identity.Application.Commands.ForgotPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.GetCurrentUser;
 using FluxCommerce.Modules.Identity.Application.Commands.Login;
 using FluxCommerce.Modules.Identity.Application.Commands.Logout;
 using FluxCommerce.Modules.Identity.Application.Commands.Refresh;
+using FluxCommerce.Modules.Identity.Application.Commands.RegisterAdmin;
 using FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 using FluxCommerce.Modules.Identity.Application.Commands.ResendVerification;
 using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
@@ -16,17 +18,21 @@ using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Contracts.Requests;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 
+using FluxCommerce.Api.Extensions;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FluxCommerce.Api.Controllers.Identity;
 
 [ApiController]
+[Tags(EndpointTags.Identity)]
 [Route("auth")]
 [Authorize]
 public sealed class AuthController : ApiControllerBase
 {
     private readonly ICommandHandler<RegisterCustomerCommand, Result<UserResponse>> _registerCustomerHandler;
+    private readonly ICommandHandler<RegisterAdminCommand, Result<UserResponse>> _registerAdminHandler;
     private readonly ICommandHandler<LoginCommand, Result<LoginResponse>> _loginHandler;
     private readonly ICommandHandler<RefreshCommand, Result<LoginResponse>> _refreshHandler;
     private readonly ICommandHandler<LogoutCommand, Result> _logoutHandler;
@@ -39,6 +45,7 @@ public sealed class AuthController : ApiControllerBase
 
     public AuthController(
         ICommandHandler<RegisterCustomerCommand, Result<UserResponse>> registerCustomerHandler,
+        ICommandHandler<RegisterAdminCommand, Result<UserResponse>> registerAdminHandler,
         ICommandHandler<LoginCommand, Result<LoginResponse>> loginHandler,
         ICommandHandler<RefreshCommand, Result<LoginResponse>> refreshHandler,
         ICommandHandler<LogoutCommand, Result> logoutHandler,
@@ -53,6 +60,7 @@ public sealed class AuthController : ApiControllerBase
         : base(localizer, errorCodeLocalizer)
     {
         _registerCustomerHandler = registerCustomerHandler;
+        _registerAdminHandler = registerAdminHandler;
         _loginHandler = loginHandler;
         _refreshHandler = refreshHandler;
         _logoutHandler = logoutHandler;
@@ -79,6 +87,15 @@ public sealed class AuthController : ApiControllerBase
     {
         var command = new RegisterCustomerCommand(request.Email, request.Password, request.FirstName, request.LastName);
         return Success(await _registerCustomerHandler.HandleAsync(command, cancellationToken));
+    }
+
+    /// <summary>Registers a new administrator account. Requires SuperAdmin role.</summary>
+    [HttpPost("register-admin")]
+    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
+    public async Task<IActionResult> RegisterAdmin([FromBody] RegisterAdminRequest request, CancellationToken cancellationToken)
+    {
+        var command = new RegisterAdminCommand(request.Email, request.Password, request.FirstName, request.LastName);
+        return Created(await _registerAdminHandler.HandleAsync(command, cancellationToken));
     }
 
     /// <summary>Authenticates a user and returns an access token with a refresh token.</summary>

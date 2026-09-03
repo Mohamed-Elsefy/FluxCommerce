@@ -1,7 +1,9 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Enums;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Application.Ownership;
 using FluxCommerce.Modules.Cart.Domain.Errors;
@@ -15,13 +17,13 @@ namespace FluxCommerce.Modules.Cart.Application.Commands;
 /// authenticated owner, resolves the user's active Cart through the user index (validating
 /// persisted ownership), or creates the Cart atomically when the user has none yet. This is the
 /// single shared implementation of the authenticated Cart creation behavior used by the
-/// authenticated Cart create handler and by the Guest → Authenticated merge when the target Cart
+/// authenticated Cart create handler and by the Guest â†’ Authenticated merge when the target Cart
 /// does not exist yet.
 ///
-///     ICurrentUser ──▶ resolve authenticated owner ──▶ user index lookup
-///         ├─ existing ──▶ validate ownership ──▶ return the active Cart
-///         └─ missing ──▶ CreateAuthenticated ──▶ CreateForUserAsync (atomic one-active-Cart)
-///             └─ concurrent winner ──▶ re-read winner through the user index
+///     ICurrentUser â”€â”€â–¶ resolve authenticated owner â”€â”€â–¶ user index lookup
+///         â”œâ”€ existing â”€â”€â–¶ validate ownership â”€â”€â–¶ return the active Cart
+///         â””â”€ missing â”€â”€â–¶ CreateAuthenticated â”€â”€â–¶ CreateForUserAsync (atomic one-active-Cart)
+///             â””â”€ concurrent winner â”€â”€â–¶ re-read winner through the user index
 /// </summary>
 internal static class AuthenticatedCartResolver
 {
@@ -90,3 +92,4 @@ internal static class AuthenticatedCartResolver
     private static DateTimeOffset ToUtcOffset(DateTime value) =>
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 }
+

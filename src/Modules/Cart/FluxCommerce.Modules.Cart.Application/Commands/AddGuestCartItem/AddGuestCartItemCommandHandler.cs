@@ -1,7 +1,8 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
 using FluxCommerce.Modules.Cart.Domain.Errors;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
@@ -79,3 +80,4 @@ public sealed class AddGuestCartItemCommandHandler : ICommandHandler<AddGuestCar
             cancellationToken).ConfigureAwait(false);
     }
 }
+

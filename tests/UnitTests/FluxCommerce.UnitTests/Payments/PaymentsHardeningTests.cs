@@ -1,7 +1,12 @@
-using FluxCommerce.Api.Controllers.Payments;
+﻿using FluxCommerce.Api.Controllers.Payments;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
+using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Payments.Application.Commands.CreatePayment;
+using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Models;
+using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
@@ -15,8 +20,6 @@ using Moq;
 using System.Security.Cryptography;
 using System.Text;
 using Xunit;
-using FluxCommerce.BuildingBlocks.Outbox.Mapping;
-using FluxCommerce.BuildingBlocks.Outbox.Messages;
 
 namespace FluxCommerce.UnitTests.Payments;
 
@@ -53,7 +56,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         });
         var svc = new StripeWebhookService(opts);
         Assert.NotNull(svc);
-        // No hardcoded secret in code – verified via Options pattern
+        // No hardcoded secret in code â€“ verified via Options pattern
     }
 
     [Fact]
@@ -120,7 +123,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         Assert.NotNull(payment.ProviderPaymentIntentId);
 
         // Webhook
-        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<WebhookEventProcessor>.Instance);
+        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), new PaymentWebhookInterpreter(), NullLogger<WebhookEventProcessor>.Instance);
         var evtId = "evt_normal_1";
         var res = await processor.TryProcessAsync(evtId, "payment_intent.succeeded", payment.ProviderPaymentIntentId!);
         Assert.Equal(WebhookProcessResult.Processed, res);
@@ -149,7 +152,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var intent = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
         var payment = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().SingleAsync(p => p.OrderId == orderId);
 
-        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<WebhookEventProcessor>.Instance);
+        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), new PaymentWebhookInterpreter(), NullLogger<WebhookEventProcessor>.Instance);
         var res = await processor.TryProcessAsync("evt_fail_1", "payment_intent.payment_failed", payment.ProviderPaymentIntentId!);
         Assert.Equal(WebhookProcessResult.Processed, res);
         var reloaded = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().FindAsync(payment.Id);
@@ -223,7 +226,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         await ctx.SaveChangesAsync();
         ctx.ChangeTracker.Clear();
 
-        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<WebhookEventProcessor>.Instance);
+        var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), new PaymentWebhookInterpreter(), NullLogger<WebhookEventProcessor>.Instance);
         await processor.TryProcessAsync("evt_corr_1", "payment_intent.succeeded", "pi_corr_123");
 
         var outbox = await ctx.Set<OutboxMessage>().SingleAsync(m => m.Type == "payments.payment_succeeded");
@@ -236,3 +239,5 @@ public sealed class PaymentsHardeningTests : IDisposable
 
     public void Dispose() => _connection.Dispose();
 }
+
+

@@ -1,7 +1,8 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Ownership;
 using FluxCommerce.Modules.Cart.Domain.Errors;
 
@@ -50,3 +51,4 @@ public sealed class GetAuthenticatedCartQueryHandler
         return Result.Success(cart);
     }
 }
+

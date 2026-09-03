@@ -20,11 +20,11 @@ public sealed class InventoryDbContext : BaseDbContext
     {
     }
 
-    public DbSet<InventoryItem> InventoryItems { get; set; } = null!;
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
 
-    public DbSet<InventoryReservation> InventoryReservations { get; set; } = null!;
+    public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
 
-    public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
-    public DbSet<ProcessedMessage> ProcessedMessages { get; set; } = null!;
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 }

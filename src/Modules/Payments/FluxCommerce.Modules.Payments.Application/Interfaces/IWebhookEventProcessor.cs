@@ -1,3 +1,5 @@
+using FluxCommerce.Modules.Payments.Application.Enums;
+
 namespace FluxCommerce.Modules.Payments.Application.Interfaces;
 
 public interface IWebhookEventProcessor
@@ -12,10 +14,4 @@ public interface IWebhookEventProcessor
 
     // Backward compat for 9.9 tests that call 2-arg overload
     Task<WebhookProcessResult> TryProcessAsync(string stripeEventId, string? eventType, CancellationToken cancellationToken = default);
-}
-
-public enum WebhookProcessResult
-{
-    Processed = 0,
-    AlreadyProcessed = 1
 }

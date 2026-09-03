@@ -1,9 +1,11 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Orders.Application.Errors;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
+using FluxCommerce.Modules.Orders.Application.Models;
+using FluxCommerce.Modules.Orders.Application.Enums;
 using FluxCommerce.Modules.Orders.Application.Services;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;

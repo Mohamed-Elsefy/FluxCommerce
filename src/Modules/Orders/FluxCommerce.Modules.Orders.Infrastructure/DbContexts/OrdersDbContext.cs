@@ -22,15 +22,15 @@ public sealed class OrdersDbContext : BaseDbContext
     {
     }
 
-    public DbSet<Order> Orders { get; set; } = null!;
+    public DbSet<Order> Orders => Set<Order>();
 
-    public DbSet<CheckoutIdempotency> CheckoutIdempotencies { get; set; } = null!;
+    public DbSet<CheckoutIdempotency> CheckoutIdempotencies => Set<CheckoutIdempotency>();
 
-    public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
-    public DbSet<ProcessedMessage> ProcessedMessages { get; set; } = null!;
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
-    public DbSet<OrderSummaryProjectionEntity> OrderSummaryProjections { get; set; } = null!;
+    public DbSet<OrderSummaryProjectionEntity> OrderSummaryProjections => Set<OrderSummaryProjectionEntity>();
 
-    public DbSet<OrderSaga> OrderSagas { get; set; } = null!;
+    public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
 }

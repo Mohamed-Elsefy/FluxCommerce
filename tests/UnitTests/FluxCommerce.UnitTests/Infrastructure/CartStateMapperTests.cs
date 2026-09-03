@@ -1,4 +1,5 @@
-using FluxCommerce.Modules.Cart.Application.Interfaces;
+﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using FluxCommerce.Modules.Cart.Infrastructure.Redis;
 using Xunit;
@@ -187,3 +188,4 @@ public class CartStateMapperTests
                     Quantity: 1),
             ]);
 }
+
