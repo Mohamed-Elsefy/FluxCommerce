@@ -46,6 +46,7 @@
     <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
     <File Path="docs/phases/PHASE_10_PAYMENT_SAGA_COMPENSATION.md" />
     <File Path="docs/phases/PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md" />
+    <File Path="docs/phases/PHASE_12_FAILURE_TESTING.md" />
     <File Path="docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md" />
     <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
     <File Path="docs/phases/PHASE_2_CATALOG_MODULE.md" />
@@ -63,6 +64,7 @@
     <File Path="docs/refactoring/REFACTORING_1_FINDINGS.md" />
     <File Path="docs/refactoring/REFACTORING_1_PLAN.md" />
     <File Path="docs/refactoring/REFACTORING_2_BASELINE.md" />
+    <File Path="docs/refactoring/REFACTORING_2_COMPLETION.md" />
     <File Path="docs/refactoring/REFACTORING_2_FINDINGS.md" />
     <File Path="docs/refactoring/REFACTORING_2_PLAN.md" />
     <File Path="docs/refactoring/REFACTORING_IDENTITY_ROLES_SEEDING_PLAN.md" />
