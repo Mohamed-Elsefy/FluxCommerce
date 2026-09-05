@@ -43,6 +43,15 @@
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
     <File Path="docs/current/LOCAL_DEVELOPMENT.md" />
   </Folder>
+  <Folder Name="/docs/frontend-contract/">
+    <File Path="docs/frontend-contract/API_CONTRACT.md" />
+    <File Path="docs/frontend-contract/AUTH_FLOW.md" />
+    <File Path="docs/frontend-contract/DTO_REFERENCE.md" />
+    <File Path="docs/frontend-contract/ENUM_REFERENCE.md" />
+    <File Path="docs/frontend-contract/ERROR_CATALOG.md" />
+    <File Path="docs/frontend-contract/PAGINATION_CONVENTION.md" />
+    <File Path="docs/frontend-contract/PAYMENT_INTEGRATION_NOTES.md" />
+  </Folder>
   <Folder Name="/docs/phases/">
     <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
     <File Path="docs/phases/PHASE_10_PAYMENT_SAGA_COMPENSATION.md" />
