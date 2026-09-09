@@ -35,7 +35,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptionsConfiguration(configuration)
-                .AddPresentationLayer()
+                .AddPresentationLayer(configuration)
                 .AddSwaggerConfiguration()
                 .AddLocalizationConfiguration()
                 .AddLocalizationServices()
@@ -52,6 +52,10 @@ public static class DependencyInjection
         services.AddOptions<DatabaseOptions>()
             .Bind(configuration.GetSection(DatabaseOptions.SectionName))
             .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<CorsOptions>()
+            .Bind(configuration.GetSection(CorsOptions.SectionName))
             .ValidateOnStart();
 
         services.AddOptions<MessageBrokerOptions>()
@@ -77,12 +81,40 @@ public static class DependencyInjection
         return services;
     }
 
-    private static IServiceCollection AddPresentationLayer(this IServiceCollection services)
+    private static IServiceCollection AddPresentationLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddExceptionHandler<ExceptionHandler>();
         services.AddProblemDetails();
 
         services.AddSingleton<IErrorCodeLocalizer, ErrorCodeLocalizer>();
+
+        var allowedOrigins = configuration.GetSection($"{CorsOptions.SectionName}:AllowedOrigins").Get<string[]>()
+            ?? [];
+        allowedOrigins = allowedOrigins
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim().TrimEnd('/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        services.AddCors(options =>
+        {
+            options.AddPolicy(CorsOptions.PolicyName, policy =>
+            {
+                if (allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins);
+                }
+                else
+                {
+                    // No origins configured: deny all cross-origin requests (fail-closed).
+                    policy.WithOrigins();
+                }
+
+                policy.AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+            });
+        });
 
         services.AddControllers().AddJsonOptions(options =>
         {

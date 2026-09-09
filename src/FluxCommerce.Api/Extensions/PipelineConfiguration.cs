@@ -1,3 +1,4 @@
+using FluxCommerce.Api.Options;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -23,6 +24,8 @@ public static class PipelineConfiguration
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
         app.UseHttpsRedirection();
+
+        app.UseCors(CorsOptions.PolicyName);
 
         app.UseAuthentication();
         app.UseAuthorization();
