@@ -42,6 +42,7 @@
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
     <File Path="docs/current/LOCAL_DEVELOPMENT.md" />
+    <File Path="docs/current/seed-catalog.sql" />
   </Folder>
   <Folder Name="/docs/frontend-contract/">
     <File Path="docs/frontend-contract/API_CONTRACT.md" />
