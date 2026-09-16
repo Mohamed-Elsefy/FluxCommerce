@@ -12,6 +12,8 @@ public static class VariantResponseMapper
             variant.ProductId,
             variant.Sku.Value,
             variant.Name,
+            variant.UnitPrice.Amount,
+            variant.UnitPrice.Currency,
             ToStatus(variant.Status),
             variant.IsDeleted,
             variant.CreatedAtUtc,

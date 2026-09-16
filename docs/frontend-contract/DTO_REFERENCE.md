@@ -174,7 +174,7 @@ interface ReorderProductImagesRequest { orderedImageIds?: string[] | null }
 sealed record ProductResponse(Guid Id, string Name, string Slug, string? Description, SeoResponse? Seo, ProductStatus Status, ProductVisibility Visibility, Guid CategoryId, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
 sealed record SeoResponse(string? Title, string? Description, IReadOnlyList<string> Keywords); // non-null list
 sealed record CategoryResponse(Guid Id, string Name, string Slug, string? Description, Guid? ParentId, CategoryStatus Status, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
-sealed record VariantResponse(Guid Id, Guid ProductId, string Sku, string Name, VariantStatus Status, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc); // no price
+sealed record VariantResponse(Guid Id, Guid ProductId, string Sku, string Name, decimal UnitPriceAmount, string Currency, VariantStatus Status, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
 sealed record AttributeDefinitionResponse(Guid Id, string Name, string Slug, string? Description, AttributeDataType DataType, bool IsRequired, bool IsFilterable, bool IsSearchable, int SortOrder, Guid? CategoryId, AttributeStatus Status, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
 sealed record ProductAttributeValueResponse(Guid Id, Guid ProductId, Guid AttributeDefinitionId, string AttributeName, string AttributeSlug, AttributeDataType DataType, string Value); // Value non-null
 sealed record ProductImageResponse(Guid Id, Guid ProductId, string ImageUrl, string? AltText, int DisplayOrder, bool IsPrimary, Dictionary<string,string>? Metadata, DateTime CreatedAtUtc);
@@ -186,7 +186,7 @@ sealed record ProductSpecificationResponse(Guid Id, Guid ProductId, string Name,
 ```csharp
 sealed record CatalogProductListItem(Guid Id, string Name, string Slug, string? Description, Guid CategoryId, CatalogImageSummary? PrimaryImage);
 sealed record CatalogImageSummary(Guid Id, string ImageUrl, string? AltText, int DisplayOrder, bool IsPrimary);
-sealed record CatalogVariantSummary(Guid Id, string Sku, string Name);
+sealed record CatalogVariantSummary(Guid Id, string Sku, string Name, decimal UnitPriceAmount, string Currency);
 sealed record CatalogAttributeSummary(Guid AttributeDefinitionId, string Name, string Slug, AttributeDataType DataType, string Value);
 sealed record CatalogSpecificationSummary(Guid Id, string Name, string Value);
 sealed record CatalogProductDetails(Guid Id, string Name, string Slug, string? Description, SeoResponse? Seo, Guid CategoryId, IReadOnlyCollection<CatalogImageSummary> Images, IReadOnlyCollection<CatalogVariantSummary> Variants, IReadOnlyCollection<CatalogAttributeSummary> Attributes, IReadOnlyCollection<CatalogSpecificationSummary> Specifications);
