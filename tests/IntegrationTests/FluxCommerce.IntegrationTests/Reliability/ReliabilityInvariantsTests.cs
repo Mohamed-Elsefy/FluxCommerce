@@ -1,4 +1,5 @@
 using FluxCommerce.BuildingBlocks.Idempotency.Messages;
+using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.IntegrationTests.Common.FaultInjection;
@@ -15,17 +16,17 @@ using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
-using FluxCommerce.Modules.Payments.Application.Commands.CreatePayment;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Application.Services;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
 using FluxCommerce.Modules.Payments.Domain.Entities;
 using FluxCommerce.Modules.Payments.Domain.Enums;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Consuming;
 using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,16 +128,8 @@ public sealed class ReliabilityInvariantsTests : ReliabilityTestBase
             return Task.FromResult(new PaymentIntentResult($"pi_{request.PaymentId:N}", PaymentStatus.Pending, "secret"));
         }
         public Task<PaymentStatus> GetPaymentIntentStatusAsync(string id, CancellationToken ct = default) => Task.FromResult(PaymentStatus.Pending);
+        public Task<string?> RetrieveClientSecretAsync(string id, CancellationToken ct = default) => Task.FromResult<string?>("secret");
         public Task<RefundResult> CreateRefundAsync(CreateRefundRequest r, CancellationToken ct = default) => Task.FromResult(new RefundResult("re", "succeeded"));
-    }
-
-    private sealed class TestUser : ICurrentUser
-    {
-        public TestUser(Guid id) => UserId = id;
-        public Guid? UserId { get; }
-        public string? Email => "test@example.com";
-        public string[] Roles => ["Customer"];
-        public bool IsAuthenticated => true;
     }
 
     // ------------------------------------------------ Inventory invariants post-failure
@@ -295,7 +288,20 @@ public sealed class ReliabilityInvariantsTests : ReliabilityTestBase
             () => InventoryContext.ProcessedMessages.AsNoTracking().Where(m => m.Key == eventId.ToString() && m.Handler == handler).CountAsync());
     }
 
-    // ------------------------------------------------ Payment intent invariants
+    // ------------------------------------------------ Payment intent invariants (via the saga consumer)
+
+    private static (CreatePaymentRequestedIntegrationEvent Event, IntegrationEventEnvelope Envelope) CreatePaymentEvent(
+        Guid orderId,
+        Guid userId)
+    {
+        var @event = new CreatePaymentRequestedIntegrationEvent(orderId, userId, 42.50m, "USD")
+        {
+            EventId = Guid.NewGuid(),
+            CorrelationId = Guid.NewGuid(),
+            OccurredAtUtc = DateTime.UtcNow
+        };
+        return (@event, IntegrationEventEnvelope.From(@event, CreatePaymentRequestedIntegrationEvent.EventType));
+    }
 
     [Fact]
     public async Task PaymentIntent_SinglePerCheckout_After_Retries_And_DuplicateWebhooks()
@@ -304,15 +310,18 @@ public sealed class ReliabilityInvariantsTests : ReliabilityTestBase
         var userId = Guid.NewGuid();
         var gateway = new FlakyStripeGateway(failFirstN: 2);
         var repo = new PaymentRepository(PaymentsContext);
-        var handler = new CreatePaymentIntentCommandHandler(repo, gateway, new TestUser(userId));
+        var consumer = new CreatePaymentRequestedConsumer(
+            repo,
+            gateway,
+            NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
-        // Retry 2 transient failures then success
-        var r1 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r1.IsFailure);
-        var r2 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r2.IsFailure);
-        var r3 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r3.IsSuccess);
+        // Retry 2 transient failures (throw for redelivery) then success
+        var (event1, envelope1) = CreatePaymentEvent(orderId, userId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.HandleAsync(event1, envelope1, CancellationToken.None));
+        var (event2, envelope2) = CreatePaymentEvent(orderId, userId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.HandleAsync(event2, envelope2, CancellationToken.None));
+        var (event3, envelope3) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(event3, envelope3, CancellationToken.None);
         // Deterministic same key for retries
         Assert.Equal(gateway.Keys[0], gateway.Keys[1]);
         Assert.Equal(gateway.Keys[1], gateway.Keys[2]);

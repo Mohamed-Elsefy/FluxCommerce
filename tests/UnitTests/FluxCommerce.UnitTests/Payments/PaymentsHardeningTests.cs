@@ -1,14 +1,19 @@
 ﻿using FluxCommerce.Api.Controllers.Payments;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
-using FluxCommerce.Modules.Payments.Application.Commands.CreatePayment;
 using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Application.Services;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
+using FluxCommerce.Modules.Payments.Contracts.Responses;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Consuming;
 using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using FluxCommerce.UnitTests.TestInfrastructure;
@@ -89,7 +94,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var errLoc = Mock.Of<FluxCommerce.BuildingBlocks.Web.Localization.IErrorCodeLocalizer>();
         var ctrl = new PaymentsController(localizer, errLoc, NullLogger<PaymentsController>.Instance,
             Mock.Of<IStripeWebhookService>(), Mock.Of<IWebhookEventProcessor>(p => p.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult(WebhookProcessResult.Processed)),
-            repo, currentUser);
+            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), currentUser);
         ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() };
 
         var result = await ctrl.GetPayment(payment.Id, CancellationToken.None);
@@ -101,6 +106,26 @@ public sealed class PaymentsHardeningTests : IDisposable
         Assert.Equal(404, obj.StatusCode);
     }
 
+    // Creates intent through the saga consumer (the production path) instead of
+    // asserting on a command result: creation is acknowledged by the persisted row.
+    private static (CreatePaymentRequestedIntegrationEvent Event, IntegrationEventEnvelope Envelope) CreatePaymentEvent(
+        Guid orderId,
+        Guid userId)
+    {
+        var @event = new CreatePaymentRequestedIntegrationEvent(orderId, userId, 42.50m, "USD")
+        {
+            EventId = Guid.NewGuid(),
+            CorrelationId = Guid.NewGuid(),
+            OccurredAtUtc = DateTime.UtcNow
+        };
+        return (@event, IntegrationEventEnvelope.From(@event, CreatePaymentRequestedIntegrationEvent.EventType));
+    }
+
+    private static CreatePaymentRequestedConsumer CreatePaymentConsumer(
+        FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository repo,
+        IStripePaymentGateway gateway) =>
+        new(repo, gateway, NullLogger<CreatePaymentRequestedConsumer>.Instance);
+
     // 1: Normal flow CreateIntent -> Webhook Succeeded -> Succeeded + Outbox
     [Fact]
     public async Task NormalFlow_CreateIntent_ThenWebhookSucceeded_EndsInSucceededAndOutbox()
@@ -108,16 +133,15 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var gateway = new Mock<IStripePaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_test"));
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var handler = new CreatePaymentIntentCommandHandler(repo, gateway.Object, currentUser);
+        var consumer = CreatePaymentConsumer(repo, gateway.Object);
 
-        var intent = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(intent.IsSuccess);
+        var (evt, envelope) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(evt, envelope, CancellationToken.None);
 
         var payment = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().SingleAsync(p => p.OrderId == orderId);
         Assert.NotNull(payment.ProviderPaymentIntentId);
@@ -142,14 +166,14 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var gateway = new Mock<IStripePaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Processing, "cs_test"));
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var handler = new CreatePaymentIntentCommandHandler(repo, gateway.Object, currentUser);
-        var intent = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
+        var consumer = CreatePaymentConsumer(repo, gateway.Object);
+        var (evt, envelope) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(evt, envelope, CancellationToken.None);
         var payment = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().SingleAsync(p => p.OrderId == orderId);
 
         var processor = new WebhookEventProcessor(ctx, new IntegrationEventOutboxMessageFactory(), new PaymentWebhookInterpreter(), NullLogger<WebhookEventProcessor>.Instance);
@@ -168,27 +192,31 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var callCount = 0;
         var gateway = new Mock<IStripePaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync(() => { callCount++; return new PaymentIntentResult("pi_dup_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_dup"); });
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var handler = new CreatePaymentIntentCommandHandler(repo, gateway.Object, currentUser);
+        var consumer = CreatePaymentConsumer(repo, gateway.Object);
 
-        var first = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        var second = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
+        var (firstEvent, firstEnvelope) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(firstEvent, firstEnvelope, CancellationToken.None);
+        var firstIntentId = (await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().AsNoTracking().SingleAsync(p => p.OrderId == orderId)).ProviderPaymentIntentId;
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal(first.Value.StripePaymentIntentId, second.Value.StripePaymentIntentId);
-        Assert.Equal(1, callCount); // second did not call Stripe
+        ctx.ChangeTracker.Clear();
+
+        var (secondEvent, secondEnvelope) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(secondEvent, secondEnvelope, CancellationToken.None);
+
+        var secondIntentId = (await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().AsNoTracking().SingleAsync(p => p.OrderId == orderId)).ProviderPaymentIntentId;
+        Assert.Equal(firstIntentId, secondIntentId);
+        Assert.Equal(1, callCount); // second delivery did not call Stripe
         var count = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().CountAsync(p => p.OrderId == orderId);
         Assert.Equal(1, count);
     }
 
-    // 7: Concurrent Payment Intent -> single intent via unique constraint
+    // 7: Concurrent Payment Intent -> single payment via unique constraint
     [Fact]
     public async Task ConcurrentPaymentIntents_SameOrderId_OnlyOnePaymentCreated()
     {
@@ -196,23 +224,30 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx2 = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var currentUser = new FakeCurrentUser { UserId = userId, IsAuthenticated = true };
         var gateway = Mock.Of<IStripePaymentGateway>(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()) == Task.FromResult(new PaymentIntentResult("pi_conc_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_conc")));
 
         var repo1 = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx1);
         var repo2 = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx2);
-        var h1 = new CreatePaymentIntentCommandHandler(repo1, gateway, currentUser);
-        var h2 = new CreatePaymentIntentCommandHandler(repo2, gateway, currentUser);
+        var c1 = CreatePaymentConsumer(repo1, gateway);
+        var c2 = CreatePaymentConsumer(repo2, gateway);
 
-        var t1 = h1.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        var t2 = h2.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        var results = await Task.WhenAll(t1, t2);
+        var (event1, envelope1) = CreatePaymentEvent(orderId, userId);
+        var (event2, envelope2) = CreatePaymentEvent(orderId, userId);
+        var t1 = c1.HandleAsync(event1, envelope1, CancellationToken.None);
+        var t2 = c2.HandleAsync(event2, envelope2, CancellationToken.None);
+        try
+        {
+            await Task.WhenAll(t1, t2);
+        }
+        catch (InvalidOperationException)
+        {
+            // Loser without a winner intent yet signals redelivery instead of duplicating.
+        }
 
-        // One should succeed, other should return duplicate or conflict but not create second payment
+        // Exactly one payment row regardless of the interleaving
         var verifyCtx = CreatePaymentsContext();
         var count = await verifyCtx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().CountAsync(p => p.OrderId == orderId);
         Assert.Equal(1, count);
-        Assert.True(results.Any(r => r.IsSuccess) || results.Any(r => r.IsFailure));
     }
 
     // 11,10 already covered but verify correlation

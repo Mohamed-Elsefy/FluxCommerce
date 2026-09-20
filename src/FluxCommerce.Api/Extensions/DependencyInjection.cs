@@ -158,7 +158,7 @@ public static class DependencyInjection
         // through the Orders boundary — never through a container-wide IIdempotentProcessor, which
         // Inventory (registered last) also registers.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.summary");
-        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderCreatedCompositeConsumer, OrdersIdempotentProcessor>();
 
         // Phase 8.4: the Inventory reservation-request consumer. The Orders saga (8.3) stages one
         // inventory.reservation_requested per order line item through the Orders outbox; the Inventory

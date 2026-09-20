@@ -83,6 +83,22 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         return MapStripeStatusToPaymentStatus(paymentIntent.Status);
     }
 
+    public async Task<string?> RetrieveClientSecretAsync(string paymentIntentId, CancellationToken cancellationToken = default)
+    {
+        using var activity = PaymentsActivitySource.Source.StartActivity("Payments.Stripe.RetrieveClientSecret", ActivityKind.Internal);
+        activity?.SetTag("stripe.payment_intent_id", paymentIntentId);
+
+        if (string.IsNullOrWhiteSpace(paymentIntentId)) throw new ArgumentException("Value cannot be null or empty.", nameof(paymentIntentId));
+
+        var service = new PaymentIntentService();
+
+        // Stripe .NET SDK does not expose async overload with CancellationToken; use synchronous call wrapped in Task.Run
+        var paymentIntent = await Task.Run(() => service.Get(paymentIntentId), cancellationToken);
+        activity?.SetTag("stripe.status", paymentIntent.Status);
+
+        return paymentIntent.ClientSecret;
+    }
+
     public async Task<RefundResult> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken = default)
     {
         using var activity = PaymentsActivitySource.Source.StartActivity("Payments.Stripe.CreateRefund", ActivityKind.Internal);

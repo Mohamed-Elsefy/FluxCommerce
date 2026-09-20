@@ -190,6 +190,7 @@ sealed record CatalogVariantSummary(Guid Id, string Sku, string Name, decimal Un
 sealed record CatalogAttributeSummary(Guid AttributeDefinitionId, string Name, string Slug, AttributeDataType DataType, string Value);
 sealed record CatalogSpecificationSummary(Guid Id, string Name, string Value);
 sealed record CatalogProductDetails(Guid Id, string Name, string Slug, string? Description, SeoResponse? Seo, Guid CategoryId, IReadOnlyCollection<CatalogImageSummary> Images, IReadOnlyCollection<CatalogVariantSummary> Variants, IReadOnlyCollection<CatalogAttributeSummary> Attributes, IReadOnlyCollection<CatalogSpecificationSummary> Specifications);
+sealed record PaymentInitializationResponse(Guid PaymentId, Guid OrderId, string ClientSecret, string? PaymentReference, string Status); // GET /api/payments/by-order/{orderId}; ClientSecret runtime-only, never store
 sealed record CatalogCategoryTree(Guid Id, string Name, string Slug, string? Description, Guid? ParentId, IReadOnlyCollection<CatalogCategoryTree> Children);
 ```
 

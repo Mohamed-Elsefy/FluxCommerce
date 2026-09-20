@@ -534,6 +534,20 @@ Note inconsistent `api/` prefix (other modules have none).
 | Errors | `404 Payment.NotFound (also on ownership mismatch)` |
 | Pagination/Sorting/Filtering | — |
 
+### GET /api/payments/by-order/{orderId}
+| Field | Value |
+|---|---|
+| Endpoint | `/api/payments/by-order/{orderId:guid}` |
+| HTTPMethod | `GET` |
+| Authorization | Authenticated any role + ownership (`payment.CustomerId != caller → 404 masked`, same as above) |
+| Request | Route `orderId: Guid` |
+| Response | `200 ApiResponse<PaymentInitializationResponse { paymentId: Guid (for GET /api/payments/{id} polling), orderId: Guid, clientSecret: string (runtime-only, never store), paymentReference?: string\|null (pi_* for support), status: string ("Pending") }>` |
+| Status Codes | `200, 400, 401, 404, 409` |
+| Validation | empty guid → `400 Payment.OrderIdRequired` |
+| Errors | `404 Payment.NotFound` (missing payment OR stranger — masked); `409 Payment.NotReady` (intent not created yet by saga — poll/retry shortly); `409 Payment.NotPayable` (terminal payment: Succeeded/Failed/Cancelled/Refunded); `500 Payment.ProviderUnavailable` (Stripe unreachable — retry) |
+| Pagination/Sorting/Filtering | — |
+| Frontend note | Read-only: never creates a Stripe intent (saga owns creation). Live secret re-fetched per call — retries reuse the single intent per order. Flow: `checkout (Pending) → GET by-order (until 200) → stripe.confirmCardPayment(clientSecret) → poll GET /orders/{id} until Confirmed/Cancelled`. |
+
 ### POST /api/payments/webhook
 | Field | Value |
 |---|---|

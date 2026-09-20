@@ -7,6 +7,8 @@ using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Enums;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
+using FluxCommerce.Modules.Payments.Contracts.Responses;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +28,7 @@ public sealed class PaymentsController : ApiControllerBase
     private readonly IStripeWebhookService _webhookService;
     private readonly IWebhookEventProcessor _webhookProcessor;
     private readonly IPaymentRepository _paymentRepository;
+    private readonly IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> _initializationHandler;
     private readonly ICurrentUser _currentUser;
 
     public PaymentsController(
@@ -35,6 +38,7 @@ public sealed class PaymentsController : ApiControllerBase
         IStripeWebhookService webhookService,
         IWebhookEventProcessor webhookProcessor,
         IPaymentRepository paymentRepository,
+        IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> initializationHandler,
         ICurrentUser currentUser
     )
         : base(localizer, errorCodeLocalizer)
@@ -43,6 +47,7 @@ public sealed class PaymentsController : ApiControllerBase
         _webhookService = webhookService ?? throw new ArgumentNullException(nameof(webhookService));
         _webhookProcessor = webhookProcessor ?? throw new ArgumentNullException(nameof(webhookProcessor));
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
+        _initializationHandler = initializationHandler ?? throw new ArgumentNullException(nameof(initializationHandler));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
     }
 
@@ -87,6 +92,37 @@ public sealed class PaymentsController : ApiControllerBase
             payment.UpdatedAtUtc,
             payment.Version
         }));
+    }
+
+    /// <summary>
+    /// Resolves the Stripe client secret for the owner of an order.
+    /// Customer ownership is enforced with a masked 404. Returns 409 when the
+    /// payment is not ready yet (saga still creating the intent — retry shortly)
+    /// or can no longer be initialized (terminal state).
+    /// </summary>
+    /// <remarks>
+    /// Read-only: never creates a Stripe intent (the saga owns creation). The live
+    /// secret is re-fetched from the provider on every call, so retries reuse the
+    /// single intent per order. The secret is runtime-only and must not be stored.
+    /// </remarks>
+    [HttpGet("by-order/{orderId:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GetInitializationByOrder(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        using var activity = TraceContext.Source.StartActivity("Payments.GetInitializationByOrder", ActivityKind.Server);
+        activity?.SetTag("order.id", orderId);
+
+        var result = await _initializationHandler.HandleAsync(new GetPaymentInitializationQuery(orderId), cancellationToken);
+
+        if (result.IsSuccess)
+            activity?.SetTag("payment.id", result.Value!.PaymentId);
+
+        return Success(result);
     }
 
     /// <summary>
