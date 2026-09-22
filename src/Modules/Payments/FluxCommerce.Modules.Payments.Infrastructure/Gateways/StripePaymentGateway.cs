@@ -1,7 +1,9 @@
 ﻿using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Domain.Enums;
+using FluxCommerce.Modules.Payments.Domain.Options;
 using FluxCommerce.Modules.Payments.Infrastructure.Observability;
+using Microsoft.Extensions.Options;
 using Stripe;
 using System.Diagnostics;
 
@@ -9,8 +11,16 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 
 public sealed class StripePaymentGateway : IStripePaymentGateway
 {
-    public StripePaymentGateway()
+    private readonly string _secretKey;
+
+    public StripePaymentGateway(IOptions<StripeOptions> options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
+        // The Stripe .NET SDK authenticates per request via RequestOptions.ApiKey.
+        // The secret is injected (bound + validated at startup from "Stripe:SecretKey")
+        // instead of the StripeConfiguration static so tests and hosts stay isolated.
+        _secretKey = options.Value.SecretKey;
     }
 
     /// <summary>
@@ -61,7 +71,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         };
 
         var idempotencyKey = GenerateIdempotencyKey(request.OrderId, request.PaymentId, request.Version);
-        var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey };
+        var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey, ApiKey = _secretKey };
 
         // Stripe .NET SDK does not expose async overload with CancellationToken; use synchronous call wrapped in Task.Run
         var paymentIntent = await Task.Run(() => service.Create(createOptions, requestOptions), cancellationToken);
@@ -79,7 +89,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         if (string.IsNullOrWhiteSpace(paymentIntentId)) throw new ArgumentException("Value cannot be null or empty.", nameof(paymentIntentId));
 
         var service = new PaymentIntentService();
-        var paymentIntent = await Task.Run(() => service.Get(paymentIntentId), cancellationToken);
+        var paymentIntent = await Task.Run(() => service.Get(paymentIntentId, requestOptions: new RequestOptions { ApiKey = _secretKey }), cancellationToken);
         return MapStripeStatusToPaymentStatus(paymentIntent.Status);
     }
 
@@ -93,7 +103,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         var service = new PaymentIntentService();
 
         // Stripe .NET SDK does not expose async overload with CancellationToken; use synchronous call wrapped in Task.Run
-        var paymentIntent = await Task.Run(() => service.Get(paymentIntentId), cancellationToken);
+        var paymentIntent = await Task.Run(() => service.Get(paymentIntentId, requestOptions: new RequestOptions { ApiKey = _secretKey }), cancellationToken);
         activity?.SetTag("stripe.status", paymentIntent.Status);
 
         return paymentIntent.ClientSecret;
@@ -126,7 +136,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         };
 
         var idempotencyKey = GenerateRefundIdempotencyKey(request.PaymentId, request.OrderId);
-        var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey };
+        var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey, ApiKey = _secretKey };
 
         var refund = await Task.Run(() => service.Create(createOptions, requestOptions), cancellationToken);
         activity?.SetTag("stripe.refund_id", refund.Id);
