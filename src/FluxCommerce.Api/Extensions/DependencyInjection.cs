@@ -68,11 +68,8 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddOptions<StripeOptions>()
-            .Bind(configuration.GetSection(StripeOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
+        // Single Stripe source of truth: the Domain options bound once. The former
+        // Api.Options.StripeOptions duplicate was removed to prevent silent drift.
         services.AddOptions<FluxCommerce.Modules.Payments.Domain.Options.StripeOptions>()
             .Bind(configuration.GetSection(FluxCommerce.Modules.Payments.Domain.Options.StripeOptions.SectionName))
             .ValidateDataAnnotations()
@@ -207,11 +204,23 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.succeeded");
         services.AddIntegrationEventConsumer<PaymentSucceededIntegrationEvent, PaymentSucceededConsumer, OrdersIdempotentProcessor>();
 
+        // Payment correlation tracking: Payments stages payments.payment_initiated atomically
+        // with intent creation; Orders records (PaymentId, ProviderPaymentIntentId) on the saga
+        // via MarkPaymentRequested so later steps (e.g. refund) use tracked ids.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.initiated");
+        services.AddIntegrationEventConsumer<PaymentInitiatedIntegrationEvent, PaymentInitiatedConsumer, OrdersIdempotentProcessor>();
+
         // Phase 10.5: Orders consumer for payments.payment_failed. Payments webhook stages
         // payments.payment_failed via Payments outbox; Orders transitions saga to ReleasingInventory
         // and stages inventory.release_requested for each recorded reservation atomically.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.failed");
         services.AddIntegrationEventConsumer<PaymentFailedIntegrationEvent, PaymentFailedConsumer, OrdersIdempotentProcessor>();
+
+        // Orders consumer for payments.payment_canceled. Payments webhook stages
+        // payments.payment_canceled via Payments outbox; Orders leaves WaitingForPayment for
+        // compensation (same release sweep as payment_failed) instead of hanging until expiry.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.canceled");
+        services.AddIntegrationEventConsumer<PaymentCanceledIntegrationEvent, PaymentCanceledConsumer, OrdersIdempotentProcessor>();
 
         // Phase 10.6: Orders consumer for inventory.released compensation. Inventory publishes
         // inventory.released via Inventory outbox after successful Release; Orders transitions

@@ -418,6 +418,8 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
         return new CreatePaymentRequestedConsumer(
             repo,
             gateway,
+            PaymentsContext,
+            new IntegrationEventOutboxMessageFactory(),
             NullLogger<CreatePaymentRequestedConsumer>.Instance);
     }
 

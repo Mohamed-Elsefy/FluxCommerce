@@ -453,4 +453,69 @@ public class OrderTests
                 default,
                 order.LineItems));
     }
+
+    [Fact]
+    public void Hydrate_RestoresMoneyFields()
+    {
+        var order = CreateOrder();
+        order.SetShippingCost(new OrderMoney(5m, "USD"), UtcNow);
+
+        var hydrated = Order.Hydrate(
+            order.Id,
+            order.CustomerId,
+            order.OrderNumber,
+            order.ShippingAddress,
+            order.BillingAddress,
+            order.Status,
+            order.Version,
+            order.CreatedAtUtc,
+            order.UpdatedAtUtc,
+            order.LineItems,
+            new OrderMoney(5m, "USD"),
+            new OrderMoney(2m, "USD"));
+
+        Assert.Equal(new OrderMoney(5m, "USD"), hydrated.ShippingCost);
+        Assert.Equal(new OrderMoney(2m, "USD"), hydrated.Discount);
+    }
+
+    [Fact]
+    public void Hydrate_EmptyLines_DoesNotThrow()
+    {
+        var order = CreateOrder();
+
+        var hydrated = Order.Hydrate(
+            order.Id,
+            order.CustomerId,
+            order.OrderNumber,
+            order.ShippingAddress,
+            order.BillingAddress,
+            order.Status,
+            order.Version,
+            order.CreatedAtUtc,
+            order.UpdatedAtUtc,
+            []);
+
+        Assert.Empty(hydrated.LineItems);
+        Assert.Equal("USD", hydrated.ShippingCost.Currency);
+    }
+
+    [Fact]
+    public void Hydrate_MismatchedMoneyCurrency_Throws()
+    {
+        var order = CreateOrder();
+
+        Assert.Throws<ArgumentException>(() =>
+            Order.Hydrate(
+                order.Id,
+                order.CustomerId,
+                order.OrderNumber,
+                order.ShippingAddress,
+                order.BillingAddress,
+                order.Status,
+                order.Version,
+                order.CreatedAtUtc,
+                order.UpdatedAtUtc,
+                order.LineItems,
+                new OrderMoney(5m, "EUR")));
+    }
 }

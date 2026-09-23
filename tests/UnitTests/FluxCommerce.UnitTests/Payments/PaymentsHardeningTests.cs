@@ -106,6 +106,33 @@ public sealed class PaymentsHardeningTests : IDisposable
         Assert.Equal(404, obj.StatusCode);
     }
 
+    [Fact]
+    public async Task Ownership_GetPayment_EmptyCustomer_ReturnsNotFound()
+    {
+        // Arrange: legacy/malformed row with empty CustomerId, caller is any user
+        var caller = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var payment = new FluxCommerce.Modules.Payments.Domain.Aggregates.Payment(Guid.NewGuid(), orderId, 10m, "USD", Guid.Empty);
+        var ctx = CreatePaymentsContext();
+        ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().Add(payment);
+        await ctx.SaveChangesAsync();
+
+        var currentUser = new FakeCurrentUser { UserId = caller, IsAuthenticated = true };
+        var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
+
+        var localizer = Mock.Of<FluxCommerce.BuildingBlocks.Localization.Abstractions.ILocalizer>(l => l[It.IsAny<string>()] == "x");
+        var errLoc = Mock.Of<FluxCommerce.BuildingBlocks.Web.Localization.IErrorCodeLocalizer>();
+        var ctrl = new PaymentsController(localizer, errLoc, NullLogger<PaymentsController>.Instance,
+            Mock.Of<IStripeWebhookService>(), Mock.Of<IWebhookEventProcessor>(p => p.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult(WebhookProcessResult.Processed)),
+            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), currentUser);
+        ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() };
+
+        var result = await ctrl.GetPayment(payment.Id, CancellationToken.None);
+
+        var obj = Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(result);
+        Assert.Equal(404, obj.StatusCode);
+    }
+
     // Creates intent through the saga consumer (the production path) instead of
     // asserting on a command result: creation is acknowledged by the persisted row.
     private static (CreatePaymentRequestedIntegrationEvent Event, IntegrationEventEnvelope Envelope) CreatePaymentEvent(
@@ -123,8 +150,9 @@ public sealed class PaymentsHardeningTests : IDisposable
 
     private static CreatePaymentRequestedConsumer CreatePaymentConsumer(
         FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository repo,
-        IStripePaymentGateway gateway) =>
-        new(repo, gateway, NullLogger<CreatePaymentRequestedConsumer>.Instance);
+        IStripePaymentGateway gateway,
+        PaymentsDbContext ctx) =>
+        new(repo, gateway, ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
     // 1: Normal flow CreateIntent -> Webhook Succeeded -> Succeeded + Outbox
     [Fact]
@@ -138,7 +166,7 @@ public sealed class PaymentsHardeningTests : IDisposable
                .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_test"));
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var consumer = CreatePaymentConsumer(repo, gateway.Object);
+        var consumer = CreatePaymentConsumer(repo, gateway.Object, ctx);
 
         var (evt, envelope) = CreatePaymentEvent(orderId, userId);
         await consumer.HandleAsync(evt, envelope, CancellationToken.None);
@@ -171,7 +199,7 @@ public sealed class PaymentsHardeningTests : IDisposable
                .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Processing, "cs_test"));
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var consumer = CreatePaymentConsumer(repo, gateway.Object);
+        var consumer = CreatePaymentConsumer(repo, gateway.Object, ctx);
         var (evt, envelope) = CreatePaymentEvent(orderId, userId);
         await consumer.HandleAsync(evt, envelope, CancellationToken.None);
         var payment = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().SingleAsync(p => p.OrderId == orderId);
@@ -198,7 +226,7 @@ public sealed class PaymentsHardeningTests : IDisposable
                .ReturnsAsync(() => { callCount++; return new PaymentIntentResult("pi_dup_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_dup"); });
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var consumer = CreatePaymentConsumer(repo, gateway.Object);
+        var consumer = CreatePaymentConsumer(repo, gateway.Object, ctx);
 
         var (firstEvent, firstEnvelope) = CreatePaymentEvent(orderId, userId);
         await consumer.HandleAsync(firstEvent, firstEnvelope, CancellationToken.None);
@@ -228,8 +256,8 @@ public sealed class PaymentsHardeningTests : IDisposable
 
         var repo1 = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx1);
         var repo2 = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx2);
-        var c1 = CreatePaymentConsumer(repo1, gateway);
-        var c2 = CreatePaymentConsumer(repo2, gateway);
+        var c1 = CreatePaymentConsumer(repo1, gateway, ctx1);
+        var c2 = CreatePaymentConsumer(repo2, gateway, ctx2);
 
         var (event1, envelope1) = CreatePaymentEvent(orderId, userId);
         var (event2, envelope2) = CreatePaymentEvent(orderId, userId);

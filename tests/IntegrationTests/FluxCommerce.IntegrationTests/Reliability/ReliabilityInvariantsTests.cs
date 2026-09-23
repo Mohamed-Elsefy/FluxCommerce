@@ -313,6 +313,8 @@ public sealed class ReliabilityInvariantsTests : ReliabilityTestBase
         var consumer = new CreatePaymentRequestedConsumer(
             repo,
             gateway,
+            PaymentsContext,
+            new IntegrationEventOutboxMessageFactory(),
             NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
         // Retry 2 transient failures (throw for redelivery) then success

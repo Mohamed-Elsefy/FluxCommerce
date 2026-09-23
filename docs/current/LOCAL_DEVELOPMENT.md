@@ -8,7 +8,7 @@ or
 
 docker compose up -d smtp4dev
 
-The full stack starts SQL Server (`localhost:1433`), Redis (`localhost:6379`), and RabbitMQ (`localhost:5672`, management UI `localhost:15672`). Secrets are resolved from the gitignored `.env` file (`MSSQL_SA_PASSWORD`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`).
+The default stack starts SQL Server (`localhost:1433`), Redis (`localhost:6379`), RabbitMQ (`localhost:5672`, management UI `localhost:15672`), and smtp4dev (SMTP `localhost:2525`, web UI `localhost:5000`). Secrets are resolved from the gitignored `.env` file (`MSSQL_SA_PASSWORD`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`). `STRIPE_SECRET_KEY` is only needed for the opt-in `stripe` profile (see Stripe CLI below) — plain `up -d` does not start it.
 
 ---
 
@@ -17,6 +17,8 @@ The full stack starts SQL Server (`localhost:1433`), Redis (`localhost:6379`), a
 docker compose ps
 
 docker compose ps smtp4dev
+
+docker compose --profile stripe ps   # includes fluxcommerce-stripe-cli when started
 
 ---
 
@@ -37,6 +39,47 @@ https://localhost:7119/swagger
 smtp4dev
 
 http://localhost:5000
+
+---
+
+## Stripe CLI (webhooks → local API, opt-in)
+
+The `stripe-cli` service (`stripe/stripe-cli:latest` in `docker-compose.yml`) runs `stripe listen --all-snapshot` and forwards test-mode events to the API webhook `POST /api/payments/webhook` (`PaymentsController`). It sits behind the `stripe` profile, so it never starts with plain `docker compose up -d`.
+
+Prerequisites:
+
+*   API running locally on HTTP `http://localhost:5260` (`dotnet run --project src/FluxCommerce.Api` — the default `http` profile). The container forwards to `host.docker.internal:5260`, so the HTTPS-only profile (`7119`) will NOT receive events.
+*   `STRIPE_SECRET_KEY=sk_test_...` in `.env` (test-mode Secret key from Stripe Dashboard; placeholder in `.env.example`; `.env` is gitignored).
+
+```bash
+docker compose --profile stripe up -d stripe-cli
+docker compose --profile stripe logs -f stripe-cli
+# Log line: "Your webhook signing secret is whsec_..." → configure the API with it:
+dotnet user-secrets set "Stripe:WebhookSecret" "whsec_..." --project src/FluxCommerce.Api
+# Restart the API after setting the secret, otherwise verification returns 400.
+# NOTE: every fresh `up` of the container prints a NEW whsec — re-sync + restart the API
+# each time the stripe-cli container is recreated, or webhooks will 400.
+```
+
+> **307 trap:** if the CLI log shows `[307] POST .../api/payments/webhook`, the API's HTTPS
+> redirection is intercepting the HTTP forward before the controller. HTTPS redirection is
+> disabled in `Development` (`PipelineConfiguration`) precisely so plain-HTTP forwarding to
+> port 5260 works — make sure you are running a build that contains that change and that the
+> API is up on `http://localhost:5260`. Production keeps the redirect.
+
+Fire a test event (compose interpolates the key from `.env`, works verbatim in PowerShell/bash):
+
+```bash
+docker compose --profile stripe run --rm stripe-cli trigger payment_intent.succeeded --api-key ${STRIPE_SECRET_KEY}
+```
+
+Expect `200 OK` in the API logs (`Stripe webhook event processed`); re-deliveries return `200` as `AlreadyProcessed` (idempotent, Stripe stops retrying).
+
+Stop it when done:
+
+```bash
+docker compose --profile stripe stop stripe-cli
+```
 
 ---
 
@@ -106,5 +149,9 @@ docker compose logs smtp4dev
 docker compose restart smtp4dev
 
 docker compose stop smtp4dev
+
+docker compose --profile stripe logs -f stripe-cli
+
+docker compose --profile stripe stop stripe-cli
 
 docker compose down

@@ -1,5 +1,6 @@
 ﻿using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
+using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Domain.Enums;
 using FluxCommerce.Modules.Payments.Domain.Options;
 using FluxCommerce.Modules.Payments.Infrastructure.Observability;
@@ -34,12 +35,14 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
 
     /// <summary>
     /// Phase 10.8: deterministic refund idempotency key.
-    /// Format: refund_{PaymentId}_{OrderId}
-    /// Ensures ONE Stripe refund business effect per payment compensation.
+    /// Format: refund_{PaymentId}_{OrderId}_{AmountMinor}
+    /// The amount is part of the key so a second legitimate partial refund with a different
+    /// amount never replays the first Stripe refund, while retrying the same amount stays
+    /// idempotent. Ensures ONE Stripe refund business effect per (payment, amount).
     /// </summary>
-    public static string GenerateRefundIdempotencyKey(Guid paymentId, Guid orderId)
+    public static string GenerateRefundIdempotencyKey(Guid paymentId, Guid orderId, long amountMinor)
     {
-        return $"refund_{paymentId}_{orderId}";
+        return $"refund_{paymentId}_{orderId}_{amountMinor}";
     }
 
     public async Task<PaymentIntentResult> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken = default)
@@ -60,7 +63,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         var service = new PaymentIntentService();
         var createOptions = new PaymentIntentCreateOptions
         {
-            Amount = (long)(request.Amount * 100m),
+            Amount = CurrencyMinorUnits.ToMinorUnits(request.Amount, request.Currency),
             Currency = request.Currency.ToLowerInvariant(),
             AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions { Enabled = true },
             Metadata = new Dictionary<string, string>
@@ -124,10 +127,11 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         if (request.Amount <= 0) throw new ArgumentException("Amount must be positive.", nameof(request.Amount));
 
         var service = new RefundService();
+        var amountMinor = CurrencyMinorUnits.ToMinorUnits(request.Amount, request.Currency);
         var createOptions = new RefundCreateOptions
         {
             PaymentIntent = request.ProviderPaymentIntentId,
-            Amount = (long)(request.Amount * 100m),
+            Amount = amountMinor,
             Metadata = new Dictionary<string, string>
             {
                 ["order_id"] = request.OrderId.ToString(),
@@ -135,7 +139,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
             }
         };
 
-        var idempotencyKey = GenerateRefundIdempotencyKey(request.PaymentId, request.OrderId);
+        var idempotencyKey = GenerateRefundIdempotencyKey(request.PaymentId, request.OrderId, amountMinor);
         var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey, ApiKey = _secretKey };
 
         var refund = await Task.Run(() => service.Create(createOptions, requestOptions), cancellationToken);

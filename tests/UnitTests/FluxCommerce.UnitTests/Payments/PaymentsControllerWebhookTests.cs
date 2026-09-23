@@ -33,6 +33,7 @@ public sealed class PaymentsControllerWebhookTests
         {
             var m = new Mock<IWebhookEventProcessor>();
             m.Setup(x => x.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(WebhookProcessResult.Processed);
+            m.Setup(x => x.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<string>(), null, It.IsAny<CancellationToken>())).ReturnsAsync(WebhookProcessResult.Processed);
             m.Setup(x => x.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(WebhookProcessResult.Processed);
             proc = m.Object;
         }
@@ -124,7 +125,7 @@ public sealed class PaymentsControllerWebhookTests
             .Returns(new StripeWebhookVerificationResult(true, "evt_dup", "payment_intent.succeeded", "pi_dup", null));
 
         var procMock = new Mock<IWebhookEventProcessor>();
-        procMock.Setup(x => x.TryProcessAsync("evt_dup", "payment_intent.succeeded", "pi_dup", It.IsAny<CancellationToken>()))
+        procMock.Setup(x => x.TryProcessAsync("evt_dup", "payment_intent.succeeded", "pi_dup", null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(WebhookProcessResult.AlreadyProcessed);
 
         var ctx = HttpWithBody(payload, "t=1,v1=valid");
@@ -133,7 +134,7 @@ public sealed class PaymentsControllerWebhookTests
         var result = await ctrl.Webhook();
 
         Assert.IsType<OkResult>(result);
-        procMock.Verify(x => x.TryProcessAsync("evt_dup", "payment_intent.succeeded", "pi_dup", It.IsAny<CancellationToken>()), Times.Once);
+        procMock.Verify(x => x.TryProcessAsync("evt_dup", "payment_intent.succeeded", "pi_dup", null, null, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -145,7 +146,7 @@ public sealed class PaymentsControllerWebhookTests
             .Returns(new StripeWebhookVerificationResult(true, "evt_2", "payment_intent.succeeded", "pi_2", null));
 
         var procMock = new Mock<IWebhookEventProcessor>();
-        procMock.Setup(x => x.TryProcessAsync("evt_2", "payment_intent.succeeded", "pi_2", It.IsAny<CancellationToken>()))
+        procMock.Setup(x => x.TryProcessAsync("evt_2", "payment_intent.succeeded", "pi_2", null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(WebhookProcessResult.Processed);
 
         var ctx = HttpWithBody(payload, "t=1,v1=valid");
@@ -154,7 +155,7 @@ public sealed class PaymentsControllerWebhookTests
         var result = await ctrl.Webhook();
 
         Assert.IsType<OkResult>(result);
-        procMock.Verify(x => x.TryProcessAsync("evt_2", "payment_intent.succeeded", "pi_2", It.IsAny<CancellationToken>()), Times.Once);
+        procMock.Verify(x => x.TryProcessAsync("evt_2", "payment_intent.succeeded", "pi_2", null, null, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

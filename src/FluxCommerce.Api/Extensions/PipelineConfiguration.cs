@@ -23,7 +23,11 @@ public static class PipelineConfiguration
 
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
-        app.UseHttpsRedirection();
+
+        // HTTPS redirection is production-only: local webhook delivery (Stripe CLI → HTTP 5260)
+        // cannot follow the 307 to HTTPS, so the redirect would drop events before controllers.
+        if (!app.Environment.IsDevelopment())
+            app.UseHttpsRedirection();
 
         app.UseCors(CorsOptions.PolicyName);
 

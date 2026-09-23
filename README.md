@@ -335,7 +335,7 @@ Incremental — future phases are **not** implemented prematurely.
 | 9 Stripe Payments | ✅ Done | Intent isolation, webhook dedup |
 | 10 Payment Saga & Compensation | ✅ Done | Refund, release, cancel orchestration |
 | 11 Reservation Expiry | ✅ Done | Expiration worker → Saga cancel |
-| **12 Failure Testing** | **▶ Next** | Chaos, redelivery, DLQ, timeout harness |
+| **12 Failure Testing** | ✅ **Done** | Chaos, redelivery, DLQ, timeout harness |
 | 13 Search · 14 Promotions · 15 Wishlist · 16 Reviews · 17 Notifications · 18 Shipping · 19 Analytics · 20 Hardening | ⏳ Planned | Post-MVP |
 
 Core MVP is complete after Phase 12.

@@ -131,4 +131,45 @@ public sealed class StripeWebhookServiceTests
 
         Assert.False(result.IsValid);
     }
+
+    [Fact]
+    public void VerifyAndParse_ValidSignature_ExtractsAmountAndCurrency()
+    {
+        var payload = SamplePayload();
+        var header = GenerateStripeSignature(payload, WebhookSecret);
+        var svc = new StripeWebhookService(Options());
+
+        var result = svc.VerifyAndParse(payload, header);
+
+        Assert.True(result.IsValid, result.ErrorMessage);
+        Assert.Equal(1999, result.AmountMinor);
+        Assert.Equal("usd", result.Currency);
+    }
+
+    [Fact]
+    public void VerifyAndParse_PrefersAmountReceivedOverAmount()
+    {
+        var payload = SamplePayload().Replace("\"amount\":1999", "\"amount\":1999,\"amount_received\":1500");
+        var header = GenerateStripeSignature(payload, WebhookSecret);
+        var svc = new StripeWebhookService(Options());
+
+        var result = svc.VerifyAndParse(payload, header);
+
+        Assert.True(result.IsValid, result.ErrorMessage);
+        Assert.Equal(1500, result.AmountMinor);
+    }
+
+    [Fact]
+    public void VerifyAndParse_ExtractsDeclineReason()
+    {
+        var payload = SamplePayload()
+            .Replace("\"status\":\"succeeded\"", "\"status\":\"requires_payment_method\",\"last_payment_error\":{\"code\":\"card_declined\",\"decline_code\":\"insufficient_funds\",\"message\":\"Your card has insufficient funds.\"}");
+        var header = GenerateStripeSignature(payload, WebhookSecret);
+        var svc = new StripeWebhookService(Options());
+
+        var result = svc.VerifyAndParse(payload, header);
+
+        Assert.True(result.IsValid, result.ErrorMessage);
+        Assert.Equal("insufficient_funds", result.FailureReason);
+    }
 }

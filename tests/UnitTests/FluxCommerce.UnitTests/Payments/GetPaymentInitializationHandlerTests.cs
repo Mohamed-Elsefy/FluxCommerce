@@ -107,6 +107,22 @@ public sealed class GetPaymentInitializationHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_EmptyCustomerPayment_ReturnsMaskedNotFound()
+    {
+        var orderId = Guid.NewGuid();
+        var payment = CreatePayment(orderId, Guid.Empty);
+        AuthenticateAs(Guid.NewGuid());
+        SetupPayment(payment);
+
+        var result = await CreateHandler().HandleAsync(new GetPaymentInitializationQuery(orderId));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        Assert.Equal("Payment.NotFound", result.Error.Code);
+        _gateway.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task HandleAsync_PaymentWithoutIntent_ReturnsNotReady()
     {
         var orderId = Guid.NewGuid();

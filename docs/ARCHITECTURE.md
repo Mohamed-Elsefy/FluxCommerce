@@ -409,20 +409,23 @@ Payments.Application ──X─► Stripe
 Payments.Contracts ──X─► Stripe
 Payments.Infrastructure ──► Stripe.net (only)
 ```
-`IStripePaymentGateway` (`Application`) → `StripePaymentGateway` (`Infrastructure`, `Stripe.net`, `PaymentIntentService`, deterministic `intent_{OrderId}_{PaymentId}_{Version}` idempotency via `RequestOptions.IdempotencyKey`). `IStripeWebhookService` (`Application`, `StripeWebhookVerificationResult` with `PaymentIntentId`) → `StripeWebhookService` (`Infrastructure`, `EventUtility.ConstructEvent(tolerance:300, throwOnApiVersionMismatch:false)` + `JsonDocument` `data.object.id` extraction). `StripeOptions` (`SecretKey/WebhookSecret`) bound via `IOptions` from `Configuration["Stripe"]` (externalized, no secrets in source).
+`IStripePaymentGateway` (`Application`) → `StripePaymentGateway` (`Infrastructure`, `Stripe.net`, `PaymentIntentService`, deterministic `intent_{OrderId}_{PaymentId}_{Version}` idempotency via `RequestOptions.IdempotencyKey`, currency-aware minor units via `CurrencyMinorUnits` with zero-decimal support, refund keys `refund_{PaymentId}_{OrderId}_{AmountMinor}`). `IStripeWebhookService` (`Application`, `StripeWebhookVerificationResult` with `PaymentIntentId/AmountMinor/Currency/FailureReason`) → `StripeWebhookService` (`Infrastructure`, `EventUtility.ConstructEvent(tolerance:300, throwOnApiVersionMismatch:false)` + `JsonDocument` `data.object` extraction: `id`, `amount_received ?? amount`, `currency`, `last_payment_error`). `StripeOptions` (Domain, single source of truth) bound via `IOptions` from `Configuration["Stripe"]` (externalized, no secrets in source).
 
 **Webhook flow (`9.8→9.11`, `PaymentsController`):**
 ```
-Stripe → POST /api/payments/webhook [AllowAnonymous] (EnableBuffering → raw UTF-8)
+Stripe → POST /api/payments/webhook [AllowAnonymous] ([RequestSizeLimit] 1MB, EnableBuffering → raw UTF-8)
   → Stripe-Signature header + payload → IStripeWebhookService.VerifyAndParse
-  → IWebhookEventProcessor.TryProcessAsync(eventId,type,piId) — single PaymentsDbContext transaction:
+  → IWebhookEventProcessor.TryProcessAsync(eventId,type,piId,amountMinor,currency,failureReason) — single PaymentsDbContext transaction:
         ├─ idempotency AnyAsync check + unique UX_ProcessedWebhookEvents_StripeEventId (race → AlreadyProcessed)
-        ├─ lookup Payment by ProviderPaymentIntentId → ApplyEventToPayment (Supported: succeeded→Succeed, payment_failed→Fail, canceled→Cancel, processing→Process; unsupported→no-op; InvalidOperationException→ terminal protection, logged, success)
+        ├─ lookup Payment by ProviderPaymentIntentId → amount verification (mismatch → recorded Processed + error log, no transition, no outbox)
+        ├─ ApplyEventToPayment (Supported: succeeded→Succeed, payment_failed→Fail with real decline reason, canceled→Cancel, processing→Process; unsupported→no-op; InvalidOperationException→ terminal protection, logged, success)
         ├─ add ProcessedWebhookEvent
-        └─ if terminal Succeeded/Failed → IntegrationEventOutboxMessageFactory.Create("payments.payment_succeeded/failed", new PaymentSucceeded/FailedIntegrationEvent{CorrelationId=OrderId, CausationId=ProcessedEvent.Id}) → OutboxMessages
-  → 400 on missing/invalid sig, 200 on valid/duplicate/unsupported/out-of-order (Stripe stops retrying)
+        └─ outbox: Succeeded→"payments.payment_succeeded", Failed→"payments.payment_failed", Cancelled→"payments.payment_canceled" (each {CorrelationId=OrderId, CausationId=ProcessedEvent.Id}) → OutboxMessages
+  → intent creation additionally stages "payments.payment_initiated" (same transaction) so Orders records the payment correlation
+  → 400 on missing/invalid sig or malformed JSON, 200 on valid/duplicate/unsupported/out-of-order/amount-mismatch (Stripe stops retrying)
+  → concurrent different-event writes surface DbUpdateConcurrencyException → 500 so Stripe retries and converges
 ```
-`GET /api/payments/{paymentId}` `[Authorize]` enforces ownership (`CustomerId == ICurrentUser.UserId` else 404) — `[AllowAnonymous]` strictly limited to webhook.
+`GET /api/payments/{paymentId}` `[Authorize]` enforces ownership (`CustomerId == ICurrentUser.UserId`, fail-closed on empty `CustomerId`, else 404) — `[AllowAnonymous]` strictly limited to webhook.
 
 **Observability (`9.12`):** `TraceContext.Source` (`FluxCommerce`) activities `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process` + tags `order.id/payment.id/stripe.*`; structured logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/EventType/CorrelationId/CausationId`, no `SecretKey`/card payload.
 
@@ -839,14 +842,14 @@ Payment orchestration and refund compensation. The workflow spans three modules:
 1. Orders Saga starts at `WaitingForInventory`, publishes `inventory.reservation_requested`
 2. Inventory consumes, reserves stock, publishes `inventory.reserved`
 3. Saga transitions to `WaitingForPayment`, publishes `payments.payment_requested`
-4. Payments consumes, creates PaymentIntent via Stripe, publishes `payments.payment_succeeded`
-5. Saga consumes `payments.payment_succeeded`, transitions Order to `Confirmed`, Saga to `Completed`
+4. Payments consumes, creates PaymentIntent via Stripe in one transaction, publishes `payments.payment_initiated`; Orders records the payment correlation (`MarkPaymentRequested`) so later results are matched, not just accepted
+5. Stripe webhook → Payments publishes `payments.payment_succeeded`; Saga validates the correlation, transitions Order to `Confirmed`, Saga to `Completed`
 
 **Payment Failure (10.5–10.6):**
 
-1. Payments publishes `payments.payment_failed`
-2. Saga consumes, transitions to `ReleasingInventory`
-3. Inventory consumes, releases reservation, Saga to `Completed` (Order stays Pending/Cancelled)
+1. Payments publishes `payments.payment_failed` (with the real Stripe decline reason) or `payments.payment_canceled`
+2. Saga consumes, validates the correlation (a stranger payment id is rejected as conflicting), transitions to `ReleasingInventory`
+3. Inventory consumes, releases reservation, Saga to `Completed` (Order stays Pending/Cancelled); late `inventory.reserved` arrivals in compensation/cancelled states are recorded and released immediately (no leak)
 
 **Post-Payment Compensation (10.8):**
 

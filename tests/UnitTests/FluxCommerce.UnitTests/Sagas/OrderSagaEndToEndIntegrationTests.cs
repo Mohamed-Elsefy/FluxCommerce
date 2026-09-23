@@ -116,7 +116,10 @@ public class OrderSagaEndToEndIntegrationTests : OrderSagaTestBase
         var reservationId = Guid.NewGuid();
         await orchestrator.ApplyReservationSuccessAsync(order.Id, reservationId, Guid.NewGuid(), Guid.NewGuid(), At);
         await ctx.SaveChangesAsync();
-        await orchestrator.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), At);
+        var paymentId = Guid.NewGuid();
+        await orchestrator.ApplyPaymentInitiatedAsync(order.Id, paymentId, "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), At.AddTicks(-1));
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyPaymentSucceededAsync(order.Id, paymentId, "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), At);
         await ctx.SaveChangesAsync();
         Assert.Equal(OrderSagaState.Completed, (await ctx.OrderSagas.SingleAsync()).State);
         Assert.Equal(OrderStatus.Confirmed, (await ctx.Orders.SingleAsync()).Status);

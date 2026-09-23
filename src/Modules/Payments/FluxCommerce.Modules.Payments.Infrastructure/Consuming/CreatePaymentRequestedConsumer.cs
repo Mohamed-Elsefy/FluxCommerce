@@ -1,9 +1,11 @@
 ﻿using FluxCommerce.BuildingBlocks.Messaging.Consuming;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
+using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -29,15 +31,21 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
 
     private readonly IPaymentRepository _paymentRepository;
     private readonly IStripePaymentGateway _stripeGateway;
+    private readonly PaymentsDbContext _dbContext;
+    private readonly IntegrationEventOutboxMessageFactory _outboxFactory;
     private readonly ILogger<CreatePaymentRequestedConsumer> _logger;
 
     public CreatePaymentRequestedConsumer(
         IPaymentRepository paymentRepository,
         IStripePaymentGateway stripeGateway,
+        PaymentsDbContext dbContext,
+        IntegrationEventOutboxMessageFactory outboxFactory,
         ILogger<CreatePaymentRequestedConsumer> logger)
     {
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
         _stripeGateway = stripeGateway ?? throw new ArgumentNullException(nameof(stripeGateway));
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _outboxFactory = outboxFactory ?? throw new ArgumentNullException(nameof(outboxFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -73,6 +81,7 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
         {
             if (!string.IsNullOrWhiteSpace(existing.ProviderPaymentIntentId))
             {
+                // Announcement was staged atomically when the intent was created; nothing to do.
                 _logger.LogInformation("Payment already exists for order {OrderId} with intent {IntentId}; duplicate create_payment_requested acknowledged (correlation {CorrelationId}).",
                     @event.OrderId, existing.ProviderPaymentIntentId, envelope.CorrelationId);
                 activity?.SetTag("payment.id", existing.Id);
@@ -93,7 +102,8 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
                     try { existing.Process(); } catch { }
                 }
 
-                await _paymentRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                StageInitiated(existing, envelope);
+                await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Reused existing payment {PaymentId} for order {OrderId} with new intent {IntentId} (correlation {CorrelationId}).",
                     existing.Id, @event.OrderId, reused.StripePaymentIntentId, envelope.CorrelationId);
                 activity?.SetTag("payment.id", existing.Id);
@@ -108,7 +118,10 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
             }
         }
 
-        // No existing payment: create new
+        // No existing payment: create new. The row is persisted BEFORE the Stripe call so a
+        // transient provider failure leaves an intent-less row that the retry reuses (idempotent
+        // retry path above) instead of accumulating untracked duplicates. The payment update and
+        // its payment_initiated announcement then commit in a single SaveChanges.
         var payment = new Payment(Guid.NewGuid(), @event.OrderId, @event.Amount, @event.Currency, @event.CustomerId);
         activity?.SetTag("payment.id", payment.Id);
 
@@ -118,6 +131,7 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
         }
         catch (Exception ex) when (IsUniqueConstraintViolation(ex, "UX_Payments_OrderId"))
         {
+            _dbContext.ChangeTracker.Clear();
             var winner = await _paymentRepository.GetByOrderIdAsync(@event.OrderId, cancellationToken).ConfigureAwait(false);
             if (winner is not null && !string.IsNullOrWhiteSpace(winner.ProviderPaymentIntentId))
             {
@@ -155,9 +169,11 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
             try { payment.Process(); } catch { }
         }
 
+        StageInitiated(payment, envelope);
+
         try
         {
-            await _paymentRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Created payment {PaymentId} for order {OrderId} with intent {IntentId} (correlation {CorrelationId}).",
                 payment.Id, @event.OrderId, stripeResult.StripePaymentIntentId, envelope.CorrelationId);
         }
@@ -167,6 +183,27 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
                 payment.Id, @event.OrderId, envelope.CorrelationId);
             throw new InvalidOperationException($"Duplicate provider intent for order '{@event.OrderId}': {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Stages <c>payments.payment_initiated</c> so the Orders saga can record the payment
+    /// correlation. Committed atomically with the Payment row in the same SaveChanges.
+    /// </summary>
+    private void StageInitiated(Payment payment, IntegrationEventEnvelope envelope)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var initiated = new PaymentInitiatedIntegrationEvent(
+            payment.OrderId,
+            payment.Id,
+            payment.ProviderPaymentIntentId!,
+            now)
+        {
+            EventId = Guid.NewGuid(),
+            CorrelationId = envelope.ProducedEventCorrelationId,
+            CausationId = envelope.ProducedEventCausationId,
+            OccurredAtUtc = now.UtcDateTime
+        };
+        _dbContext.OutboxMessages.Add(_outboxFactory.Create(PaymentInitiatedIntegrationEvent.EventType, initiated));
     }
 
     private static void Validate(CreatePaymentRequestedIntegrationEvent @event)

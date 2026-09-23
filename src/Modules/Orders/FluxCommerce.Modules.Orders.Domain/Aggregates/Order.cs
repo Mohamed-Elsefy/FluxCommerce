@@ -136,7 +136,9 @@ public sealed class Order : AggregateRoot<OrderId>
         long version,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc,
-        IReadOnlyCollection<OrderLineItem> lineItems)
+        IReadOnlyCollection<OrderLineItem> lineItems,
+        OrderMoney? shippingCost = null,
+        OrderMoney? discount = null)
     {
         if (id is null)
             throw new ArgumentNullException(nameof(id));
@@ -164,12 +166,10 @@ public sealed class Order : AggregateRoot<OrderId>
 
         order._updatedAtUtc = updatedAtUtc;
 
-        if (lineItems is not null)
+        string? lineCurrency = null;
+        if (lineItems is not null && lineItems.Count > 0)
         {
-            var currency = DetermineCurrency(lineItems);
-
-            order.ShippingCost = OrderMoney.Zero(currency);
-            order.Discount = OrderMoney.Zero(currency);
+            lineCurrency = DetermineCurrency(lineItems);
 
             foreach (var item in lineItems)
             {
@@ -179,11 +179,26 @@ public sealed class Order : AggregateRoot<OrderId>
                 if (order._lineItems.Any(existing => existing.VariantId == item.VariantId))
                     throw new ArgumentException("A hydrated order cannot contain duplicate variants.", nameof(lineItems));
 
-                if (!string.Equals(item.UnitPrice.Currency, currency, StringComparison.Ordinal))
+                if (!string.Equals(item.UnitPrice.Currency, lineCurrency, StringComparison.Ordinal))
                     throw new ArgumentException("All line items must share the same currency.", nameof(lineItems));
 
                 order._lineItems.Add(item);
             }
+        }
+
+        var resolvedCurrency = lineCurrency
+            ?? shippingCost?.Currency
+            ?? discount?.Currency
+            ?? "USD";
+
+        order.ShippingCost = shippingCost ?? OrderMoney.Zero(resolvedCurrency);
+        order.Discount = discount ?? OrderMoney.Zero(resolvedCurrency);
+
+        if (lineCurrency is not null)
+        {
+            if (!string.Equals(order.ShippingCost.Currency, lineCurrency, StringComparison.Ordinal)
+                || !string.Equals(order.Discount.Currency, lineCurrency, StringComparison.Ordinal))
+                throw new ArgumentException("Shipping cost and discount must share the line items currency.", nameof(shippingCost));
         }
 
         return order;

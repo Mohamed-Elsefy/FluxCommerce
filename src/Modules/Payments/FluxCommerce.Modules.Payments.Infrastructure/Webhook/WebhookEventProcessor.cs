@@ -34,14 +34,19 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
     }
 
     public Task<WebhookProcessResult> TryProcessAsync(string stripeEventId, string? eventType, CancellationToken cancellationToken = default)
-        => TryProcessAsync(stripeEventId, eventType, paymentIntentId: null, cancellationToken);
+        => TryProcessAsync(stripeEventId, eventType, paymentIntentId: null, cancellationToken: cancellationToken);
 
-    public async Task<WebhookProcessResult> TryProcessAsync(string stripeEventId, string? eventType, string? paymentIntentId, CancellationToken cancellationToken = default)
+    public Task<WebhookProcessResult> TryProcessAsync(string stripeEventId, string? eventType, string? paymentIntentId, CancellationToken cancellationToken)
+        => TryProcessAsync(stripeEventId, eventType, paymentIntentId, amountMinor: null, currency: null, stripeFailureReason: null, cancellationToken: cancellationToken);
+
+    public async Task<WebhookProcessResult> TryProcessAsync(string stripeEventId, string? eventType, string? paymentIntentId, long? amountMinor = null, string? currency = null, string? stripeFailureReason = null, CancellationToken cancellationToken = default)
     {
         using var activity = PaymentsActivitySource.Source.StartActivity("Payments.Webhook.Process", ActivityKind.Internal);
         activity?.SetTag("stripe.event_id", stripeEventId);
         activity?.SetTag("stripe.event_type", eventType);
         activity?.SetTag("stripe.payment_intent_id", paymentIntentId);
+        activity?.SetTag("stripe.amount_minor", amountMinor);
+        activity?.SetTag("stripe.currency", currency);
 
         if (string.IsNullOrWhiteSpace(stripeEventId))
             throw new ArgumentException("StripeEventId is required.", nameof(stripeEventId));
@@ -77,12 +82,26 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
                 {
                     _logger.LogWarning("Payment not found for webhook. StripeEventId={StripeEventId}, EventType={EventType}, PaymentIntentId={PaymentIntentId}", stripeEventId, eventType, paymentIntentId);
                 }
+                else if (IsAmountMismatch(payment, amountMinor, currency))
+                {
+                    // Recorded as processed (Stripe stops retrying): a genuine amount
+                    // discrepancy never heals on redelivery and must not flip the Payment
+                    // nor emit an outbox event. Operators reconcile via the error log.
+                    activity?.SetTag("webhook.amount_mismatch", true);
+                    _logger.LogError(
+                        "Stripe webhook amount mismatch; event recorded without state change. StripeEventId={StripeEventId}, EventType={EventType}, PaymentId={PaymentId}, ExpectedAmount={ExpectedAmount} {ExpectedCurrency}, EventAmountMinor={EventAmountMinor}, EventCurrency={EventCurrency}",
+                        stripeEventId, eventType, payment.Id,
+                        payment.Amount, payment.Currency, amountMinor, currency);
+                }
                 else
                 {
+                    if (!amountMinor.HasValue || string.IsNullOrWhiteSpace(currency))
+                        _logger.LogWarning("Webhook arrived without amount details; skipping amount verification. StripeEventId={StripeEventId}, EventType={EventType}, PaymentId={PaymentId}", stripeEventId, eventType, payment.Id);
+
                     statusBefore = payment.Status;
                     try
                     {
-                        stateChanged = ApplyEventToPayment(payment, action, paymentIntentId, out failureReason);
+                        stateChanged = ApplyEventToPayment(payment, action, paymentIntentId, stripeFailureReason, out failureReason);
                         if (stateChanged)
                             _logger.LogInformation("Payment state transition applied via webhook. StripeEventId={StripeEventId}, EventType={EventType}, Action={Action}, PaymentId={PaymentId}, {OldStatus}->{NewStatus}", stripeEventId, eventType, action, payment.Id, statusBefore, payment.Status);
                         else
@@ -148,6 +167,24 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
                 };
                 outbox = _outboxFactory.Create(PaymentFailedIntegrationEvent.EventType, evt);
             }
+            else if (payment.Status == PaymentStatus.Cancelled && action == PaymentWebhookAction.Cancel)
+            {
+                var evt = new PaymentCanceledIntegrationEvent(
+                    payment.OrderId,
+                    payment.Id,
+                    payment.ProviderPaymentIntentId ?? paymentIntentId ?? string.Empty,
+                    "Stripe reported payment_intent.canceled",
+                    payment.Status.ToString(),
+                    now)
+                {
+                    EventId = Guid.NewGuid(),
+                    CorrelationId = payment.OrderId,
+                    CausationId = processedEvent.Id,
+                    OccurredAtUtc = now.UtcDateTime,
+                    Version = FluxCommerce.BuildingBlocks.Messaging.Versioning.EventVersion.V1
+                };
+                outbox = _outboxFactory.Create(PaymentCanceledIntegrationEvent.EventType, evt);
+            }
 
             if (outbox != null)
             {
@@ -161,6 +198,15 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
             await _dbContext.SaveChangesAsync(cancellationToken);
             return WebhookProcessResult.Processed;
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Concurrent different-event race on the same Payment (Version token): neither event
+            // was recorded, so rethrowing lets Stripe retry and converge on redelivery. Logged
+            // distinctly from unique violations so the race is visible in alerting.
+            activity?.SetTag("webhook.concurrency_conflict", true);
+            _logger.LogWarning(ex, "Concurrent webhook write conflict; Stripe retry will converge. StripeEventId={StripeEventId}, EventType={EventType}", stripeEventId, eventType);
+            throw;
+        }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
             _logger.LogInformation(ex, "Concurrent duplicate webhook race handled via unique constraint. StripeEventId={StripeEventId}", stripeEventId);
@@ -173,6 +219,7 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
         FluxCommerce.Modules.Payments.Domain.Aggregates.Payment payment,
         PaymentWebhookAction action,
         string paymentIntentId,
+        string? stripeFailureReason,
         out string? failureReason)
     {
         failureReason = null;
@@ -183,7 +230,7 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
                 payment.Succeed(paymentIntentId);
                 return payment.Status == PaymentStatus.Succeeded && before != PaymentStatus.Succeeded;
             case PaymentWebhookAction.Fail:
-                failureReason = "Stripe payment_failed";
+                failureReason = string.IsNullOrWhiteSpace(stripeFailureReason) ? "Stripe payment_failed" : stripeFailureReason;
                 payment.Fail(failureReason);
                 return payment.Status == PaymentStatus.Failed && before != PaymentStatus.Failed;
             case PaymentWebhookAction.Cancel:
@@ -195,6 +242,26 @@ public sealed class WebhookEventProcessor : IWebhookEventProcessor
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// Compares the Stripe event amount (minor units) against the local Payment.
+    /// Missing event amount/currency skips verification with a warning at the call
+    /// site contract (not a mismatch): older or non-payment-intent payloads may not
+    /// carry them, and rejecting those would break the supported allow-list.
+    /// </summary>
+    private static bool IsAmountMismatch(
+        FluxCommerce.Modules.Payments.Domain.Aggregates.Payment payment,
+        long? eventAmountMinor,
+        string? eventCurrency)
+    {
+        if (!eventAmountMinor.HasValue || string.IsNullOrWhiteSpace(eventCurrency))
+            return false;
+
+        if (!string.Equals(payment.Currency, eventCurrency.Trim(), StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return CurrencyMinorUnits.ToMinorUnits(payment.Amount, payment.Currency) != eventAmountMinor.Value;
     }
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)

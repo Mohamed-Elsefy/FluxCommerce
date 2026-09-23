@@ -10,7 +10,7 @@
 |---|---|---|
 | Create Stripe PaymentIntent (`intent_{OrderId}_{PaymentId}_{Version}`, unique `OrderId`/`ProviderPaymentIntentId`) | Backend saga → `CreatePaymentRequestedConsumer` (duplicate `OrderId` → existing intent acknowledged, no second Stripe call) | None — no `POST /api/payments/intent` HTTP endpoint; SPA fetches the secret via `GET /api/payments/by-order/{orderId}` (§3) |
 | Store `Payment{OrderId,CustomerId,Amount,Currency,ProviderPaymentIntentId,Provider="Stripe",Status,Version}` | Backend only | None |
-| Stripe webhook `payment_intent.*` → verify (`Stripe-Signature`, tolerance 300s) → idempotent apply (`Processed`/`AlreadyProcessed` → `200 empty`) → outbox `payments.payment_succeeded/failed` → saga `Completed` / `ReleasingInventory→Cancelled` | Stripe → API (`POST /api/payments/webhook`, `AllowAnonymous`) | Never call; never replicate |
+| Stripe webhook `payment_intent.*` → verify (`Stripe-Signature`, tolerance 300s, amount/currency match vs local payment) → idempotent apply (`Processed`/`AlreadyProcessed` → `200 empty`) → outbox `payments.payment_succeeded/failed/canceled` → saga `Completed` / `ReleasingInventory→Cancelled`; intent creation also emits `payments.payment_initiated` for saga correlation | Stripe → API (`POST /api/payments/webhook`, `AllowAnonymous`) | Never call; never replicate |
 | 3-D Secure / card confirmation (`requires_action`) | **SPA via Stripe.js** — the only direct Stripe touch | `confirmCardPayment(clientSecret)` once backend provides it (see §3 blocker) |
 | Outcome display | SPA via FluxCommerce API (not Stripe API) | Poll `GET /orders/{id}` (`Pending→Confirmed/Cancelled`); optionally `GET /api/payments/{id}` if `paymentId` known |
 
@@ -39,7 +39,7 @@ async function awaitOrder(orderId: string, accessToken: string) {
 
 Behavior matrix: anonymous → `401`; empty guid → `400 Payment.OrderIdRequired`; missing payment or stranger → masked `404 Payment.NotFound`; intent not created yet (saga lag) → `409 Payment.NotReady` (poll/retry); terminal payment → `409 Payment.NotPayable`; Stripe unreachable → `500 Payment.ProviderUnavailable`. The secret is re-fetched live from Stripe per call, so retries reuse the single intent per order — no `Version+1`, no second intent. `ClientSecret` is runtime-only: never store it.
 
-## 4. Future Stripe.js flow (when the endpoint lands)
+## 4. Stripe.js flow (via the §3 endpoint)
 
 ```ts
 import { loadStripe } from "@stripe/stripe-js"; // publishable key from SPA env, NOT from API

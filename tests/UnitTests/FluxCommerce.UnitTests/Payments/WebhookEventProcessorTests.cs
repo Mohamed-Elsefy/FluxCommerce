@@ -232,6 +232,82 @@ public sealed class WebhookEventProcessorTests : IDisposable
         Assert.Equal(1, outboxCount);
     }
 
+    // A2: amount verification
+
+    [Fact]
+    public async Task TryProcessAsync_MatchingAmount_TransitionsPaymentAndOutboxes()
+    {
+        var (ctx, processor) = CreateProcessor();
+        var payment = CreatePaymentWithIntent(ctx, "pi_amt_ok");
+
+        var result = await processor.TryProcessAsync("evt_amt_ok", "payment_intent.succeeded", "pi_amt_ok", 1999, "usd");
+
+        Assert.Equal(WebhookProcessResult.Processed, result);
+        var reloaded = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().FindAsync(payment.Id);
+        Assert.Equal(FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, reloaded!.Status);
+        Assert.Equal(1, await ctx.Set<OutboxMessage>().CountAsync(m => m.Type == "payments.payment_succeeded"));
+    }
+
+    [Fact]
+    public async Task TryProcessAsync_AmountMismatch_RecordsWithoutTransitionOrOutbox()
+    {
+        var (ctx, processor) = CreateProcessor();
+        var payment = CreatePaymentWithIntent(ctx, "pi_amt_bad");
+
+        var result = await processor.TryProcessAsync("evt_amt_bad", "payment_intent.succeeded", "pi_amt_bad", 1998, "usd");
+
+        Assert.Equal(WebhookProcessResult.Processed, result);
+        var reloaded = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().FindAsync(payment.Id);
+        Assert.Equal(FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Pending, reloaded!.Status);
+        Assert.Equal(0, await ctx.Set<OutboxMessage>().CountAsync());
+        Assert.True(await ctx.Set<ProcessedWebhookEvent>().AnyAsync(e => e.StripeEventId == "evt_amt_bad"));
+    }
+
+    [Fact]
+    public async Task TryProcessAsync_CurrencyMismatch_RecordsWithoutTransitionOrOutbox()
+    {
+        var (ctx, processor) = CreateProcessor();
+        var payment = CreatePaymentWithIntent(ctx, "pi_cur_bad");
+
+        var result = await processor.TryProcessAsync("evt_cur_bad", "payment_intent.succeeded", "pi_cur_bad", 1999, "EUR");
+
+        Assert.Equal(WebhookProcessResult.Processed, result);
+        var reloaded = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().FindAsync(payment.Id);
+        Assert.Equal(FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Pending, reloaded!.Status);
+        Assert.Equal(0, await ctx.Set<OutboxMessage>().CountAsync());
+        Assert.True(await ctx.Set<ProcessedWebhookEvent>().AnyAsync(e => e.StripeEventId == "evt_cur_bad"));
+    }
+
+    [Fact]
+    public async Task TryProcessAsync_FailedWithStripeReason_StoresRealReasonInOutbox()
+    {
+        var (ctx, processor) = CreateProcessor();
+        var payment = CreatePaymentWithIntent(ctx, "pi_reason_1");
+
+        var result = await processor.TryProcessAsync("evt_reason_1", "payment_intent.payment_failed", "pi_reason_1", null, null, "insufficient_funds");
+
+        Assert.Equal(WebhookProcessResult.Processed, result);
+        var outbox = await ctx.Set<OutboxMessage>().SingleAsync(m => m.Type == "payments.payment_failed");
+        Assert.Contains("insufficient_funds", outbox.Payload);
+    }
+
+    [Fact]
+    public async Task TryProcessAsync_Canceled_TransitionsPaymentAndStagesCanceledOutbox()
+    {
+        var (ctx, processor) = CreateProcessor();
+        var payment = CreatePaymentWithIntent(ctx, "pi_cancel_1");
+
+        var result = await processor.TryProcessAsync("evt_cancel_1", "payment_intent.canceled", "pi_cancel_1");
+
+        Assert.Equal(WebhookProcessResult.Processed, result);
+        var reloaded = await ctx.Set<FluxCommerce.Modules.Payments.Domain.Aggregates.Payment>().FindAsync(payment.Id);
+        Assert.Equal(FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Cancelled, reloaded!.Status);
+        var outbox = await ctx.Set<OutboxMessage>().SingleOrDefaultAsync(m => m.Type == "payments.payment_canceled");
+        Assert.NotNull(outbox);
+        Assert.Equal(0, await ctx.Set<OutboxMessage>().CountAsync(m => m.Type == "payments.payment_succeeded" || m.Type == "payments.payment_failed"));
+        Assert.True(await ctx.Set<ProcessedWebhookEvent>().AnyAsync(e => e.StripeEventId == "evt_cancel_1"));
+    }
+
     private static FluxCommerce.Modules.Payments.Domain.Aggregates.Payment CreatePaymentWithIntent(PaymentsDbContext ctx, string paymentIntentId)
     {
         var payment = new FluxCommerce.Modules.Payments.Domain.Aggregates.Payment(Guid.NewGuid(), Guid.NewGuid(), 19.99m, "USD");

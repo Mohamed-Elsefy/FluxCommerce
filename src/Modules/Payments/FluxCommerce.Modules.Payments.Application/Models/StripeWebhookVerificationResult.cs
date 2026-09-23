@@ -5,4 +5,7 @@ public sealed record StripeWebhookVerificationResult(
     string? EventId,
     string? EventType,
     string? PaymentIntentId,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    long? AmountMinor = null,
+    string? Currency = null,
+    string? FailureReason = null);

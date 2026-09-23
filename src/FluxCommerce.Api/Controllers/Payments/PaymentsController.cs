@@ -68,8 +68,10 @@ public sealed class PaymentsController : ApiControllerBase
         if (payment is null)
             return ErrorResult(Error.NotFound("Payment.NotFound", "Payment not found."));
 
-        // Ownership enforcement: 404 if another customer's payment (do not leak existence)
-        if (payment.CustomerId != Guid.Empty && _currentUser.UserId != payment.CustomerId)
+        // Ownership enforcement: 404 if another customer's payment (do not leak existence).
+        // An empty CustomerId is denied as well (fail closed): legacy or malformed rows must
+        // never become readable by any authenticated caller guessing the payment id.
+        if (payment.CustomerId == Guid.Empty || _currentUser.UserId != payment.CustomerId)
         {
             _logger.LogWarning("Payment ownership violation. PaymentId={PaymentId}, Owner={Owner}, Caller={Caller}", paymentId, payment.CustomerId, _currentUser.UserId);
             return ErrorResult(Error.NotFound("Payment.NotFound", "Payment not found."));
@@ -137,6 +139,7 @@ public sealed class PaymentsController : ApiControllerBase
     /// </remarks>
     [HttpPost("webhook")]
     [AllowAnonymous]
+    [RequestSizeLimit(1_000_000)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Webhook(CancellationToken cancellationToken = default)
@@ -179,7 +182,7 @@ public sealed class PaymentsController : ApiControllerBase
         }
 
         // 9.9-9.11: atomic idempotent processing + state mapping + Outbox. No Phase 10 saga.
-        var processResult = await _webhookProcessor.TryProcessAsync(result.EventId!, result.EventType, result.PaymentIntentId, cancellationToken);
+        var processResult = await _webhookProcessor.TryProcessAsync(result.EventId!, result.EventType, result.PaymentIntentId, result.AmountMinor, result.Currency, result.FailureReason, cancellationToken);
         activity?.SetTag("webhook.result", processResult.ToString());
 
         if (processResult == WebhookProcessResult.AlreadyProcessed)
@@ -197,14 +200,6 @@ public sealed class PaymentsController : ApiControllerBase
         return Ok();
     }
 
-    private IActionResult ErrorResult(Error error)
-    {
-        // Reuse ApiControllerBase mapping via reflection: call private MapError via base.Success path
-        // For hardening we directly return ProblemDetails via base's error mapping.
-        // Use a dummy Result to leverage existing mapping.
-        var dummy = Result.Failure<object>(error);
-        // Call Success with failure to trigger ErrorResult path (via dynamic)
-        return Success(dummy);
-    }
+    private IActionResult ErrorResult(Error error) => FromError(error);
 }
 

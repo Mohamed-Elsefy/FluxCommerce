@@ -10,13 +10,23 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 
 /// <summary>
 /// <see cref="IOrderStore"/> backed by the Orders DbContext. The page is produced in two steps so it
-/// stays portable across providers: the newest-first page keys are ordered in memory (SQLite cannot
-/// order by a <c>DateTimeOffset</c> column), then only the page's Orders are fetched through a
+/// stays portable across providers: only lightweight sort keys stream from the database and the
+/// newest-first top-K selection runs in a bounded window (SQLite cannot order by a
+/// <c>DateTimeOffset</c> column), then only the page's Orders are fetched through a
 /// projection that sums the owned line items without materializing them. Single-order reads load the
 /// tracked aggregate so a cancellation can be applied and flushed through the same context.
 /// </summary>
 public sealed class OrderStore : IOrderStore
 {
+    private static readonly Comparer<OrderSortKey> NewestFirstComparer = Comparer<OrderSortKey>.Create(
+        static (left, right) =>
+        {
+            var byCreated = right.CreatedAtUtc.CompareTo(left.CreatedAtUtc);
+            return byCreated != 0
+                ? byCreated
+                : left.OrderId.Value.CompareTo(right.OrderId.Value);
+        });
+
     private readonly OrdersDbContext _context;
 
     public OrderStore(OrdersDbContext context)
@@ -36,15 +46,33 @@ public sealed class OrderStore : IOrderStore
 
         var totalCount = await baseQuery.CountAsync(cancellationToken).ConfigureAwait(false);
 
-        var pageKeys = (await baseQuery
-                .Select(order => new OrderSortKey(order.Id, order.CreatedAtUtc))
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false))
-            .OrderByDescending(key => key.CreatedAtUtc)
-            .ThenBy(key => key.OrderId)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
+        var skip = (pageNumber - 1) * pageSize;
+        if (skip >= totalCount)
+            return new PagedResult<OrderSummaryReadModel>([], totalCount, pageNumber, pageSize);
+
+        // Bounded newest-first window: at most skip+take keys in memory regardless of history size.
+        var windowSize = Math.Min(skip + pageSize, totalCount);
+        var window = new List<OrderSortKey>(windowSize);
+
+        await foreach (var key in baseQuery
+            .Select(order => new OrderSortKey(order.Id, order.CreatedAtUtc))
+            .AsAsyncEnumerable()
+            .WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
+        {
+            var index = window.BinarySearch(key, NewestFirstComparer);
+            if (index < 0)
+                index = ~index;
+
+            if (index < windowSize)
+            {
+                window.Insert(index, key);
+                if (window.Count > windowSize)
+                    window.RemoveAt(window.Count - 1);
+            }
+        }
+
+        var pageKeys = window.Skip(skip).Take(pageSize).ToList();
 
         var pageOrderIds = pageKeys.Select(key => key.OrderId).ToList();
 

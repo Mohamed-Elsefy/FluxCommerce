@@ -490,7 +490,8 @@ public sealed class OrderSaga
         Guid? paymentId = null,
         string? providerPaymentIntentId = null,
         string? paymentFailureReason = null,
-        DateTimeOffset? paymentRequestedAtUtc = null)
+        DateTimeOffset? paymentRequestedAtUtc = null,
+        IReadOnlyCollection<Guid>? reservationIds = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("A saga id must not be an empty GUID.", nameof(id));
@@ -534,6 +535,18 @@ public sealed class OrderSaga
         saga._providerPaymentIntentId = providerPaymentIntentId;
         saga._paymentFailureReason = paymentFailureReason;
         saga._paymentRequestedAtUtc = paymentRequestedAtUtc;
+
+        if (reservationIds is not null)
+        {
+            foreach (var reservationId in reservationIds)
+            {
+                if (reservationId == Guid.Empty)
+                    throw new ArgumentException("A reservation id must not be an empty GUID.", nameof(reservationIds));
+
+                if (!saga._reservationIds.Contains(reservationId))
+                    saga._reservationIds.Add(reservationId);
+            }
+        }
 
         return saga;
     }

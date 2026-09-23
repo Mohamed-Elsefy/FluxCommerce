@@ -1209,7 +1209,7 @@ Phase 20
 Production Hardening
 ```
 
-Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below), and **Phase 10** (Payment Saga & Compensation Workflows — `docs/completed/PHASE_10_COMPLETION_REPORT.md`, summarized in §14.9 below), and **Phase 11** (Reservation Expiry Orchestration — `docs/completed/PHASE_11_COMPLETION_REPORT.md`, summarized in §14.10 below), and **Refactoring Cycle 2 (R2)** (Structural Hardening — `docs/refactoring/REFACTORING_2_COMPLETION.md`, summarized in §14.11 below). Next is **Phase 12** (Failure Testing).
+Completed so far: **Phase 0** (Architecture Foundation — `docs/completed/PHASE_0_COMPLETION_REPORT.md`), **Phase 1** (Identity & Access — `docs/completed/PHASE_1_COMPLETION_REPORT.md`), plus the companion phases **Phase 1.5** (Runtime Preparation — `docs/completed/PHASE_1_5_COMPLETION_REPORT.md`) and **Phase 1.6** (Internationalization Foundation — `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14, summarized in §14.1–§14.2 below), **Phase 2** (Catalog Module — `docs/completed/PHASE_2_COMPLETION_REPORT.md`), **Phase 3** (Cart Module — `docs/completed/PHASE_3_COMPLETION_REPORT.md`), **Phase 4** (Orders & Checkout — `docs/completed/PHASE_4_COMPLETION_REPORT.md`), and **Phase 5** (Inventory + Concurrency — `docs/completed/PHASE_5_COMPLETION_REPORT.md`), and **Phase 6** (Outbox + RabbitMQ — `docs/completed/PHASE_6_COMPLETION_REPORT.md`, summarized in §14.5 below), and **Phase 7** (Idempotent Consumers — `docs/completed/PHASE_7_COMPLETION_REPORT.md`, summarized in §14.6 below), and **Phase 8** (Order/Inventory Saga — `docs/completed/PHASE_8_COMPLETION_REPORT.md`, summarized in §14.7 below), and **Phase 9** (Stripe Payments — `PHASE_9_COMPLETION_REPORT.md`, summarized in §14.8 below), and **Phase 10** (Payment Saga & Compensation Workflows — `docs/completed/PHASE_10_COMPLETION_REPORT.md`, summarized in §14.9 below), and **Phase 11** (Reservation Expiry Orchestration — `docs/completed/PHASE_11_COMPLETION_REPORT.md`, summarized in §14.10 below), and **Refactoring Cycle 2 (R2)** (Structural Hardening — `docs/refactoring/REFACTORING_2_COMPLETION.md`, summarized in §14.11 below), and **Phase 12** (Failure Testing & Reliability — `docs/completed/PHASE_12_COMPLETION_REPORT.md`). Next is **Phase 13** (Search).
 
 ### 14.1 Phase 1.6 — Internationalization (i18n) Foundation — Implemented & Verified
 
@@ -1319,17 +1319,17 @@ The Orders & Checkout phase (see `docs/phases/PHASE_4_ORDERS_CHECKOUT.md` and `d
 **Key decisions (Orders architecture).**
 
 - Orders owns Order state exclusively; it never touches Cart Redis, Catalog DbContext, Inventory, Payments, RabbitMQ, or Outbox. Cross-module interaction uses only the approved checkout contracts (`Cart.Contracts`, `Catalog.Contracts`).
-- Checkout is authenticated-only and idempotent: the `Idempotency-Key` header participates in a unique `(UserId, IdempotencyKey)` constraint; the same request+key returns the original Order, a different request reusing the key is rejected with a conflict, and Order + idempotency record persist atomically in one `SaveChanges`.
+- Checkout is authenticated-only and idempotent: the `Idempotency-Key` header participates in a unique `(UserId, IdempotencyKey)` constraint; the same request+key returns the original Order, a different request reusing the key is rejected with a conflict, and Order + idempotency record persist atomically in one `SaveChanges`. The request fingerprint is v2 (`cartId` + addresses + sorted cart lines, stored as `v2:<lineHash>:<v1Hash>`); legacy bare-hex rows still compare v1, so no migration was needed.
 - The Cart price snapshot is never authoritative: Checkout revalidates variants against current Catalog state (batch — no per-item calls) and builds the Order from the revalidated price, SKU, product name, and eligibility.
 - The Order stores an immutable commercial snapshot (ProductId, VariantId, SKU, ProductName, UnitPrice, Quantity) and does not depend on live Catalog data after creation.
-- The Order aggregate enforces lifecycle rules (`Pending → Cancelled` only) and all monetary invariants (positive amounts, ISO 4217 currency, single-currency enforcement, deterministic arithmetic, `decimal(18,6)` SQL precision).
+- The Order aggregate enforces lifecycle rules (`Pending → Cancelled` via API `Cancel`; `Pending → Confirmed` via saga payment success; `Pending/Confirmed → Cancelled` via saga-only `CancelForRefund`) and all monetary invariants (positive amounts, ISO 4217 currency, single-currency enforcement, deterministic arithmetic, `decimal(18,6)` SQL precision). `Order.Version` is an optimistic concurrency token, so concurrent Confirm vs Cancel surfaces `DbUpdateConcurrencyException` instead of last-writer-wins.
 - Customer queries and cancellation are ownership-scoped by the authenticated `ICurrentUser`; another customer's Order is indistinguishable from a missing one (404), preventing IDOR.
-- Order list reads use a lightweight projection (no owned line-item materialization); the page is ordered newest-first with a two-step approach because SQLite cannot `ORDER BY` a `DateTimeOffset` column.
-- Cart clearing is a best-effort step after the Order is durably committed; its failure never rolls back or duplicates the Order.
+- Order list reads use a lightweight projection (no owned line-item materialization); the page is ordered newest-first with a two-step approach because SQLite cannot `ORDER BY` a `DateTimeOffset` column. Only sort keys stream from the database into a bounded top-K window (page size is clamped to 100), so history size never lands in memory.
+- Cart clearing is a best-effort step after the Order is durably committed; its failure never rolls back or duplicates the Order. Non-consumed outcomes and exceptions are recorded as `checkout.cart_consumption_*` events on the ambient `Activity` (Application never logs directly) so stuck carts stay visible in tracing.
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 103/103, Unit tests 1,497/1,497, Integration tests 207/207. EF model in sync with the `InitialOrders` migration (no pending model changes).
 
-**Deferred (at Phase 4).** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). At Phase 4 completion, order cancellation performed no inventory/payment compensation by design; compensation (Phase 10) and reservation expiry (Phase 11) are now implemented, with failure testing (Phase 12) next. `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
+**Deferred (at Phase 4).** Inventory reservation & concurrency (Phase 5), Outbox + RabbitMQ (Phase 6), idempotent consumers (Phase 7), Order/Inventory Saga (Phase 8), Stripe Payments (Phase 9), payment compensation & refunds (Phase 10), reservation expiry (Phase 11). At Phase 4 completion, order cancellation performed no inventory/payment compensation by design; compensation (Phase 10) and reservation expiry (Phase 11) are now implemented, and failure testing (Phase 12) is done (see `docs/completed/PHASE_12_COMPLETION_REPORT.md`). `CheckoutResponse` is deliberately minimal; the full Order representation is served by the Phase 4.9 queries.
 
 ### 14.5 Phase 6 — Outbox + RabbitMQ — Implemented & Verified
 
@@ -1365,7 +1365,7 @@ The Outbox + RabbitMQ phase (see `docs/phases/PHASE_6_OUTBOX_RABBITMQ.md` and `d
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 157/157, Unit tests 1796/1796, Integration tests 300/300 (54 Phase 6 messaging-specific) against real SQL Server + RabbitMQ, including E2E (success, broker nack + recovery, atomic rollback, stale-claim recovery, batch, duplicate boundary, cancellation). Orders and Inventory EF models are in sync with migrations (no pending changes). No Phase 7 consumers/Inbox/Saga were introduced.
 
-**Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7). Phase 10 (payment compensation) and Phase 11 (reservation expiry) are now implemented; next is Phase 12 — failure testing.
+**Deferred.** Idempotent consumers / Inbox / consumer idempotency (Phase 7). Phase 10 (payment compensation) and Phase 11 (reservation expiry) are now implemented; Phase 12 (failure testing) is done.
 
 ### 14.6 Phase 7 — Idempotent Consumers — Implemented & Verified
 
@@ -1404,7 +1404,7 @@ The Idempotent Consumers phase (see `docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 163/163, Unit tests 1910/1910, Integration tests 343/343 (real SQL Server + RabbitMQ), including Phase 6 outbox/publisher regression 47/47 and Phase 7 consumer/idempotency/ProcessedMessage scenarios 40/40. Module isolation is proven by dedicated integration tests (Orders consumer writes only the Orders database, Inventory consumer writes only the Inventory database, regardless of container registration order).
 
-**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; next is Phase 12 — failure testing.
+**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; Phase 12 (failure testing) is done.
 
 ---
 
@@ -1438,7 +1438,7 @@ The Order/Inventory Saga phase (see `docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IM
 
 **Verification.** Full solution builds with 0 warnings/0 errors; Architecture tests 166/166, Unit tests 2095/2095, Integration tests 376/376 (real SQL Server + RabbitMQ) — including all 15 mandatory saga scenarios from plan §15 (order created, saga start, reservation success, reservation failure, duplicate result, concurrent result, release, duplicate release, invalid transition, consumer retry, consumer redelivery, saga recovery after restart, correlation/causation propagation, E2E success, E2E failure) plus 22 Phase 10 workflow tests (Payment Succeeded, Payment Failed, Refund, Inventory Compensation, Idempotency races, Concurrency safety, 8 Failure/Recovery scenarios A–H, Tracing validation). Integration tests require Redis server (unavailable in this environment; 110 Redis-dependent tests excluded). Phase 6/7 messaging and idempotency behavior remain green (regression).
 
-**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; next is Phase 12 — failure testing.
+**Deferred.** Phase 10 (compensation workflows) and Phase 11 (reservation expiry orchestration) are now implemented; Phase 12 (failure testing) is done.
 
 ---
 
@@ -1459,23 +1459,23 @@ Phase 9 (see `PHASE_9_COMPLETION_REPORT.md` and `docs/phases/PHASE_9_STRIPE_PAYM
 | 9.7 | Payment Intent idempotency (`intent_{OrderId}_{PaymentId}_{Version}` via `RequestOptions.IdempotencyKey` + app unique `OrderId`) | Implemented |
 | 9.8 | Webhook endpoint & security (`POST /api/payments/webhook` `[AllowAnonymous]`, raw `EnableBuffering` UTF-8, `Stripe-Signature` → `EventUtility.ConstructEvent`, 400/200 non-leaking, `IStripeWebhookService`) | Implemented |
 | 9.9 | Webhook idempotent processing (`ProcessedWebhookEvents` `UX_StripeEventId`, atomic `AnyAsync`+constraint race → `AlreadyProcessed`) | Implemented |
-| 9.10 | Stripe event → Payment state (`succeeded→Succeed`, `payment_failed→Fail`, `canceled→Cancel`, `processing→Process`, unsupported/out-of-order safely ignored) | Implemented |
+| 9.10 | Stripe event → Payment state (`succeeded→Succeed`, `payment_failed→Fail`, `canceled→Cancel`, `processing→Process`, unsupported/out-of-order safely ignored) + amount verification (event `amount_received ?? amount` vs local `Payment`, mismatch → recorded `Processed` with error log, no transition, no outbox) | Implemented |
 | 9.11 | Payment integration events & Outbox (`PaymentSucceeded/FailedIntegrationEvent` in `Payments.Contracts`, `IntegrationEventOutboxMessageFactory` → `OutboxMessages` atomically with Payment + webhook) | Implemented |
 | 9.12 | Testing, observability & hardening (`ActivitySource FluxCommerce` `Payments.*`, structured `OrderId/PaymentId/Stripe* /Correlation/Causation`, `[Authorize]` + ownership `CustomerId` check, 11 Scenarios) | Implemented |
 | 9.13 | Final verification & Phase Completion (this entry, ARCHITECTURE sync, build/tests green) | Implemented |
 
 **Key decisions (payments architecture):**
 
-* **Ownership:** Payments owns `Payment`/`ProcessedWebhookEvent`/`OutboxMessage`; Orders/Saga owns `Order`/`Saga` — no cross-DbContext access, coordination only via `payments.payment_succeeded/failed` integration events (`Payments.Contracts`) over Outbox/RabbitMQ.
+* **Ownership:** Payments owns `Payment`/`ProcessedWebhookEvent`/`OutboxMessage`; Orders/Saga owns `Order`/`Saga` — no cross-DbContext access, coordination only via `payments.payment_succeeded/failed/canceled/initiated` integration events (`Payments.Contracts`) over Outbox/RabbitMQ.
 * **Stripe isolation:** `Payments.Domain/Application/Contracts` have zero `Stripe.net` references; only `Payments.Infrastructure` references `Stripe.net` (verified `Payments_Domain/Application/Contracts_ShouldNot_Reference` + `StripeIsolation` tests).
-* **Webhook flow:** `Stripe → webhook [AllowAnonymous] → Verify (IStripeWebhookService) → Idempotent processor (unique `StripeEventId`) → State machine (`Succeed/Fail/...` with terminal protection) → Outbox (same `PaymentsDbContext` transaction) → Dispatcher → RabbitMQ`. Duplicate/concurrent deliveries → `AlreadyProcessed` + `200 OK` (Stripe stops retrying).
+* **Webhook flow:** `Stripe → webhook [AllowAnonymous] ([RequestSizeLimit] 1MB) → Verify (IStripeWebhookService: signature + amount/currency/decline-reason extraction) → Idempotent processor (unique `StripeEventId`, amount match vs local Payment, terminal protection) → State machine (`Succeed/Fail/Cancel/...`) → Outbox (same `PaymentsDbContext` transaction: `payment_succeeded/failed/canceled`) → Dispatcher → RabbitMQ`. Duplicate/concurrent deliveries → `AlreadyProcessed` + `200 OK` (Stripe stops retrying).
 * **Observability:** `PaymentsActivitySource` (`FluxCommerce` name) spans `Payments.CreatePaymentIntent`, `Payments.Stripe.CreatePaymentIntent`, `Payments.Webhook.Process`; logs carry `OrderId/PaymentId/StripePaymentIntentId/StripeEventId/CorrelationId( OrderId)/CausationId(ProcessedEventId)`; no `SecretKey`/card data.
-* **Security:** `StripeOptions` via `IOptions<StripeOptions>` (`SecretKey/WebhookSecret` externalized, no hardcoded secrets); `GET /api/payments/{paymentId}` `[Authorize]` enforces `CustomerId==ICurrentUser.UserId` else `404` (ownership); only webhook is `AllowAnonymous`.
+* **Security:** `StripeOptions` via `IOptions<StripeOptions>` (`SecretKey/WebhookSecret` externalized, no hardcoded secrets; single Domain source of truth — the former `Api.Options` duplicate was removed); `GET /api/payments/{paymentId}` `[Authorize]` enforces `CustomerId==ICurrentUser.UserId` else `404` (ownership, fail-closed on empty `CustomerId`); only webhook is `AllowAnonymous`.
 
 **Verification.** `dotnet build FluxCommerce.slnx -c Debug` → 0 warnings 0 errors; `Architecture 166/166`, `Unit 2095/2095` (32 `Payments` + full suite including Phase 10 Sagas/Compensation/Hardening/Refund/Tracing) + `Integration 376/376` (real SQL/RabbitMQ/Redis when infra available; Sqlite-based Payments webhook/outbox tests green, Phase 10 E2E integration tests green). No pending EF model changes (5 Payments migrations).
 
 **Phase 10 (Payment Saga & Compensation) and Phase 11 (Reservation Expiry Orchestration) implemented & verified** (see 14.9 and 14.10 below).
-**Deferred.** Failure testing (Phase 12), Search (Phase 13), Promotions & Coupons (Phase 14), Wishlist (Phase 15), Reviews (Phase 16), Notifications (Phase 17), Shipping (Phase 18), Analytics (Phase 19), Production Hardening (Phase 20).
+**Deferred.** Search (Phase 13), Promotions & Coupons (Phase 14), Wishlist (Phase 15), Reviews (Phase 16), Notifications (Phase 17), Shipping (Phase 18), Analytics (Phase 19), Production Hardening (Phase 20).
 
 ### 14.9 Phase 10 — Payment Saga & Compensation Workflows — Implemented & Verified
 
@@ -1486,7 +1486,7 @@ Phase 10 (see `docs/completed/PHASE_10_COMPLETION_REPORT.md` and `docs/phases/PH
 | SubPhase | Scope | Status |
 |----------|-------|--------|
 | 10.1–10.2 | Baseline & Saga/Payment architecture audit; Payment Saga state model (`WaitingForInventory`, `WaitingForPayment`, `Completed`, `Failed`, `Cancelled`, `ReleasingInventory`, `Refunding`) | Implemented |
-| 10.3 | Payment initiation flow (`payments.payment_requested`), outbox dispatcher, consumer in `Orders.Infrastructure` | Implemented |
+| 10.3 | Payment initiation flow (`payments.payment_requested`), outbox dispatcher, consumer in `Orders.Infrastructure`; `payments.payment_initiated` records the saga payment correlation (`MarkPaymentRequested`) | Implemented |
 | 10.4 | PaymentSucceeded flow → Order Confirmed, Saga `Completed`, `OrderConfirmed` event | Implemented |
 | 10.5–10.6 | PaymentFailed flow → `ReleasingInventory`, Inventory compensation (`inventory.release_requested`) → `Cancelled` | Implemented |
 | 10.7–10.8 | Order cancellation & saga finalization (`Cancelled→Completed`), Payment refund (`PaymentStatus.Refunded`, Stripe refund, Saga `Refunding`) | Implemented |
@@ -1564,7 +1564,7 @@ BuildingBlocks
 
 **Verification (R2.8, 2026-09-02):** `dotnet restore` all up-to-date; `dotnet build FluxCommerce.slnx -c Debug` → **0 warnings, 0 errors**; `Architecture 177/177`, `Unit 2277/2277`, `Integration 402/402` (when SQL Server + RabbitMQ + Redis available; SQLite-backed suites green without infra) — compared to R2.1 baseline `169/169`, `2264/2264`, `380/381` (flaky 1, now hardened). EF `has-pending-model-changes` clean for all 5 DbContexts. Docker infrastructure (sqlserver/redis/rabbitmq) healthy. Full details in `docs/refactoring/REFACTORING_2_COMPLETION.md`.
 
-**Deferred.** Failure Testing (Phase 12) next — R2 leaves the solution 100% ready.
+**Deferred.** Failure Testing (Phase 12) is done (see `docs/completed/PHASE_12_COMPLETION_REPORT.md`) — R2 leaves the solution 100% ready for Phase 13.
 
 ---
 

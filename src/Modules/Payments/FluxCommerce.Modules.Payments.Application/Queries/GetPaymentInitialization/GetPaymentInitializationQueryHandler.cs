@@ -56,7 +56,9 @@ public sealed class GetPaymentInitializationQueryHandler
             return Result.Failure<PaymentInitializationResponse>(
                 Error.NotFound("Payment.NotFound", "Payment not found."));
 
-        if (payment.CustomerId != Guid.Empty && payment.CustomerId != userId)
+        // Fail closed on an empty CustomerId: legacy or malformed rows must never
+        // become readable by any authenticated caller guessing the order id.
+        if (payment.CustomerId == Guid.Empty || payment.CustomerId != userId)
             return Result.Failure<PaymentInitializationResponse>(
                 Error.NotFound("Payment.NotFound", "Payment not found."));
 
