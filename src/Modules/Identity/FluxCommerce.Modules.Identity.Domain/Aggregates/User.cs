@@ -14,8 +14,6 @@ public sealed class User : AggregateRoot<Guid>
 
     public const int LastNameMaxLength = 100;
 
-    public const int DisplayNameMaxLength = FirstNameMaxLength + 1 + LastNameMaxLength;
-
     public const int PhoneNumberMaxLength = 30;
 
     public const int AvatarUrlMaxLength = 2048;
@@ -40,7 +38,7 @@ public sealed class User : AggregateRoot<Guid>
 
     public string LastName { get; private set; }
 
-    public string? DisplayName { get; private set; }
+    public string DisplayName => $"{FirstName} {LastName}";
 
     public string? PhoneNumber { get; private set; }
 
@@ -87,7 +85,6 @@ public sealed class User : AggregateRoot<Guid>
         PasswordHash = passwordHash;
         FirstName = ValidateName(firstName, nameof(firstName), FirstNameMaxLength);
         LastName = ValidateName(lastName, nameof(lastName), LastNameMaxLength);
-        DisplayName = $"{FirstName} {LastName}";
         PhoneNumber = null;
         IsPhoneVerified = false;
         AvatarUrl = null;
