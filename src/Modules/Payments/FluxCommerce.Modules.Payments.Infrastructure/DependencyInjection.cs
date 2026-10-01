@@ -7,6 +7,9 @@ using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayment;
+using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayments;
+using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPaymentStats;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Contracts.Responses;
@@ -17,6 +20,7 @@ using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 using FluxCommerce.Modules.Payments.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Payments.Infrastructure.Outbox;
 using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories;
+using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +58,10 @@ public static class DependencyInjection
         services.AddScoped<IIdempotentProcessor>(sp => sp.GetRequiredService<PaymentsIdempotentProcessor>());
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IPaymentAdminStore, PaymentAdminStore>();
+        services.AddScoped<IQueryHandler<GetAdminPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetAdminPaymentsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminPaymentQuery, Result<PaymentAdminResponse>>, GetAdminPaymentQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminPaymentStatsQuery, Result<PaymentAdminStatsResponse>>, GetAdminPaymentStatsQueryHandler>();
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
         services.AddScoped<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>, GetPaymentInitializationQueryHandler>();
         services.AddSingleton<IPaymentWebhookInterpreter, PaymentWebhookInterpreter>();

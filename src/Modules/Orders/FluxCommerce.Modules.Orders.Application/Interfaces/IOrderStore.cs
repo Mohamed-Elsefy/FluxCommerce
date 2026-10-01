@@ -1,6 +1,7 @@
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Orders.Application.ReadModels;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
+using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 
 namespace FluxCommerce.Modules.Orders.Application.Interfaces;
@@ -30,4 +31,24 @@ public interface IOrderStore
     Task<Order?> GetByIdAsync(OrderId orderId, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Administrative Order list: all customers with optional filters. No ownership scoping;
+    /// the caller (API) must enforce <c>AdminPolicy</c>.
+    /// </summary>
+    Task<PagedResult<OrderSummaryReadModel>> GetAdminOrdersPageAsync(
+        OrderStatus? status,
+        Guid? customerId,
+        string? search,
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Aggregate Order counts grouped by status for the administrative overview.
+    /// </summary>
+    Task<AdminOrderCountsReadModel> GetAdminOrderCountsAsync(
+        CancellationToken cancellationToken = default);
 }

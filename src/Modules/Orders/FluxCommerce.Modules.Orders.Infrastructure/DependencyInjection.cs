@@ -10,6 +10,9 @@ using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Orders.Application.Commands.CancelOrder;
 using FluxCommerce.Modules.Orders.Application.Commands.Checkout;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
+using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrder;
+using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrderCounts;
+using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrders;
 using FluxCommerce.Modules.Orders.Application.Queries.GetMyOrders;
 using FluxCommerce.Modules.Orders.Application.Queries.GetOrder;
 using FluxCommerce.Modules.Orders.Application.Services;
@@ -83,6 +86,9 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<CheckoutCommand, Result<Order>>, CheckoutCommandHandler>();
         services.AddScoped<IQueryHandler<GetMyOrdersQuery, Result<PagedResult<OrderSummaryResponse>>>, GetMyOrdersQueryHandler>();
         services.AddScoped<IQueryHandler<GetOrderQuery, Result<OrderDetailsResponse>>, GetOrderQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>>, GetAdminOrdersQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminOrderQuery, Result<OrderDetailsResponse>>, GetAdminOrderQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminOrderCountsQuery, Result<AdminOrderCountsResponse>>, GetAdminOrderCountsQueryHandler>();
         services.AddScoped<ICommandHandler<CancelOrderCommand, Result<OrderDetailsResponse>>, CancelOrderCommandHandler>();
 
         return services;
