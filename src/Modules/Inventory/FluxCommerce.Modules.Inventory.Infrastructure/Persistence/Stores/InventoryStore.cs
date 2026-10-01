@@ -1,4 +1,7 @@
+using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Inventory.Application.Interfaces;
+using FluxCommerce.Modules.Inventory.Application.Mapping;
+using FluxCommerce.Modules.Inventory.Application.ReadModels;
 using FluxCommerce.Modules.Inventory.Domain.Aggregates;
 using FluxCommerce.Modules.Inventory.Domain.Enums;
 using FluxCommerce.Modules.Inventory.Domain.ValueObjects;
@@ -250,4 +253,214 @@ public sealed class InventoryStore : IInventoryStore
             return false;
         }
     }
+
+    /// <summary>
+    /// Administrative item list ordered by SKU. Converted value-object members (such as the SKU
+    /// string) cannot be referenced inside a LINQ-to-Entities query, so filtering and ordering run
+    /// in two phases: matching keys stream from the database (scalar filters stay in the database)
+    /// and substring search plus SKU ordering run in memory over the lightweight keys before only
+    /// the page's aggregates are fetched. Reads use the row mappers so no query projection touches
+    /// unmapped members.
+    /// </summary>
+    public async Task<PagedResult<InventoryItemReadModel>> GetItemsPageAsync(
+        string? search,
+        int? maxAvailable,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var baseQuery = _context.InventoryItems.AsNoTracking();
+
+        if (maxAvailable.HasValue)
+            baseQuery = baseQuery.Where(item => item.OnHandQuantity - item.ReservedQuantity <= maxAvailable.Value);
+
+        var keys = await baseQuery
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var filtered = keys.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToUpperInvariant();
+            filtered = filtered.Where(sku => sku.Value.Contains(term, StringComparison.Ordinal));
+        }
+
+        var orderedIds = filtered
+            .OrderBy(sku => sku.Value, StringComparer.Ordinal)
+            .ToList();
+
+        var totalCount = orderedIds.Count;
+
+        var pageIds = orderedIds
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        if (pageIds.Count == 0)
+            return new PagedResult<InventoryItemReadModel>([], totalCount, pageNumber, pageSize);
+
+        var items = await _context.InventoryItems
+            .AsNoTracking()
+            .Where(item => pageIds.Contains(item.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var itemBySku = items.ToDictionary(
+            item => item.Sku.Value,
+            item => InventoryItemReadModelMapper.ToReadModel(item),
+            StringComparer.Ordinal);
+
+        var orderedItems = pageIds
+            .Select(sku => itemBySku[sku.Value])
+            .ToList();
+
+        return new PagedResult<InventoryItemReadModel>(orderedItems, totalCount, pageNumber, pageSize);
+    }
+
+    /// <summary>
+    /// Administrative reservation list. Converted value-object members cannot be referenced inside
+    /// a LINQ-to-Entities query, so the newest-first window runs over whole-identity keys streamed
+    /// from the database and only the page's aggregates are fetched and mapped in memory.
+    /// </summary>
+    public async Task<PagedResult<InventoryReservationReadModel>> GetReservationsPageAsync(
+        InventoryReservationStatus? status,
+        InventorySku? sku,
+        OrderId? orderId,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var baseQuery = _context.InventoryReservations.AsNoTracking();
+
+        if (status.HasValue)
+            baseQuery = baseQuery.Where(reservation => reservation.Status == status.Value);
+
+        if (sku is not null)
+            baseQuery = baseQuery.Where(reservation => reservation.Sku == sku);
+
+        if (orderId is not null)
+            baseQuery = baseQuery.Where(reservation => reservation.OrderId == orderId);
+
+        var totalCount = await baseQuery.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var skip = (pageNumber - 1) * pageSize;
+        if (skip >= totalCount)
+            return new PagedResult<InventoryReservationReadModel>([], totalCount, pageNumber, pageSize);
+
+        // Bounded newest-first window: at most skip+take keys in memory regardless of history size.
+        var windowSize = Math.Min(skip + pageSize, totalCount);
+        var window = new List<ReservationSortKey>(windowSize);
+
+        await foreach (var key in baseQuery
+            .Select(reservation => new ReservationSortKey(reservation.Id, reservation.CreatedAtUtc))
+            .AsAsyncEnumerable()
+            .WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
+        {
+            var index = window.BinarySearch(key, ReservationNewestFirstComparer);
+            if (index < 0)
+                index = ~index;
+
+            if (index < windowSize)
+            {
+                window.Insert(index, key);
+                if (window.Count > windowSize)
+                    window.RemoveAt(window.Count - 1);
+            }
+        }
+
+        var pageKeys = window.Skip(skip).Take(pageSize).ToList();
+
+        var pageReservationIds = pageKeys.Select(key => key.ReservationId).ToList();
+
+        var reservations = await _context.InventoryReservations
+            .AsNoTracking()
+            .Where(reservation => pageReservationIds.Contains(reservation.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var itemByReservationId = reservations.ToDictionary(
+            reservation => reservation.Id.Value,
+            reservation => InventoryReservationReadModelMapper.ToReadModel(reservation));
+
+        var orderedItems = pageKeys
+            .Select(key => itemByReservationId[key.ReservationId.Value])
+            .ToList();
+
+        return new PagedResult<InventoryReservationReadModel>(orderedItems, totalCount, pageNumber, pageSize);
+    }
+
+    public async Task<InventoryCountsReadModel> GetCountsAsync(
+        int lowStockThreshold,
+        CancellationToken cancellationToken = default)
+    {
+        var items = _context.InventoryItems.AsNoTracking();
+
+        var totalItems = await items.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var totalOnHand = await items.SumAsync(item => item.OnHandQuantity, cancellationToken).ConfigureAwait(false);
+
+        var totalReserved = await items.SumAsync(item => item.ReservedQuantity, cancellationToken).ConfigureAwait(false);
+
+        var lowStockItems = await items
+            .CountAsync(
+                item => item.OnHandQuantity - item.ReservedQuantity <= lowStockThreshold,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var groups = await _context.InventoryReservations
+            .AsNoTracking()
+            .GroupBy(reservation => reservation.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var pending = 0;
+        var committed = 0;
+        var released = 0;
+        var expired = 0;
+
+        foreach (var group in groups)
+        {
+            switch (group.Status)
+            {
+                case InventoryReservationStatus.Pending:
+                    pending = group.Count;
+                    break;
+                case InventoryReservationStatus.Committed:
+                    committed = group.Count;
+                    break;
+                case InventoryReservationStatus.Released:
+                    released = group.Count;
+                    break;
+                case InventoryReservationStatus.Expired:
+                    expired = group.Count;
+                    break;
+            }
+        }
+
+        return new InventoryCountsReadModel(
+            totalItems,
+            totalOnHand,
+            totalReserved,
+            lowStockItems,
+            pending,
+            committed,
+            released,
+            expired);
+    }
+
+    private static readonly Comparer<ReservationSortKey> ReservationNewestFirstComparer =
+        Comparer<ReservationSortKey>.Create(
+            static (left, right) =>
+            {
+                var byCreated = right.CreatedAtUtc.CompareTo(left.CreatedAtUtc);
+                return byCreated != 0
+                    ? byCreated
+                    : left.ReservationId.Value.CompareTo(right.ReservationId.Value);
+            });
+
+    private sealed record ReservationSortKey(InventoryReservationId ReservationId, DateTimeOffset CreatedAtUtc);
 }

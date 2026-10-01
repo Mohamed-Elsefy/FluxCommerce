@@ -14,6 +14,9 @@ using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.UnlockUser;
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
+using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUser;
+using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUserCounts;
+using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUsers;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
@@ -49,6 +52,10 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserAdminStore, UserAdminStore>();
+        services.AddScoped<IQueryHandler<GetAdminUsersQuery, Result<PagedResult<UserAdminResponse>>>, GetAdminUsersQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminUserQuery, Result<UserAdminResponse>>, GetAdminUserQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminUserCountsQuery, Result<UserAdminCountsResponse>>, GetAdminUserCountsQueryHandler>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<ITokenRepository, TokenRepository>();
 
