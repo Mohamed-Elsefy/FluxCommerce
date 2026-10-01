@@ -10,6 +10,7 @@ using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayment;
 using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayments;
 using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPaymentStats;
+using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Contracts.Responses;
@@ -62,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetAdminPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetAdminPaymentsQueryHandler>();
         services.AddScoped<IQueryHandler<GetAdminPaymentQuery, Result<PaymentAdminResponse>>, GetAdminPaymentQueryHandler>();
         services.AddScoped<IQueryHandler<GetAdminPaymentStatsQuery, Result<PaymentAdminStatsResponse>>, GetAdminPaymentStatsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetMyPaymentsQueryHandler>();
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
         services.AddScoped<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>, GetPaymentInitializationQueryHandler>();
         services.AddSingleton<IPaymentWebhookInterpreter, PaymentWebhookInterpreter>();

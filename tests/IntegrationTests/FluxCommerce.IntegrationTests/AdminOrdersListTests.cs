@@ -125,6 +125,79 @@ public class AdminOrdersListTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetMyOrders_AppliesStatusFilter()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-ADM-7", userId);
+
+        var pending = await _client.GetAsync("orders?status=Pending");
+        Assert.Equal(HttpStatusCode.OK, pending.StatusCode);
+        var pendingData = (await pending.ReadJsonAsync<ApiResponseDto<PagedResponseDto<OrderSummaryResponse>>>()).Data!;
+        Assert.Contains(pendingData.Items, item => item.OrderId == created.OrderId);
+
+        var confirmed = await _client.GetAsync("orders?status=Confirmed");
+        Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
+        var confirmedData = (await confirmed.ReadJsonAsync<ApiResponseDto<PagedResponseDto<OrderSummaryResponse>>>()).Data!;
+        Assert.DoesNotContain(confirmedData.Items, item => item.OrderId == created.OrderId);
+
+        var invalid = await _client.GetAsync("orders?status=Bogus");
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelOrderAsAdmin_CancelsAnyPendingOrder()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-ADM-8", userId);
+        AuthorizeAsAdmin();
+
+        var cancel = await _client.PostAsync($"admin/orders/{created.OrderId}/cancel", content: null);
+        Assert.Equal(HttpStatusCode.OK, cancel.StatusCode);
+        var payload = (await cancel.ReadJsonAsync<ApiResponseDto<OrderDetailsResponse>>()).Data!;
+        Assert.Equal("Cancelled", payload.Status);
+
+        var repeat = await _client.PostAsync($"admin/orders/{created.OrderId}/cancel", content: null);
+        Assert.Equal(HttpStatusCode.Conflict, repeat.StatusCode);
+
+        var missing = await _client.PostAsync($"admin/orders/{Guid.NewGuid()}/cancel", content: null);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelOrderAsAdmin_RequiresAdmin_Returns403ForCustomer()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-ADM-9", userId);
+
+        var response = await _client.PostAsync($"admin/orders/{created.OrderId}/cancel", content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RequestRefund_PendingOrder_ReturnsConflict_UnknownReturnsNotFound()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-ADM-10", userId);
+        AuthorizeAsAdmin();
+
+        var pending = await _client.PostAsJsonAsync(
+            $"admin/orders/{created.OrderId}/refund",
+            new { reason = "Customer asked for a refund." });
+        Assert.Equal(HttpStatusCode.Conflict, pending.StatusCode);
+
+        var missing = await _client.PostAsJsonAsync(
+            $"admin/orders/{Guid.NewGuid()}/refund",
+            new { reason = "Customer asked for a refund." });
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        var blankReason = await _client.PostAsJsonAsync(
+            $"admin/orders/{created.OrderId}/refund",
+            new { reason = "  " });
+        Assert.Equal(HttpStatusCode.BadRequest, blankReason.StatusCode);
+    }
+
     private void AuthorizeAsAdmin()
     {
         var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();

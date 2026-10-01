@@ -13,6 +13,9 @@ using FluxCommerce.Modules.Catalog.Application.Queries.ListProductVariants;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
+using ContractsVariantStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.VariantStatus;
+using DomainVariantStatus = FluxCommerce.Modules.Catalog.Domain.Enums.VariantStatus;
+
 using FluxCommerce.Api.Extensions;
 
 using Microsoft.AspNetCore.Authorization;
@@ -81,12 +84,18 @@ public sealed class ProductVariantsController : ApiControllerBase
             : Created<IReadOnlyCollection<Guid>>(result);
     }
 
-    /// <summary>Updates an existing variant.</summary>
+    /// <summary>Updates an existing variant, including its unit price and status.</summary>
     [HttpPut("{variantId:guid}")]
     [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid variantId, [FromBody] UpdateProductVariantRequest request, CancellationToken cancellationToken)
     {
-        var command = new UpdateProductVariantCommand(variantId, request.Sku, request.Name);
+        var command = new UpdateProductVariantCommand(
+            variantId,
+            request.Sku,
+            request.Name,
+            request.UnitPriceAmount,
+            request.Currency,
+            ToDomainStatus(request.Status));
         return NoContent(await _updateProductVariantHandler.HandleAsync(command, cancellationToken));
     }
 
@@ -116,4 +125,13 @@ public sealed class ProductVariantsController : ApiControllerBase
         var query = new ListProductVariantsQuery(productId);
         return Success(await _listProductVariantsHandler.HandleAsync(query, cancellationToken));
     }
+
+    private static DomainVariantStatus? ToDomainStatus(ContractsVariantStatus? status) =>
+        status switch
+        {
+            null => null,
+            ContractsVariantStatus.Active => DomainVariantStatus.Active,
+            ContractsVariantStatus.Inactive => DomainVariantStatus.Inactive,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
 }

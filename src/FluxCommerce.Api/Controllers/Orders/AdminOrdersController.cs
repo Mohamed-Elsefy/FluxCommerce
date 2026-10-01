@@ -5,9 +5,12 @@ using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.Responses;
+using FluxCommerce.Modules.Orders.Application.Commands.CancelOrderAsAdmin;
+using FluxCommerce.Modules.Orders.Application.Commands.RequestOrderRefund;
 using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrder;
 using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrderCounts;
 using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrders;
+using FluxCommerce.Modules.Orders.Contracts.Requests;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,11 +31,15 @@ public sealed class AdminOrdersController : ApiControllerBase
     private readonly IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>> _getAdminOrdersHandler;
     private readonly IQueryHandler<GetAdminOrderQuery, Result<OrderDetailsResponse>> _getAdminOrderHandler;
     private readonly IQueryHandler<GetAdminOrderCountsQuery, Result<AdminOrderCountsResponse>> _getAdminOrderCountsHandler;
+    private readonly ICommandHandler<CancelOrderAsAdminCommand, Result<OrderDetailsResponse>> _cancelOrderAsAdminHandler;
+    private readonly ICommandHandler<RequestOrderRefundCommand, Result<OrderDetailsResponse>> _requestRefundHandler;
 
     public AdminOrdersController(
         IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>> getAdminOrdersHandler,
         IQueryHandler<GetAdminOrderQuery, Result<OrderDetailsResponse>> getAdminOrderHandler,
         IQueryHandler<GetAdminOrderCountsQuery, Result<AdminOrderCountsResponse>> getAdminOrderCountsHandler,
+        ICommandHandler<CancelOrderAsAdminCommand, Result<OrderDetailsResponse>> cancelOrderAsAdminHandler,
+        ICommandHandler<RequestOrderRefundCommand, Result<OrderDetailsResponse>> requestRefundHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
         : base(localizer, errorCodeLocalizer)
@@ -40,6 +47,8 @@ public sealed class AdminOrdersController : ApiControllerBase
         _getAdminOrdersHandler = getAdminOrdersHandler;
         _getAdminOrderHandler = getAdminOrderHandler;
         _getAdminOrderCountsHandler = getAdminOrderCountsHandler;
+        _cancelOrderAsAdminHandler = cancelOrderAsAdminHandler;
+        _requestRefundHandler = requestRefundHandler;
     }
 
     /// <summary>
@@ -98,6 +107,49 @@ public sealed class AdminOrdersController : ApiControllerBase
     {
         var result = await _getAdminOrderHandler.HandleAsync(
             new GetAdminOrderQuery(orderId),
+            cancellationToken);
+
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Cancels any Order while it is still Pending, without customer ownership scoping.
+    /// Finalized Orders are rejected with a conflict; a Confirmed Order must go through
+    /// the refund flow instead.
+    /// </summary>
+    [HttpPost("{orderId:guid}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<OrderDetailsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelOrderAsAdmin(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await _cancelOrderAsAdminHandler.HandleAsync(
+            new CancelOrderAsAdminCommand(orderId),
+            cancellationToken);
+
+        return Success(result);
+    }
+
+    /// <summary>
+    /// Requests a post-payment refund for any Order through the saga compensation flow.
+    /// Only a paid (Completed saga) Order is eligible; the refund itself is processed
+    /// asynchronously by the Payments module.
+    /// </summary>
+    [HttpPost("{orderId:guid}/refund")]
+    [ProducesResponseType(typeof(ApiResponse<OrderDetailsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RequestRefund(
+        Guid orderId,
+        [FromBody] RefundOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _requestRefundHandler.HandleAsync(
+            new RequestOrderRefundCommand(orderId, request.Reason),
             cancellationToken);
 
         return Success(result);

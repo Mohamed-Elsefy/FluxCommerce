@@ -7,6 +7,7 @@ using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
+using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
@@ -94,7 +95,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var errLoc = Mock.Of<FluxCommerce.BuildingBlocks.Web.Localization.IErrorCodeLocalizer>();
         var ctrl = new PaymentsController(localizer, errLoc, NullLogger<PaymentsController>.Instance,
             Mock.Of<IStripeWebhookService>(), Mock.Of<IWebhookEventProcessor>(p => p.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult(WebhookProcessResult.Processed)),
-            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), currentUser);
+            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), Mock.Of<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>>(), currentUser);
         ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() };
 
         var result = await ctrl.GetPayment(payment.Id, CancellationToken.None);
@@ -124,7 +125,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var errLoc = Mock.Of<FluxCommerce.BuildingBlocks.Web.Localization.IErrorCodeLocalizer>();
         var ctrl = new PaymentsController(localizer, errLoc, NullLogger<PaymentsController>.Instance,
             Mock.Of<IStripeWebhookService>(), Mock.Of<IWebhookEventProcessor>(p => p.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult(WebhookProcessResult.Processed)),
-            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), currentUser);
+            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), Mock.Of<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>>(), currentUser);
         ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() };
 
         var result = await ctrl.GetPayment(payment.Id, CancellationToken.None);

@@ -12,6 +12,7 @@ using FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 using FluxCommerce.Modules.Identity.Application.Commands.ResendVerification;
 using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.UnlockUser;
+using FluxCommerce.Modules.Identity.Application.Commands.UpdateProfile;
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUser;
@@ -90,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<GetCurrentUserCommand, Result<UserResponse>>, GetCurrentUserCommandHandler>();
         services.AddScoped<ICommandHandler<AssignRoleCommand, Result<UserResponse>>, AssignRoleCommandHandler>();
         services.AddScoped<ICommandHandler<UnlockUserCommand, Result<UserResponse>>, UnlockUserCommandHandler>();
+        services.AddScoped<ICommandHandler<UpdateProfileCommand, Result<UserResponse>>, UpdateProfileCommandHandler>();
 
         return services;
     }

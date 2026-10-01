@@ -21,6 +21,7 @@ public interface IOrderStore
         CustomerId customerId,
         int pageNumber,
         int pageSize,
+        OrderStatus? status = null,
         CancellationToken cancellationToken = default);
 
     Task<Order?> GetOwnedOrderAsync(

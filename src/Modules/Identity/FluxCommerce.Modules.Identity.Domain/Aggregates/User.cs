@@ -327,6 +327,69 @@ public sealed class User : AggregateRoot<Guid>
         return DomainResult.Success();
     }
 
+    /// <summary>
+    /// Updates the editable profile fields. Each argument is optional: <c>null</c> leaves the
+    /// current value unchanged, while an empty value clears an optional field. Required names
+    /// must remain non-empty when supplied. Validation of lengths and shapes is the caller's
+    /// (application layer's) responsibility; this method enforces the domain invariants.
+    /// </summary>
+    public void UpdateProfile(
+        string? firstName,
+        string? lastName,
+        string? phoneNumber,
+        string? avatarUrl,
+        string? preferredLanguage,
+        string? timeZone)
+    {
+        if (firstName is not null)
+            FirstName = ValidateName(firstName, nameof(firstName), FirstNameMaxLength);
+
+        if (lastName is not null)
+            LastName = ValidateName(lastName, nameof(lastName), LastNameMaxLength);
+
+        if (phoneNumber is not null)
+        {
+            var phone = phoneNumber.Trim();
+            if (phone.Length > PhoneNumberMaxLength)
+                throw new ArgumentException($"A phone number must not exceed {PhoneNumberMaxLength} characters.", nameof(phoneNumber));
+
+            PhoneNumber = string.IsNullOrEmpty(phone) ? null : phone;
+        }
+
+        if (avatarUrl is not null)
+        {
+            var avatar = avatarUrl.Trim();
+            if (avatar.Length > AvatarUrlMaxLength)
+                throw new ArgumentException($"An avatar URL must not exceed {AvatarUrlMaxLength} characters.", nameof(avatarUrl));
+
+            AvatarUrl = string.IsNullOrEmpty(avatar) ? null : avatar;
+        }
+
+        if (preferredLanguage is not null)
+        {
+            var language = preferredLanguage.Trim();
+            if (string.IsNullOrEmpty(language))
+                throw new ArgumentException("A preferred language is required.", nameof(preferredLanguage));
+
+            if (language.Length > PreferredLanguageMaxLength)
+                throw new ArgumentException($"A preferred language must not exceed {PreferredLanguageMaxLength} characters.", nameof(preferredLanguage));
+
+            PreferredLanguage = language;
+        }
+
+        if (timeZone is not null)
+        {
+            var zone = timeZone.Trim();
+            if (string.IsNullOrEmpty(zone))
+                throw new ArgumentException("A time zone is required.", nameof(timeZone));
+
+            if (zone.Length > TimeZoneMaxLength)
+                throw new ArgumentException($"A time zone must not exceed {TimeZoneMaxLength} characters.", nameof(timeZone));
+
+            TimeZone = zone;
+        }
+    }
+
     public void Unlock() =>
         Lockout = Lockout.Reset();
 }

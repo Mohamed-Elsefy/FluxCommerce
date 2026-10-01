@@ -39,11 +39,15 @@ public sealed class OrderStore : IOrderStore
         CustomerId customerId,
         int pageNumber,
         int pageSize,
+        OrderStatus? status = null,
         CancellationToken cancellationToken = default)
     {
         var baseQuery = _context.Orders
             .AsNoTracking()
             .Where(order => order.CustomerId == customerId);
+
+        if (status.HasValue)
+            baseQuery = baseQuery.Where(order => order.Status == status.Value);
 
         var totalCount = await baseQuery.CountAsync(cancellationToken).ConfigureAwait(false);
 

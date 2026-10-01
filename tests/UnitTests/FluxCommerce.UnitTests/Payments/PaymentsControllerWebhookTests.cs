@@ -6,6 +6,7 @@ using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Application.Models;
+using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Contracts.Responses;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
@@ -50,6 +51,7 @@ public sealed class PaymentsControllerWebhookTests
             proc,
             repoMock.Object,
             new Mock<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>().Object,
+            new Mock<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>>().Object,
             userMock.Object);
 
         var http = ctx ?? new DefaultHttpContext();

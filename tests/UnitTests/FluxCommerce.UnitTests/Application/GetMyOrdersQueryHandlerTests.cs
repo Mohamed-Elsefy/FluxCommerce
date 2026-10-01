@@ -29,7 +29,7 @@ public class GetMyOrdersQueryHandlerTests
         Assert.Equal(ErrorType.Unauthorized, result.Error.Type);
         Assert.Equal("Order.QueryAuthenticationRequired", result.Error.Code);
         store.Verify(
-            s => s.GetMyOrdersPageAsync(It.IsAny<CustomerId>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            s => s.GetMyOrdersPageAsync(It.IsAny<CustomerId>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<OrderStatus?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -46,8 +46,9 @@ public class GetMyOrdersQueryHandlerTests
                 It.IsAny<CustomerId>(),
                 It.IsAny<int>(),
                 It.IsAny<int>(),
+                It.IsAny<OrderStatus?>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<CustomerId, int, int, CancellationToken>((customerId, pageNumber, pageSize, _) =>
+            .Callback<CustomerId, int, int, OrderStatus?, CancellationToken>((customerId, pageNumber, pageSize, _, _) =>
             {
                 requestedCustomerId = customerId;
                 requestedPageNumber = pageNumber;
@@ -76,7 +77,7 @@ public class GetMyOrdersQueryHandlerTests
         Assert.Equal(ErrorType.Validation, result.Error.Type);
         Assert.Equal("Order.ValidationFailed", result.Error.Code);
         store.Verify(
-            s => s.GetMyOrdersPageAsync(It.IsAny<CustomerId>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            s => s.GetMyOrdersPageAsync(It.IsAny<CustomerId>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<OrderStatus?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -92,7 +93,7 @@ public class GetMyOrdersQueryHandlerTests
         Assert.True(result.IsFailure);
         Assert.Equal("Order.ValidationFailed", result.Error.Code);
         store.Verify(
-            s => s.GetMyOrdersPageAsync(It.IsAny<CustomerId>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            s => s.GetMyOrdersPageAsync(It.IsAny<CustomerId>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<OrderStatus?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -161,6 +162,7 @@ public class GetMyOrdersQueryHandlerTests
                 It.IsAny<CustomerId>(),
                 It.IsAny<int>(),
                 It.IsAny<int>(),
+                It.IsAny<OrderStatus?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(result ?? EmptyPage(1, 20));
         return store;

@@ -7,6 +7,7 @@ using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Enums;
+using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Contracts.Responses;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
@@ -29,6 +30,7 @@ public sealed class PaymentsController : ApiControllerBase
     private readonly IWebhookEventProcessor _webhookProcessor;
     private readonly IPaymentRepository _paymentRepository;
     private readonly IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> _initializationHandler;
+    private readonly IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>> _myPaymentsHandler;
     private readonly ICurrentUser _currentUser;
 
     public PaymentsController(
@@ -39,6 +41,7 @@ public sealed class PaymentsController : ApiControllerBase
         IWebhookEventProcessor webhookProcessor,
         IPaymentRepository paymentRepository,
         IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> initializationHandler,
+        IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>> myPaymentsHandler,
         ICurrentUser currentUser
     )
         : base(localizer, errorCodeLocalizer)
@@ -48,7 +51,30 @@ public sealed class PaymentsController : ApiControllerBase
         _webhookProcessor = webhookProcessor ?? throw new ArgumentNullException(nameof(webhookProcessor));
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
         _initializationHandler = initializationHandler ?? throw new ArgumentNullException(nameof(initializationHandler));
+        _myPaymentsHandler = myPaymentsHandler ?? throw new ArgumentNullException(nameof(myPaymentsHandler));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+    }
+
+    /// <summary>
+    /// Lists the authenticated customer's own payments, newest first, with an optional status
+    /// filter. Pagination falls back to page 1 with a page size of 20 (maximum 100).
+    /// </summary>
+    [HttpGet("mine")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMyPayments(
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _myPaymentsHandler.HandleAsync(
+            new GetMyPaymentsQuery(pageNumber, pageSize, status),
+            cancellationToken);
+
+        return Success(result);
     }
 
     /// <summary>

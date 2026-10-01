@@ -8,5 +8,6 @@ public static class EndpointTags
     public const string Inventory = "Inventory";
     public const string Payments = "Payments";
     public const string Identity = "Identity";
+    public const string Dashboard = "Dashboard";
     public const string Health = "Health";
 }

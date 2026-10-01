@@ -23,4 +23,8 @@ public static class OrderQueryErrors
     public static readonly Error CancelConflict = Error.Conflict(
         "Order.CancelConflict",
         "The order cannot be cancelled in its current state.");
+
+    public static readonly Error RefundConflict = Error.Conflict(
+        "Order.RefundConflict",
+        "The order cannot be refunded in its current state.");
 }

@@ -14,6 +14,7 @@ using FluxCommerce.Modules.Identity.Application.Commands.RegisterAdmin;
 using FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 using FluxCommerce.Modules.Identity.Application.Commands.ResendVerification;
 using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
+using FluxCommerce.Modules.Identity.Application.Commands.UpdateProfile;
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Contracts.Requests;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
@@ -42,6 +43,7 @@ public sealed class AuthController : ApiControllerBase
     private readonly ICommandHandler<ResetPasswordCommand, Result> _resetPasswordHandler;
     private readonly ICommandHandler<ChangePasswordCommand, Result> _changePasswordHandler;
     private readonly ICommandHandler<GetCurrentUserCommand, Result<UserResponse>> _getCurrentUserHandler;
+    private readonly ICommandHandler<UpdateProfileCommand, Result<UserResponse>> _updateProfileHandler;
 
     public AuthController(
         ICommandHandler<RegisterCustomerCommand, Result<UserResponse>> registerCustomerHandler,
@@ -55,6 +57,7 @@ public sealed class AuthController : ApiControllerBase
         ICommandHandler<ResetPasswordCommand, Result> resetPasswordHandler,
         ICommandHandler<ChangePasswordCommand, Result> changePasswordHandler,
         ICommandHandler<GetCurrentUserCommand, Result<UserResponse>> getCurrentUserHandler,
+        ICommandHandler<UpdateProfileCommand, Result<UserResponse>> updateProfileHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
         : base(localizer, errorCodeLocalizer)
@@ -70,6 +73,7 @@ public sealed class AuthController : ApiControllerBase
         _resetPasswordHandler = resetPasswordHandler;
         _changePasswordHandler = changePasswordHandler;
         _getCurrentUserHandler = getCurrentUserHandler;
+        _updateProfileHandler = updateProfileHandler;
     }
 
     /// <summary>Registers a new customer account.</summary>
@@ -175,5 +179,19 @@ public sealed class AuthController : ApiControllerBase
     {
         var command = new GetCurrentUserCommand();
         return Success(await _getCurrentUserHandler.HandleAsync(command, cancellationToken));
+    }
+
+    /// <summary>Partially updates the authenticated user's profile. Null fields are left unchanged.</summary>
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request, CancellationToken cancellationToken)
+    {
+        var command = new UpdateProfileCommand(
+            request.FirstName,
+            request.LastName,
+            request.PhoneNumber,
+            request.AvatarUrl,
+            request.PreferredLanguage,
+            request.TimeZone);
+        return Success(await _updateProfileHandler.HandleAsync(command, cancellationToken));
     }
 }
