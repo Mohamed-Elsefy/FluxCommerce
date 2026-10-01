@@ -177,7 +177,48 @@ public class IdentityArchitectureTests
     }
 
     [Fact]
-    public void CatalogMutations_ShouldRequire_AdminPolicy()
+    public void NoController_ShouldRequire_CoarseAdminPolicy()
+    {
+        // Phase D: every administrative action moved to a permission policy (or exact
+        // SuperAdmin). The coarse "Admin" role policy must not gate any controller action.
+        var apiAssembly = ArchitectureRegistry.Api;
+        var failures = new List<string>();
+
+        var controllers = apiAssembly.GetTypes()
+            .Where(t => t.Name.EndsWith("Controller") && t.Namespace?.StartsWith("FluxCommerce.Api.Controllers") == true)
+            .ToList();
+
+        Assert.True(controllers.Any(), "API controllers should exist");
+
+        foreach (var controller in controllers)
+        {
+            var classPolicy = controller
+                .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                .FirstOrDefault()?.Policy;
+
+            if (classPolicy == "Admin")
+                failures.Add($"{controller.Name} is gated by the coarse AdminPolicy");
+
+            var methods = controller.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
+
+            foreach (var method in methods)
+            {
+                var methodPolicy = method
+                    .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false)
+                    .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                    .FirstOrDefault()?.Policy;
+
+                if (methodPolicy == "Admin")
+                    failures.Add($"{controller.Name}.{method.Name} is gated by the coarse AdminPolicy");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void CatalogMutations_ShouldRequire_CatalogManagePermission()
     {
         var apiAssembly = ArchitectureRegistry.Api;
         var catalogControllers = apiAssembly.GetTypes()
@@ -210,8 +251,8 @@ public class IdentityArchitectureTests
                     .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                     .ToList();
 
-                // Must have Authorize with Admin policy either on method or class
-                var hasAdminPolicy = authorizeAttrs.Any(a => a.Policy == "Admin");
+                // Must have Authorize with the catalog.manage permission either on method or class
+                var hasAdminPolicy = authorizeAttrs.Any(a => a.Policy == "catalog.manage");
 
                 if (!hasAdminPolicy)
                 {
@@ -219,12 +260,12 @@ public class IdentityArchitectureTests
                         .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                         .FirstOrDefault();
 
-                    hasAdminPolicy = classAuth != null && classAuth.Policy == "Admin";
+                    hasAdminPolicy = classAuth != null && classAuth.Policy == "catalog.manage";
                 }
 
                 if (!hasAdminPolicy)
                 {
-                    failures.Add($"{controller.Name}.{method.Name} is a mutation but does not require AdminPolicy");
+                    failures.Add($"{controller.Name}.{method.Name} is a mutation but does not require the catalog.manage permission");
                 }
             }
         }

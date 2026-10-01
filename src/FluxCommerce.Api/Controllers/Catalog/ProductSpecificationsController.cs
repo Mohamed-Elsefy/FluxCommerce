@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
@@ -50,7 +50,7 @@ public sealed class ProductSpecificationsController : ApiControllerBase
 
     /// <summary>Creates a new specification for the specified product.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Create(Guid productId, [FromBody] CreateProductSpecificationRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductSpecificationCommand(productId, request.Name, request.Value);
@@ -59,7 +59,7 @@ public sealed class ProductSpecificationsController : ApiControllerBase
 
     /// <summary>Updates an existing specification of the specified product.</summary>
     [HttpPut("{specificationId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid specificationId, [FromBody] UpdateProductSpecificationRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductSpecificationCommand(productId, specificationId, request.Name, request.Value);
@@ -68,7 +68,7 @@ public sealed class ProductSpecificationsController : ApiControllerBase
 
     /// <summary>Deletes a specification of the specified product.</summary>
     [HttpDelete("{specificationId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Delete(Guid productId, Guid specificationId, CancellationToken cancellationToken)
     {
         var command = new DeleteProductSpecificationCommand(productId, specificationId);

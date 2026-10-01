@@ -83,6 +83,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(typeof(List<string>), "_roles")
             .HasColumnName("Roles");
 
+        builder.Property(typeof(List<string>), "_permissions")
+            .HasColumnName("Permissions");
+
         builder.OwnsMany(user => user.RefreshTokens, tokens =>
         {
             tokens.ToTable("RefreshTokens");

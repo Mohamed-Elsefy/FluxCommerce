@@ -20,7 +20,8 @@ public sealed record UserAdminReadModel(
     string TimeZone,
     UserStatus Status,
     int FailedAccessAttemptCount,
-    DateTime? LockoutEndUtc);
+    DateTime? LockoutEndUtc,
+    IReadOnlyList<string> Permissions);
 
 /// <summary>
 /// Aggregate user counts for the administrative overview.

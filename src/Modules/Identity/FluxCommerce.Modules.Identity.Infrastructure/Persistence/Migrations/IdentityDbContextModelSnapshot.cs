@@ -123,6 +123,11 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(64)")
                         .HasColumnName("TimeZone");
 
+                    b.PrimitiveCollection<string>("_permissions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Permissions");
+
                     b.PrimitiveCollection<string>("_roles")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")

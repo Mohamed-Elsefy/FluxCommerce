@@ -30,7 +30,7 @@ namespace FluxCommerce.Api.Controllers.Admin;
 [ApiController]
 [Route("admin/dashboard")]
 [Tags(EndpointTags.Dashboard)]
-[Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+[Authorize(Policy = AuthenticationConfiguration.DashboardReadPolicy)]
 public sealed class AdminDashboardController : ApiControllerBase
 {
     private const int RecentOrdersLimit = 5;

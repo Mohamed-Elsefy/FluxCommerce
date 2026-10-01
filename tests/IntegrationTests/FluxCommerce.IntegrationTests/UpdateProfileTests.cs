@@ -39,6 +39,8 @@ public class UpdateProfileTests
         Assert.Equal("Lovelace", payload.LastName);
         Assert.Equal("+49123456789", payload.PhoneNumber);
         Assert.Equal("Augusta Lovelace", payload.DisplayName);
+        Assert.NotNull(payload.Permissions);
+        Assert.Empty(payload.Permissions);
     }
 
     [Fact]

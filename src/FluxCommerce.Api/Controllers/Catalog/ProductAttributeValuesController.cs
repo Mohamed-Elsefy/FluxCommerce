@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
@@ -50,7 +50,7 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
 
     /// <summary>Assigns an attribute value to the specified product.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Assign(Guid productId, [FromBody] AssignProductAttributeValueRequest request, CancellationToken cancellationToken)
     {
         var command = new AssignProductAttributeValueCommand(productId, request.AttributeDefinitionId, request.Value);
@@ -59,7 +59,7 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
 
     /// <summary>Updates an attribute value of the specified product.</summary>
     [HttpPut("{attributeDefinitionId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid attributeDefinitionId, [FromBody] UpdateProductAttributeValueRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductAttributeValueCommand(productId, attributeDefinitionId, request.Value);
@@ -68,7 +68,7 @@ public sealed class ProductAttributeValuesController : ApiControllerBase
 
     /// <summary>Removes an attribute value from the specified product.</summary>
     [HttpDelete("{attributeDefinitionId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Remove(Guid productId, Guid attributeDefinitionId, CancellationToken cancellationToken)
     {
         var command = new RemoveProductAttributeValueCommand(productId, attributeDefinitionId);

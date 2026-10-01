@@ -21,7 +21,8 @@ public static class UserResponseMapper
             user.AvatarUrl,
             user.PreferredLanguage,
             user.TimeZone,
-            ToStatus(user.Status));
+            ToStatus(user.Status),
+            user.Permissions);
 
     private static UserStatus ToStatus(Domain.Enums.UserStatus status) =>
         status switch

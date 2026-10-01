@@ -6,10 +6,14 @@ using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.Responses;
 using FluxCommerce.Modules.Identity.Application.Commands.AssignRole;
+using FluxCommerce.Modules.Identity.Application.Commands.GrantPermission;
+using FluxCommerce.Modules.Identity.Application.Commands.RevokePermission;
 using FluxCommerce.Modules.Identity.Application.Commands.UnlockUser;
 using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUser;
 using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUserCounts;
 using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUsers;
+using FluxCommerce.Modules.Identity.Application.Queries.GetPermissionCatalog;
+using FluxCommerce.Modules.Identity.Application.Queries.GetUserPermissions;
 using FluxCommerce.Modules.Identity.Contracts.Requests;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 
@@ -29,6 +33,10 @@ public sealed class AdminController : ApiControllerBase
     private readonly IQueryHandler<GetAdminUsersQuery, Result<PagedResult<UserAdminResponse>>> _getAdminUsersHandler;
     private readonly IQueryHandler<GetAdminUserQuery, Result<UserAdminResponse>> _getAdminUserHandler;
     private readonly IQueryHandler<GetAdminUserCountsQuery, Result<UserAdminCountsResponse>> _getAdminUserCountsHandler;
+    private readonly ICommandHandler<GrantPermissionCommand, Result<UserResponse>> _grantPermissionHandler;
+    private readonly ICommandHandler<RevokePermissionCommand, Result<UserResponse>> _revokePermissionHandler;
+    private readonly IQueryHandler<GetUserPermissionsQuery, Result<IReadOnlyCollection<string>>> _getUserPermissionsHandler;
+    private readonly IQueryHandler<GetPermissionCatalogQuery, Result<IReadOnlyCollection<string>>> _getPermissionCatalogHandler;
 
     public AdminController(
         ICommandHandler<AssignRoleCommand, Result<UserResponse>> assignRoleHandler,
@@ -36,6 +44,10 @@ public sealed class AdminController : ApiControllerBase
         IQueryHandler<GetAdminUsersQuery, Result<PagedResult<UserAdminResponse>>> getAdminUsersHandler,
         IQueryHandler<GetAdminUserQuery, Result<UserAdminResponse>> getAdminUserHandler,
         IQueryHandler<GetAdminUserCountsQuery, Result<UserAdminCountsResponse>> getAdminUserCountsHandler,
+        ICommandHandler<GrantPermissionCommand, Result<UserResponse>> grantPermissionHandler,
+        ICommandHandler<RevokePermissionCommand, Result<UserResponse>> revokePermissionHandler,
+        IQueryHandler<GetUserPermissionsQuery, Result<IReadOnlyCollection<string>>> getUserPermissionsHandler,
+        IQueryHandler<GetPermissionCatalogQuery, Result<IReadOnlyCollection<string>>> getPermissionCatalogHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
         : base(localizer, errorCodeLocalizer)
@@ -45,6 +57,10 @@ public sealed class AdminController : ApiControllerBase
         _getAdminUsersHandler = getAdminUsersHandler;
         _getAdminUserHandler = getAdminUserHandler;
         _getAdminUserCountsHandler = getAdminUserCountsHandler;
+        _grantPermissionHandler = grantPermissionHandler;
+        _revokePermissionHandler = revokePermissionHandler;
+        _getUserPermissionsHandler = getUserPermissionsHandler;
+        _getPermissionCatalogHandler = getPermissionCatalogHandler;
     }
 
     /// <summary>Assigns a role to a user. Requires SuperAdmin role.</summary>
@@ -114,6 +130,76 @@ public sealed class AdminController : ApiControllerBase
     {
         return Success(await _getAdminUserHandler.HandleAsync(
             new GetAdminUserQuery(id),
+            cancellationToken));
+    }
+
+    /// <summary>
+    /// Grants one action-level permission to a user. Takes effect on the user's next
+    /// login/refresh. Requires SuperAdmin role.
+    /// </summary>
+    [HttpPost("{id:guid}/permissions")]
+    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GrantPermission(
+        Guid id,
+        [FromBody] GrantPermissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Success(await _grantPermissionHandler.HandleAsync(
+            new GrantPermissionCommand(id, request.Permission),
+            cancellationToken));
+    }
+
+    /// <summary>
+    /// Revokes one action-level permission from a user. Revoking an absent permission is a
+    /// benign no-op. Requires SuperAdmin role.
+    /// </summary>
+    [HttpDelete("{id:guid}/permissions/{permission}")]
+    [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokePermission(
+        Guid id,
+        string permission,
+        CancellationToken cancellationToken)
+    {
+        return Success(await _revokePermissionHandler.HandleAsync(
+            new RevokePermissionCommand(id, permission),
+            cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists the action-level permissions granted to a user. Requires SuperAdmin role.
+    /// </summary>
+    [HttpGet("{id:guid}/permissions")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<string>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUserPermissions(Guid id, CancellationToken cancellationToken)
+    {
+        return Success(await _getUserPermissionsHandler.HandleAsync(
+            new GetUserPermissionsQuery(id),
+            cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists the action-level permission catalog. Requires SuperAdmin role.
+    /// </summary>
+    [HttpGet("permissions")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<string>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetPermissionCatalog(CancellationToken cancellationToken)
+    {
+        return Success(await _getPermissionCatalogHandler.HandleAsync(
+            new GetPermissionCatalogQuery(),
             cancellationToken));
     }
 }

@@ -32,7 +32,7 @@ namespace FluxCommerce.Api.Controllers.Inventory;
 [ApiController]
 [Route("inventory")]
 [Tags(EndpointTags.Inventory)]
-[Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+[Authorize]
 public sealed class InventoryController : ApiControllerBase
 {
     private readonly ICommandHandler<CreateInventoryItemCommand, Result<InventoryItemReadModel>> _createItemHandler;
@@ -69,6 +69,7 @@ public sealed class InventoryController : ApiControllerBase
     /// conflict; the SKU is normalized (trimmed, uppercased) before it is stored.
     /// </summary>
     [HttpPost]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryManagePolicy)]
     [ProducesResponseType(typeof(ApiResponse<InventoryItemResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -96,6 +97,7 @@ public sealed class InventoryController : ApiControllerBase
     /// Returns the current stock state (on-hand, reserved and available quantities) of a single SKU.
     /// </summary>
     [HttpGet("{sku}")]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<InventoryItemResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -115,6 +117,7 @@ public sealed class InventoryController : ApiControllerBase
     /// modeled by the reservation lifecycle (commit), so there is no unsafe manual decrement path.
     /// </summary>
     [HttpPatch("{sku}")]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryManagePolicy)]
     [ProducesResponseType(typeof(ApiResponse<InventoryItemResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -135,6 +138,7 @@ public sealed class InventoryController : ApiControllerBase
     /// (maximum 100).
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<InventoryItemResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -166,6 +170,7 @@ public sealed class InventoryController : ApiControllerBase
     /// for the administrative overview.
     /// </summary>
     [HttpGet("counts")]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<InventoryCountsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -198,6 +203,7 @@ public sealed class InventoryController : ApiControllerBase
     /// Pagination falls back to page 1 with a page size of 20 (maximum 100).
     /// </summary>
     [HttpGet("reservations")]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<InventoryReservationResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -230,6 +236,7 @@ public sealed class InventoryController : ApiControllerBase
     /// (administrative) read; reservation ids are never enumerable and the endpoint is authenticated.
     /// </summary>
     [HttpGet("reservations/{id:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.InventoryReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<InventoryReservationResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

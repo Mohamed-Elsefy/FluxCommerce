@@ -72,6 +72,8 @@ public class AdminUsersListTests
         Assert.True(filteredPage.IsSuccess);
         Assert.Single(filteredPage.Data!.Items);
         Assert.Equal(email, filteredPage.Data.Items[0].Email);
+        Assert.NotNull(filteredPage.Data.Items[0].Permissions);
+        Assert.Empty(filteredPage.Data.Items[0].Permissions);
     }
 
     [Fact]
@@ -105,6 +107,8 @@ public class AdminUsersListTests
         var payload = await found.ReadJsonAsync<ApiResponseDto<UserAdminResponse>>();
         Assert.True(payload.IsSuccess);
         Assert.Equal(email, payload.Data!.Email);
+        Assert.NotNull(payload.Data.Permissions);
+        Assert.Empty(payload.Data.Permissions);
 
         var missing = await _client.GetAsync($"admin/users/{Guid.NewGuid()}");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);

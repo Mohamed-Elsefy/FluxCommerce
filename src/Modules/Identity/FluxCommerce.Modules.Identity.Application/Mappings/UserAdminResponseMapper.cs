@@ -24,7 +24,8 @@ public static class UserAdminResponseMapper
             ToStatus(user.Status),
             user.FailedAccessAttemptCount,
             user.LockoutEndUtc,
-            user.LockoutEndUtc is { } lockoutEnd && utcNow < lockoutEnd);
+            user.LockoutEndUtc is { } lockoutEnd && utcNow < lockoutEnd,
+            user.Permissions);
 
     public static UserAdminCountsResponse ToResponse(UserAdminCountsReadModel counts) =>
         new(

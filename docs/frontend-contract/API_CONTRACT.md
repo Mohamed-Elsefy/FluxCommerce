@@ -53,9 +53,27 @@ Pagination query (where supported): `?pageNumber=int>=1 &pageSize=int 1..100`. D
 
 ### 0.4 Auth / headers / localization (verified)
 
-- JWT: `Issuer/Audience/SigningKey` required, `HmacSha256`, `ValidateIssuer/Audience/Lifetime/SigningKey=true`, `AccessTokenLifetimeMinutes=15`, `ClockSkewMinutes=5`. Claims: `ClaimTypes.NameIdentifier=userId (Guid)`, `ClaimTypes.Email`, `ClaimTypes.Role[]`. Lifetimes: refresh `7d` (rotating, reuse invalid), email-verify `24h`, password-reset `1h`. Policies: `Customer→RequireRole(Customer)`, `Admin→RequireRole(Admin)`, `SuperAdmin→RequireRole(SuperAdmin)`. Dev `Issuer/Audience=https://localhost:7119`.
+- JWT: `Issuer/Audience/SigningKey` required, `HmacSha256`, `ValidateIssuer/Audience/Lifetime/SigningKey=true`, `AccessTokenLifetimeMinutes=15`, `ClockSkewMinutes=5`. Claims: `ClaimTypes.NameIdentifier=userId (Guid)`, `ClaimTypes.Email`, `ClaimTypes.Role[]`, `permission[]` (one claim per granted action-level permission, Phase 21). Lifetimes: refresh `7d` (rotating, reuse invalid), email-verify `24h`, password-reset `1h`. Policies: `Customer`/`Admin` = role-or-SuperAdmin (SuperAdmin passes everything, Phase A); `SuperAdmin` = exact role; one permission policy per catalog value (§0.5). Grants apply on next login/refresh. Dev `Issuer/Audience=https://localhost:7119`.
 - Headers: `Authorization: Bearer <accessToken>`; `Accept-Language: en|fr|de|es|ar` optional on every op (Swagger `AcceptLanguageFilter`); `X-Correlation-ID` optional inbound (reused else generated `Guid:N`), always echoed in response; `X-Request-ID` always generated `Guid:N` and echoed (`RequestLoggingMiddleware`, Serilog scope `{CorrelationId,RequestId,TraceId,SpanId}`).
 - Localization: default `en`, supported `[en,fr,de,es,ar]`, `ApplyCurrentCultureToResponseHeaders=true`, providers after clear: `QueryString (?culture=) > Cookie > Accept-Language`. Display `detail`, not raw `code` (`ErrorCodeLocalizer` maps ~90 `Identity|Catalog|Cart|Order|Inventory.*` codes, fallback raw description).
+
+### 0.5 Permission catalog (Phase 21, ADR-016)
+
+Action-level permissions granted per admin by SuperAdmin (`area.action` strings, also returned as `permissions: string[]` on `UserResponse`/`UserAdminResponse` for menu rendering):
+
+| Permission | Grants |
+|---|---|
+| `orders.read` | `GET /admin/orders`, `GET /admin/orders/{id}`, `GET /admin/orders/counts` |
+| `orders.cancel` | `POST /admin/orders/{id}/cancel` |
+| `orders.refund` | `POST /admin/orders/{id}/refund` |
+| `payments.read` | `GET /admin/payments`, `GET /admin/payments/{id}` |
+| `payments.stats` | `GET /admin/payments/stats` |
+| `inventory.read` | All `GET /inventory/**` (item, reservation, lists, counts) |
+| `inventory.manage` | `POST /inventory`, `PATCH /inventory/{sku}` |
+| `catalog.manage` | All Catalog writes (reads stay anonymous) |
+| `dashboard.read` | `GET /admin/dashboard` |
+
+Assigning the `Admin` role grants the full bundle automatically; user/permission management itself (`/admin/users/**`, `/admin/permissions`, `register-admin`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
 
 ---
 
@@ -247,11 +265,69 @@ Pagination query (where supported): `?pageNumber=int>=1 &pageSize=int 1..100`. D
 | Errors | `404 UserNotFound` |
 | Pagination/Sorting/Filtering | — |
 
+### 1.14 POST /admin/users/{id}/permissions
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}/permissions` |
+| HTTPMethod | `POST` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Body `GrantPermissionRequest { permission: string }` — one catalog value from §0.5 |
+| Response | `200 ApiResponse<UserResponse>` (with updated `permissions`) |
+| Status Codes | `200, 400, 401, 403, 404, 409` |
+| Validation | guid non-empty; permission non-empty and in catalog |
+| Errors | `400 InvalidPermission`, `404 UserNotFound`, `409 PermissionAlreadyGranted` |
+| Pagination/Sorting/Filtering | — |
+
+### 1.15 DELETE /admin/users/{id}/permissions/{permission}
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}/permissions/{permission}` |
+| HTTPMethod | `DELETE` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Route `id: Guid` + `permission: string` |
+| Response | `200 ApiResponse<UserResponse>` (idempotent — absent permission still succeeds) |
+| Status Codes | `200, 400, 401, 403, 404` |
+| Validation | guid non-empty; permission non-empty and in catalog |
+| Errors | `400 InvalidPermission`, `404 UserNotFound` |
+| Pagination/Sorting/Filtering | — |
+
+### 1.16 GET /admin/users/{id}/permissions
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}/permissions` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Route `id: Guid` |
+| Response | `200 ApiResponse<string[]>` (granted permission values) |
+| Status Codes | `200, 401, 403, 404` |
+| Validation | guid non-empty |
+| Errors | `404 UserNotFound` |
+| Pagination/Sorting/Filtering | — |
+
+### 1.17 GET /admin/users/permissions
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/permissions` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | None |
+| Response | `200 ApiResponse<string[]>` (full catalog, §0.5) |
+| Status Codes | `200, 401, 403` |
+| Validation | — |
+| Errors | — |
+| Pagination/Sorting/Filtering | — |
+
+> Assigning the `Admin` role (`1.12`) additionally stores the full §0.5 bundle on the user (Phase D). Grants apply to the access token on the user's next login/refresh.
+
 ---
 
 ## 2. Catalog — Tag `Catalog`
 
-Controller default `[Authorize]`; all `GET` are `[AllowAnonymous]`; all writes `[Authorize(AdminPolicy)]`.
+Controller default `[Authorize]`; all `GET` are `[AllowAnonymous]`; all writes `[Authorize(catalog.manage)]` (Phase 21 — was `AdminPolicy`).
 Writes: `POST create → 201 CreatedAtAction(Get)+ApiResponse<Guid|Guid[]>` else error; `PUT / POST lifecycle / assign / reorder → 204` on success.
 Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
@@ -267,7 +343,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 |---|---|
 | Endpoint | `/catalog/products` |
 | HTTPMethod | `POST` |
-| Authorization | `Admin` |
+| Authorization | `catalog.manage` |
 | Request | Body `CreateProductRequest { name?: string|null, slug?: string|null, description?: string|null, categoryId: Guid, visibility: Visible\|Hidden, seo?: SeoRequest { title?: string|null, description?: string\|null, keywords?: string[]\|null } \| null }` — C# all `string?` / `SeoRequest?`; `Keywords` request shape is `string[]?` nullable array (elements non-null when present). |
 | Response | `201 ApiResponse<Guid(productId)>` + `Location: /catalog/products/{id}` |
 | Status Codes | `201, 400, 401, 403, 404 (category), 409 (slug conflict)` |
@@ -280,7 +356,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 |---|---|
 | Endpoint | `/catalog/products/{id:guid}` |
 | HTTPMethod | `PUT` |
-| Authorization | `Admin` |
+| Authorization | `catalog.manage` |
 | Request | Route `id` + Body `UpdateProductRequest` (same nullable shape as create: `string?` fields + `SeoRequest?`) |
 | Response | `204` |
 | Status Codes | `204, 400, 401, 403, 404, 409` |
@@ -293,7 +369,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 |---|---|
 | Endpoint | `/catalog/products/{id:guid}/activate` (×5: `activate\|deactivate\|archive\|soft-delete\|restore`) |
 | HTTPMethod | `POST` |
-| Authorization | `Admin` |
+| Authorization | `catalog.manage` |
 | Request | Route `id` only |
 | Response | `204` |
 | Status Codes | `204, 400, 401, 403, 404, 409 (illegal state transition)` |
@@ -348,12 +424,12 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/categories` | `POST` | Admin | Body `CreateCategoryRequest { name?: string\|null, slug?: string\|null, description?: string\|null, parentId?: Guid\|null }` — C# `Guid? ParentId` only place `ParentId` exists | `201 ApiResponse<Guid>` + Location | `201,400,401,403,404(parent),409(slug)` | Fluent/domain only, no DataAnnotations | — |
-| `/catalog/categories/{id:guid}` | `PUT` | Admin | Route id + Body `UpdateCategoryRequest` (same nullable shape) | `204` | `204,400,401,403,404,409` | same | — |
-| `/catalog/categories/{id:guid}/activate` | `POST` | Admin | Route id | `204` | `204,400,401,403,404,409` | id guid | — |
-| `/catalog/categories/{id:guid}/deactivate` | `POST` | Admin | Route id | `204` | same | same | — |
-| `/catalog/categories/{id:guid}/soft-delete` | `POST` | Admin | Route id | `204` | same | same | — |
-| `/catalog/categories/{id:guid}/restore` | `POST` | Admin | Route id | `204` | same | same | — |
+| `/catalog/categories` | `POST` | catalog.manage | Body `CreateCategoryRequest { name?: string\|null, slug?: string\|null, description?: string\|null, parentId?: Guid\|null }` — C# `Guid? ParentId` only place `ParentId` exists | `201 ApiResponse<Guid>` + Location | `201,400,401,403,404(parent),409(slug)` | Fluent/domain only, no DataAnnotations | — |
+| `/catalog/categories/{id:guid}` | `PUT` | catalog.manage | Route id + Body `UpdateCategoryRequest` (same nullable shape) | `204` | `204,400,401,403,404,409` | same | — |
+| `/catalog/categories/{id:guid}/activate` | `POST` | catalog.manage | Route id | `204` | `204,400,401,403,404,409` | id guid | — |
+| `/catalog/categories/{id:guid}/deactivate` | `POST` | catalog.manage | Route id | `204` | same | same | — |
+| `/catalog/categories/{id:guid}/soft-delete` | `POST` | catalog.manage | Route id | `204` | same | same | — |
+| `/catalog/categories/{id:guid}/restore` | `POST` | catalog.manage | Route id | `204` | same | same | — |
 | `/catalog/categories/{id:guid}` | `GET` | Anonymous | Route id | `200 ApiResponse<CategoryResponse { id, name: string, slug: string, description?: string\|null, parentId?: Guid\|null, status: Active\|Inactive (no Draft/Archived), isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` | `200,400,404` | — | — |
 | `/catalog/categories` | `GET` | Anonymous | Query `pageNumber?, pageSize?` | `200 ApiResponse<PagedResult<CategoryResponse>>` | `200,400` | pagination rules | Pagination yes; Sorting/Filtering no |
 
@@ -361,10 +437,10 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/variants` | `POST` | Admin | Route `productId` + Body `CreateProductVariantRequest { sku?: string\|null, name?: string\|null, unitPriceAmount: number (decimal non-null), currency: string (non-null) }` | `201 ApiResponse<Guid>` + Location `.../variants/{variantId}` | `201,400,401,403,404(product),409(sku)` | Fluent/domain only | — |
-| `/catalog/products/{productId}/variants/batch` | `POST` | Admin | Route `productId` + Body `CreateProductVariantsRequest { variants?: CreateProductVariantRequest[]\|null }` — C# `IReadOnlyCollection<CreateProductVariantRequest>?` nullable wrapper | `201 ApiResponse<Guid[]>` + Location list | same | same per-item | — |
-| `/catalog/products/{productId}/variants/{variantId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductVariantRequest { sku?: string\|null, name?: string\|null }` — **only these 2 fields; no price/currency/status** | `204` | `204,400,401,403,404,409` | Fluent/domain | — |
-| `/catalog/products/{productId}/variants/{variantId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/variants` | `POST` | catalog.manage | Route `productId` + Body `CreateProductVariantRequest { sku?: string\|null, name?: string\|null, unitPriceAmount: number (decimal non-null), currency: string (non-null) }` | `201 ApiResponse<Guid>` + Location `.../variants/{variantId}` | `201,400,401,403,404(product),409(sku)` | Fluent/domain only | — |
+| `/catalog/products/{productId}/variants/batch` | `POST` | catalog.manage | Route `productId` + Body `CreateProductVariantsRequest { variants?: CreateProductVariantRequest[]\|null }` — C# `IReadOnlyCollection<CreateProductVariantRequest>?` nullable wrapper | `201 ApiResponse<Guid[]>` + Location list | same | same per-item | — |
+| `/catalog/products/{productId}/variants/{variantId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductVariantRequest { sku?: string\|null, name?: string\|null, unitPriceAmount?: number\|null, currency?: string\|null, status?: Active(0)\|Inactive(1)\|null }` — price needs amount+currency together; status toggles sellability | `204` | `204,400,401,403,404,409` | Fluent/domain | — |
+| `/catalog/products/{productId}/variants/{variantId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
 | `/catalog/products/{productId}/variants/{variantId:guid}` | `GET` | Anonymous | Route ids (`productId` scoping, lookup by `variantId`) | `200 ApiResponse<VariantResponse { id, productId, sku: string, name: string, unitPriceAmount: number (decimal), currency: string (ISO-4217), status: Active\|Inactive (no Draft/Archived), isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` | `200,400,404` | — | — |
 | `/catalog/products/{productId}/variants` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<VariantResponse[]>` | `200,400,404` | — | No pagination; no sorting/filtering |
 
@@ -372,12 +448,12 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/attribute-definitions` | `POST` | Admin | Body `CreateAttributeDefinitionRequest { name?: string\|null, slug?: string\|null, description?: string\|null, dataType: Text\|Number\|Decimal\|Boolean\|Date\|DateTime, isRequired: bool, isFilterable: bool, isSearchable: bool, sortOrder: int, categoryId?: Guid\|null }` — `SortOrder`/`CategoryId(Guid?)` only here | `201 ApiResponse<Guid>` | `201,400,401,403,409` | Fluent/domain only | — |
-| `/catalog/attribute-definitions/{id:guid}` | `PUT` | Admin | Route id + Body `UpdateAttributeDefinitionRequest` (same 9-field shape) | `204` | `204,400,401,403,404,409` | same | — |
-| `/catalog/attribute-definitions/{id:guid}/activate` | `POST` | Admin | Route id | `204` | same | — | — |
-| `/catalog/attribute-definitions/{id:guid}/deactivate` | `POST` | Admin | Route id | `204` | same | — | — |
-| `/catalog/attribute-definitions/{id:guid}/soft-delete` | `POST` | Admin | Route id | `204` | same | — | — |
-| `/catalog/attribute-definitions/{id:guid}/restore` | `POST` | Admin | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions` | `POST` | catalog.manage | Body `CreateAttributeDefinitionRequest { name?: string\|null, slug?: string\|null, description?: string\|null, dataType: Text\|Number\|Decimal\|Boolean\|Date\|DateTime, isRequired: bool, isFilterable: bool, isSearchable: bool, sortOrder: int, categoryId?: Guid\|null }` — `SortOrder`/`CategoryId(Guid?)` only here | `201 ApiResponse<Guid>` | `201,400,401,403,409` | Fluent/domain only | — |
+| `/catalog/attribute-definitions/{id:guid}` | `PUT` | catalog.manage | Route id + Body `UpdateAttributeDefinitionRequest` (same 9-field shape) | `204` | `204,400,401,403,404,409` | same | — |
+| `/catalog/attribute-definitions/{id:guid}/activate` | `POST` | catalog.manage | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions/{id:guid}/deactivate` | `POST` | catalog.manage | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions/{id:guid}/soft-delete` | `POST` | catalog.manage | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions/{id:guid}/restore` | `POST` | catalog.manage | Route id | `204` | same | — | — |
 | `/catalog/attribute-definitions/{id:guid}` | `GET` | Anonymous | Route id | `200 ApiResponse<AttributeDefinitionResponse { id, name: string, slug: string, description?: string\|null, dataType, isRequired: bool, isFilterable: bool, isSearchable: bool, sortOrder: int, categoryId?: Guid\|null, status: Active\|Inactive, isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` | `200,400,404` | — | — |
 | `/catalog/attribute-definitions` | `GET` | Anonymous | None | `200 ApiResponse<AttributeDefinitionResponse[]>` | `200` | — | No pagination/sorting/filtering |
 
@@ -385,9 +461,9 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/attributes` | `POST` | Admin | Route `productId` + Body `AssignProductAttributeValueRequest { attributeDefinitionId: Guid, value?: string\|null }` — C# `string? Value` | `204` | `204,400,401,403,404,409(already assigned)` | definition must exist; value must match DataType | — |
-| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductAttributeValueRequest { value?: string\|null }` — **single field only; no attributeDefinitionId in body** | `204` | same | same | — |
-| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/attributes` | `POST` | catalog.manage | Route `productId` + Body `AssignProductAttributeValueRequest { attributeDefinitionId: Guid, value?: string\|null }` — C# `string? Value` | `204` | `204,400,401,403,404,409(already assigned)` | definition must exist; value must match DataType | — |
+| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductAttributeValueRequest { value?: string\|null }` — **single field only; no attributeDefinitionId in body** | `204` | same | same | — |
+| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
 | `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `GET` | Anonymous | Route ids | `200 ApiResponse<ProductAttributeValueResponse { id, productId, attributeDefinitionId, attributeName: string (denormalized), attributeSlug: string (denormalized), dataType, value: string (non-null) }>` | `200,404` | — | — |
 | `/catalog/products/{productId}/attributes` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<ProductAttributeValueResponse[]>` | `200,404` | — | No pagination/sorting/filtering |
 
@@ -395,11 +471,11 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/images` | `POST` | Admin | Route `productId` + Body `AddProductImageRequest { imageUrl?: string\|null, altText?: string\|null, isPrimary: bool, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — metadata is exactly nullable string→string dict, not object | `204` | `204,400,401,403,404` | Fluent/domain only | — |
-| `/catalog/products/{productId}/images/{imageId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductImageRequest { imageUrl?: string\|null, altText?: string\|null, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — **no isPrimary here** | `204` | same | same | — |
-| `/catalog/products/{productId}/images/{imageId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
-| `/catalog/products/{productId}/images/{imageId:guid}/set-primary` | `POST` | Admin | Route ids | `204` | same | — | — |
-| `/catalog/products/{productId}/images/reorder` | `PUT` | Admin | Route `productId` + Body `ReorderProductImagesRequest { orderedImageIds?: Guid[]\|null }` — C# `IReadOnlyCollection<Guid>?` | `204` | `204,400,401,403,404` | ids must match existing set | — |
+| `/catalog/products/{productId}/images` | `POST` | catalog.manage | Route `productId` + Body `AddProductImageRequest { imageUrl?: string\|null, altText?: string\|null, isPrimary: bool, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — metadata is exactly nullable string→string dict, not object | `204` | `204,400,401,403,404` | Fluent/domain only | — |
+| `/catalog/products/{productId}/images/{imageId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductImageRequest { imageUrl?: string\|null, altText?: string\|null, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — **no isPrimary here** | `204` | same | same | — |
+| `/catalog/products/{productId}/images/{imageId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/images/{imageId:guid}/set-primary` | `POST` | catalog.manage | Route ids | `204` | same | — | — |
+| `/catalog/products/{productId}/images/reorder` | `PUT` | catalog.manage | Route `productId` + Body `ReorderProductImagesRequest { orderedImageIds?: Guid[]\|null }` — C# `IReadOnlyCollection<Guid>?` | `204` | `204,400,401,403,404` | ids must match existing set | — |
 | `/catalog/products/{productId}/images/{imageId:guid}` | `GET` | Anonymous | Route ids | `200 ApiResponse<ProductImageResponse { id, productId, imageUrl: string, altText?: string\|null, displayOrder: int, isPrimary: bool, metadata?: Dictionary<string,string>\|null, createdAtUtc: DateTime }>` — no UpdatedAt/DeletedAt | `200,404` | — | — |
 | `/catalog/products/{productId}/images` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<ProductImageResponse[]>` | `200,404` | — | No pagination; order by `displayOrder` server-side |
 
@@ -407,9 +483,9 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/specifications` | `POST` | Admin | Route `productId` + Body `CreateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | `204,400,401,403,404` | Fluent/domain only | — |
-| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | same | same | — |
-| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/specifications` | `POST` | catalog.manage | Route `productId` + Body `CreateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | `204,400,401,403,404` | Fluent/domain only | — |
+| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | same | same | — |
+| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
 | `/catalog/products/{productId}/specifications/{specificationId:guid}` | `GET` | Anonymous | Route ids | `200 ApiResponse<ProductSpecificationResponse { id, productId, name: string, value: string }>` — both non-null | `200,404` | — | — |
 | `/catalog/products/{productId}/specifications` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<ProductSpecificationResponse[]>` | `200,404` | — | No pagination/sorting/filtering |
 
@@ -504,16 +580,16 @@ Requests use `DataAnnotations`: `Add*` = `[Required]VariantId + [Required][Range
 
 ---
 
-## 5. Inventory — Tag `Inventory`, `[Route inventory][Authorize(AdminPolicy)]`
+## 5. Inventory — Tag `Inventory`, `[Route inventory][Authorize]`
 
-All Admin-only (prevents customer IDOR on reservations). Inventory is the only module with `DataAnnotations` on requests: `CreateInventoryItemRequest(Sku: [Required(AllowEmptyStrings=false)][StringLength(64)], OnHandQuantity: [Range(0,max)])`, `AdjustStockRequest(Quantity: [Range(1,max)])`. SKU normalized trimmed+uppercased. Dates are `DateTimeOffset`. `InventoryReservationResponse.reservationId` is named `ReservationId` (not `Id`). Status `Pending=0,Committed=1,Released=2,Expired=3`.
+Reads require `inventory.read`, writes (`POST /`, `PATCH /{sku}`) require `inventory.manage` (Phase 21 — was a single `AdminPolicy`). SuperAdmin passes both. Inventory is the only module with `DataAnnotations` on requests: `CreateInventoryItemRequest(Sku: [Required(AllowEmptyStrings=false)][StringLength(64)], OnHandQuantity: [Range(0,max)])`, `AdjustStockRequest(Quantity: [Range(1,max)])`. SKU normalized trimmed+uppercased. Dates are `DateTimeOffset`. `InventoryReservationResponse.reservationId` is named `ReservationId` (not `Id`). Status `Pending=0,Committed=1,Released=2,Expired=3`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/inventory` | `POST` | Admin | Body `CreateInventoryItemRequest { sku: string (required, non-empty, ≤64, trimmed+uppercased, ^[A-Z0-9-_.]+$), onHandQuantity: int (0..max) }` | `201 ApiResponse<InventoryItemResponse { sku, onHandQuantity: int, reservedQuantity: int, availableQuantity (=onHand-reserved, computed), updatedAtUtc }>` + `Location: /inventory/{sku}` | `201,400,401,403,409` | `400 InvalidSku/InvalidQuantity`; `409 DuplicateSku` | — |
-| `/inventory/{sku}` | `GET` | Admin | Route `sku: string` (not guid) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | `400 InvalidSku`; `404 SkuNotFound` | — |
-| `/inventory/{sku}` | `PATCH` | Admin | Route `sku` + Body `AdjustStockRequest { quantity: int (1..max) }` additive-only (no manual decrement; consumption via reservation commit) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | same | — |
-| `/inventory/reservations/{id:guid}` | `GET` | Admin | Route `id: Guid` | `200 ApiResponse<InventoryReservationResponse { reservationId: Guid, orderId: Guid, sku: string, quantity: int, status: Pending\|Committed\|Released\|Expired, expiresAt: DateTimeOffset, createdAtUtc, updatedAtUtc }>` | `200,400,401,403,404` | `400 InvalidReservationId`; `404` | — (ids never enumerable) |
+| `/inventory` | `POST` | `inventory.manage` | Body `CreateInventoryItemRequest { sku: string (required, non-empty, ≤64, trimmed+uppercased, ^[A-Z0-9-_.]+$), onHandQuantity: int (0..max) }` | `201 ApiResponse<InventoryItemResponse { sku, onHandQuantity: int, reservedQuantity: int, availableQuantity (=onHand-reserved, computed), updatedAtUtc }>` + `Location: /inventory/{sku}` | `201,400,401,403,409` | `400 InvalidSku/InvalidQuantity`; `409 DuplicateSku` | — |
+| `/inventory/{sku}` | `GET` | `inventory.read` | Route `sku: string` (not guid) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | `400 InvalidSku`; `404 SkuNotFound` | — |
+| `/inventory/{sku}` | `PATCH` | `inventory.manage` | Route `sku` + Body `AdjustStockRequest { quantity: int (1..max) }` additive-only (no manual decrement; consumption via reservation commit) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | same | — |
+| `/inventory/reservations/{id:guid}` | `GET` | `inventory.read` | Route `id: Guid` | `200 ApiResponse<InventoryReservationResponse { reservationId: Guid, orderId: Guid, sku: string, quantity: int, status: Pending\|Committed\|Released\|Expired, expiresAt: DateTimeOffset, createdAtUtc, updatedAtUtc }>` | `200,400,401,403,404` | `400 InvalidReservationId`; `404` | — (ids never enumerable) |
 
 ---
 

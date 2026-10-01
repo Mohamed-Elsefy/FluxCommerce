@@ -25,7 +25,7 @@ namespace FluxCommerce.Api.Controllers.Orders;
 [ApiController]
 [Route("admin/orders")]
 [Tags(EndpointTags.Orders)]
-[Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+[Authorize]
 public sealed class AdminOrdersController : ApiControllerBase
 {
     private readonly IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>> _getAdminOrdersHandler;
@@ -57,6 +57,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     /// with a page size of 20 (maximum 100).
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = AuthenticationConfiguration.OrdersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<OrderSummaryResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -82,6 +83,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     /// Returns aggregate Order counts grouped by status for the administrative overview.
     /// </summary>
     [HttpGet("counts")]
+    [Authorize(Policy = AuthenticationConfiguration.OrdersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<AdminOrderCountsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -99,6 +101,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     /// including its line items and totals.
     /// </summary>
     [HttpGet("{orderId:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.OrdersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<OrderDetailsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -118,6 +121,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     /// the refund flow instead.
     /// </summary>
     [HttpPost("{orderId:guid}/cancel")]
+    [Authorize(Policy = AuthenticationConfiguration.OrdersCancelPolicy)]
     [ProducesResponseType(typeof(ApiResponse<OrderDetailsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -138,6 +142,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     /// asynchronously by the Payments module.
     /// </summary>
     [HttpPost("{orderId:guid}/refund")]
+    [Authorize(Policy = AuthenticationConfiguration.OrdersRefundPolicy)]
     [ProducesResponseType(typeof(ApiResponse<OrderDetailsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

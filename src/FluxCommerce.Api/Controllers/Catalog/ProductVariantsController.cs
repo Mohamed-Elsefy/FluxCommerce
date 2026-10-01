@@ -57,7 +57,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Creates a new variant for the specified product.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Create(Guid productId, [FromBody] CreateProductVariantRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductVariantCommand(productId, request.Sku, request.Name, request.UnitPriceAmount, request.Currency);
@@ -70,7 +70,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Creates multiple variants for the specified product.</summary>
     [HttpPost("batch")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> CreateBatch(Guid productId, [FromBody] CreateProductVariantsRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductVariantsCommand(
@@ -86,7 +86,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Updates an existing variant, including its unit price and status.</summary>
     [HttpPut("{variantId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid variantId, [FromBody] UpdateProductVariantRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductVariantCommand(
@@ -101,7 +101,7 @@ public sealed class ProductVariantsController : ApiControllerBase
 
     /// <summary>Deletes a variant.</summary>
     [HttpDelete("{variantId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Delete(Guid productId, Guid variantId, CancellationToken cancellationToken)
     {
         var command = new DeleteProductVariantCommand(variantId);

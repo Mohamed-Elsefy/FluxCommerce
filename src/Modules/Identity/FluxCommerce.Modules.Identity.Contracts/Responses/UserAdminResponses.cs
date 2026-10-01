@@ -24,7 +24,8 @@ public sealed record UserAdminResponse(
     UserStatus Status,
     int FailedAccessAttemptCount,
     DateTime? LockoutEndUtc,
-    bool IsLocked);
+    bool IsLocked,
+    IReadOnlyCollection<string> Permissions);
 
 /// <summary>
 /// Aggregate user counts for the administrative overview.

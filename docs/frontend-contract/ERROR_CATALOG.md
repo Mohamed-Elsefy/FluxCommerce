@@ -43,6 +43,8 @@ Validation `errors{}` field keys are C#/DTO property names (`Password`, `Email`,
 | `Identity.ValidationFailed` | 400 | One or more fields invalid; see `errors{}` | Any auth validator failure (register/login/refresh/logout/verify/resend/forgot/reset/change/assign/unlock) | `Errors.RequestValidation` |
 | `Identity.InvalidEmail` | 400 | Email rejected | Register with malformed email | `Validation.Email.Invalid` |
 | `Identity.InvalidRole` | 400 | Unknown role string | `POST /admin/users/{id}/roles` with role outside `Customer\|Admin\|SuperAdmin` | No key → fallback `"The role …"` (English description) |
+| `Identity.InvalidPermission` | 400 | Unknown permission string | `POST /admin/users/{id}/permissions` (or `DELETE`) with value outside the §0.5 catalog | `Validation.Permission.Invalid` |
+| `Identity.PermissionAlreadyGranted` | 409 | No-op grant | Grant permission user already has | No key → fallback `"The permission is already granted to this user."` |
 | `Identity.DuplicateEmail` | 409 | Email taken | Register existing email | `Authentication.Register.EmailAlreadyExists` |
 | `Identity.RoleAlreadyAssigned` | 409 | No-op assign | Assign role user already has | `Errors.RoleAlreadyAssigned` |
 | `Identity.UserNotFound` | 404 | No such user | `me` (deleted), assign/unlock/change-password on unknown id | `Errors.NotFound` |

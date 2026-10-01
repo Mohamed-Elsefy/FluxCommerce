@@ -59,7 +59,8 @@ public sealed class UserAdminStore : IUserAdminStore
                     user.TimeZone,
                     user.Status,
                     user.Lockout.FailedAccessAttemptCount,
-                    user.Lockout.LockoutEndUtc))
+                    user.Lockout.LockoutEndUtc,
+                    EF.Property<List<string>>(user, "_permissions")))
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -114,7 +115,8 @@ public sealed class UserAdminStore : IUserAdminStore
                 user.TimeZone,
                 user.Status,
                 user.Lockout.FailedAccessAttemptCount,
-                user.Lockout.LockoutEndUtc))
+                user.Lockout.LockoutEndUtc,
+                EF.Property<List<string>>(user, "_permissions")))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -149,7 +151,8 @@ public sealed class UserAdminStore : IUserAdminStore
                 user.TimeZone,
                 user.Status,
                 user.Lockout.FailedAccessAttemptCount,
-                user.Lockout.LockoutEndUtc))
+                user.Lockout.LockoutEndUtc,
+                EF.Property<List<string>>(user, "_permissions")))
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -263,7 +266,8 @@ public sealed class UserAdminStore : IUserAdminStore
             row.TimeZone,
             row.Status,
             row.FailedAccessAttemptCount,
-            row.LockoutEndUtc);
+            row.LockoutEndUtc,
+            row.Permissions);
 
     private sealed record RoleRow(Guid Id, List<string> Roles);
 
@@ -282,5 +286,6 @@ public sealed class UserAdminStore : IUserAdminStore
         string TimeZone,
         UserStatus Status,
         int FailedAccessAttemptCount,
-        DateTime? LockoutEndUtc);
+        DateTime? LockoutEndUtc,
+        List<string> Permissions);
 }

@@ -16,5 +16,6 @@
 | 10    | Done   | Payment Saga & Compensation Workflows — OrderSaga Orchestrator, Outbox Pattern, Compensation Workflows, Stripe Refund Integration, Idempotency, W3C Tracing |
 | 11    | Done   | Reservation Expiry Orchestration — Inventory expiration worker publishes `ReservationExpired` via Outbox/RabbitMQ; Orders idempotent consumer drives Saga `WaitingForPayment → Cancelled`; N+1 batched-load hardening |
 | 12    | Done   | Failure Testing & Reliability: 13 sub-phases, 92 reliability tests, chaos/redelivery/DLQ verified (see PHASE_12_COMPLETION_REPORT.md) |
+| 21    | Done   | Permission-Based Authorization & SuperAdmin Supremacy: 9 action-level permissions, per-admin grants, bundle on Admin assignment (see PHASE_21_COMPLETION_REPORT.md) |
 
 <!-- Update this line-per-phase after each phase; keep full detail in completed/PHASE_<N>_COMPLETION_REPORT.md -->

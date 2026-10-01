@@ -81,7 +81,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Creates a new product.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Create([FromBody] CreateProductRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductCommand(
@@ -100,7 +100,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Updates an existing product.</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductCommand(
@@ -116,7 +116,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Activates a product.</summary>
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
     {
         var command = new ActivateProductCommand(id);
@@ -125,7 +125,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Deactivates a product.</summary>
     [HttpPost("{id:guid}/deactivate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeactivateProductCommand(id);
@@ -134,7 +134,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Archives a product.</summary>
     [HttpPost("{id:guid}/archive")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Archive(Guid id, CancellationToken cancellationToken)
     {
         var command = new ArchiveProductCommand(id);
@@ -143,7 +143,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Soft deletes a product.</summary>
     [HttpPost("{id:guid}/soft-delete")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> SoftDelete(Guid id, CancellationToken cancellationToken)
     {
         var command = new SoftDeleteProductCommand(id);
@@ -152,7 +152,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Restores a soft-deleted product.</summary>
     [HttpPost("{id:guid}/restore")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken)
     {
         var command = new RestoreProductCommand(id);

@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
@@ -58,7 +58,7 @@ public sealed class ProductImagesController : ApiControllerBase
 
     /// <summary>Adds a new image to the specified product.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Add(Guid productId, [FromBody] AddProductImageRequest request, CancellationToken cancellationToken)
     {
         var command = new AddProductImageCommand(
@@ -74,7 +74,7 @@ public sealed class ProductImagesController : ApiControllerBase
 
     /// <summary>Updates the metadata of an existing product image.</summary>
     [HttpPut("{imageId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid productId, Guid imageId, [FromBody] UpdateProductImageRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductImageCommand(
@@ -90,7 +90,7 @@ public sealed class ProductImagesController : ApiControllerBase
 
     /// <summary>Deletes a product image.</summary>
     [HttpDelete("{imageId:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Delete(Guid productId, Guid imageId, CancellationToken cancellationToken)
     {
         var command = new DeleteProductImageCommand(productId, imageId);
@@ -99,7 +99,7 @@ public sealed class ProductImagesController : ApiControllerBase
 
     /// <summary>Sets the specified product image as the primary image.</summary>
     [HttpPost("{imageId:guid}/set-primary")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> SetPrimary(Guid productId, Guid imageId, CancellationToken cancellationToken)
     {
         var command = new SetPrimaryProductImageCommand(productId, imageId);
@@ -108,7 +108,7 @@ public sealed class ProductImagesController : ApiControllerBase
 
     /// <summary>Reorders the images of the specified product.</summary>
     [HttpPut("reorder")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Reorder(Guid productId, [FromBody] ReorderProductImagesRequest request, CancellationToken cancellationToken)
     {
         var command = new ReorderProductImagesCommand(productId, request.OrderedImageIds ?? []);

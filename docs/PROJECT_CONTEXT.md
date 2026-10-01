@@ -2136,6 +2136,7 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         013-webhook-idempotency.md
         014-payment-refund-compensation.md
         015-identity-roles-authorization-and-seeding.md
+        016-permission-based-authorization-and-superadmin-supremacy.md
     phases/
         PHASE_0_ARCHITECTURE_FOUNDATION.md
         PHASE_1_IDENTITY_ACCESS.md
@@ -2150,6 +2151,7 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_9_STRIPE_PAYMENTS.md
         PHASE_10_PAYMENT_SAGA_COMPENSATION.md
         PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md
+        PHASE_21_PERMISSION_BASED_AUTHORIZATION.md
     completed/
         PHASE_0_COMPLETION_REPORT.md
         PHASE_1_COMPLETION_REPORT.md
@@ -2164,6 +2166,7 @@ When asked to implement a new phase, the AI agent should always follow this sequ
         PHASE_9_COMPLETION_REPORT.md
         PHASE_10_COMPLETION_REPORT.md
         PHASE_11_COMPLETION_REPORT.md
+        PHASE_21_COMPLETION_REPORT.md
     refactoring/
         REFACTORING_1_PLAN.md / BASELINE.md / FINDINGS.md / COMPLETION.md
         REFACTORING_2_PLAN.md / BASELINE.md / FINDINGS.md / COMPLETION.md

@@ -7,6 +7,7 @@ using FluxCommerce.Modules.Catalog.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Contracts.Requests;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
 using Microsoft.Extensions.DependencyInjection;
@@ -198,10 +199,28 @@ public class AdminOrdersListTests
         Assert.Equal(HttpStatusCode.BadRequest, blankReason.StatusCode);
     }
 
+    [Fact]
+    public async Task ScopedAdmin_WithOrdersReadOnly_CanList_ButCannotCancel()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-ADM-11", userId);
+
+        var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
+        var scopedToken = jwtProvider.CreateAccessToken(
+            Guid.NewGuid(), "scoped@flux.local", ["Admin"], [PermissionCatalog.OrdersRead]);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", scopedToken);
+
+        var list = await _client.GetAsync("admin/orders");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+
+        var cancel = await _client.PostAsync($"admin/orders/{created.OrderId}/cancel", content: null);
+        Assert.Equal(HttpStatusCode.Forbidden, cancel.StatusCode);
+    }
+
     private void AuthorizeAsAdmin()
     {
         var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"]);
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"], PermissionCatalog.AdminBundle);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
     }
 

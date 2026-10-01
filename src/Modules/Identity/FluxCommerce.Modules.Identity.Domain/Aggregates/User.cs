@@ -30,6 +30,8 @@ public sealed class User : AggregateRoot<Guid>
 
     private readonly List<string> _roles = [];
 
+    private readonly List<string> _permissions = [];
+
     public Email Email { get; }
 
     public string PasswordHash { get; private set; }
@@ -53,6 +55,8 @@ public sealed class User : AggregateRoot<Guid>
     public UserStatus Status { get; private set; }
 
     public IReadOnlyCollection<string> Roles => _roles.AsReadOnly();
+
+    public IReadOnlyCollection<string> Permissions => _permissions.AsReadOnly();
 
     public bool IsEmailVerified { get; private set; }
 
@@ -323,6 +327,42 @@ public sealed class User : AggregateRoot<Guid>
             return DomainResult.Failure(UserErrors.RoleAlreadyAssigned);
 
         _roles.Add(role);
+
+        return DomainResult.Success();
+    }
+
+    /// <summary>
+    /// Grants an action-level permission (ADR-016). Unknown permissions are rejected; a repeated
+    /// grant fails explicitly so the API can answer 409 instead of silently succeeding.
+    /// </summary>
+    public DomainResult GrantPermission(string permission)
+    {
+        if (string.IsNullOrWhiteSpace(permission))
+            throw new ArgumentException("A permission name is required.", nameof(permission));
+
+        var normalized = permission.Trim();
+
+        if (!PermissionCatalog.IsDefined(normalized))
+            throw new ArgumentException($"Unknown permission '{normalized}'.", nameof(permission));
+
+        if (_permissions.Contains(normalized, StringComparer.Ordinal))
+            return DomainResult.Failure(UserErrors.PermissionAlreadyGranted);
+
+        _permissions.Add(normalized);
+
+        return DomainResult.Success();
+    }
+
+    /// <summary>
+    /// Revokes an action-level permission. Absent permissions are a benign no-op so revocation
+    /// stays idempotent at the API boundary.
+    /// </summary>
+    public DomainResult RevokePermission(string permission)
+    {
+        if (string.IsNullOrWhiteSpace(permission))
+            throw new ArgumentException("A permission name is required.", nameof(permission));
+
+        _permissions.RemoveAll(granted => string.Equals(granted, permission.Trim(), StringComparison.Ordinal));
 
         return DomainResult.Success();
     }

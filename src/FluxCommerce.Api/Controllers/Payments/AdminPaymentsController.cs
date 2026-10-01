@@ -21,7 +21,7 @@ namespace FluxCommerce.Api.Controllers.Payments;
 /// </summary>
 [ApiController]
 [Route("admin/payments")]
-[Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+[Authorize]
 [Tags(EndpointTags.Payments)]
 public sealed class AdminPaymentsController : ApiControllerBase
 {
@@ -48,6 +48,7 @@ public sealed class AdminPaymentsController : ApiControllerBase
     /// size of 20 (maximum 100).
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = AuthenticationConfiguration.PaymentsReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<PaymentAdminResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -74,6 +75,7 @@ public sealed class AdminPaymentsController : ApiControllerBase
     /// currency for the administrative overview.
     /// </summary>
     [HttpGet("stats")]
+    [Authorize(Policy = AuthenticationConfiguration.PaymentsStatsPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PaymentAdminStatsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -90,6 +92,7 @@ public sealed class AdminPaymentsController : ApiControllerBase
     /// Retrieves a single Payment by identity without customer ownership scoping.
     /// </summary>
     [HttpGet("{paymentId:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.PaymentsReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PaymentAdminResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

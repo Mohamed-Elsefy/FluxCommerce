@@ -62,7 +62,7 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
 
     /// <summary>Creates a new attribute definition.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Create([FromBody] CreateAttributeDefinitionRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateAttributeDefinitionCommand(
@@ -84,7 +84,7 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
 
     /// <summary>Updates an existing attribute definition.</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateAttributeDefinitionRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateAttributeDefinitionCommand(
@@ -103,7 +103,7 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
 
     /// <summary>Activates an attribute definition.</summary>
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
     {
         var command = new ActivateAttributeDefinitionCommand(id);
@@ -112,7 +112,7 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
 
     /// <summary>Deactivates an attribute definition.</summary>
     [HttpPost("{id:guid}/deactivate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeactivateAttributeDefinitionCommand(id);
@@ -121,7 +121,7 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
 
     /// <summary>Soft deletes an attribute definition.</summary>
     [HttpPost("{id:guid}/soft-delete")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> SoftDelete(Guid id, CancellationToken cancellationToken)
     {
         var command = new SoftDeleteAttributeDefinitionCommand(id);
@@ -130,7 +130,7 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
 
     /// <summary>Restores a soft-deleted attribute definition.</summary>
     [HttpPost("{id:guid}/restore")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken)
     {
         var command = new RestoreAttributeDefinitionCommand(id);

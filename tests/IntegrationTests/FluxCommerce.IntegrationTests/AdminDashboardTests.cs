@@ -8,6 +8,7 @@ using FluxCommerce.Modules.Catalog.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Contracts.Requests;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,7 +79,7 @@ public class AdminDashboardTests
     private void AuthorizeAsAdmin()
     {
         var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"]);
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"], PermissionCatalog.AdminBundle);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
     }
 

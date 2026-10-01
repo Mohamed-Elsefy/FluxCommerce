@@ -70,7 +70,7 @@ public sealed class RefreshCommandHandler : ICommandHandler<RefreshCommand, Resu
         if (rotation.IsFailure)
             return Result.Failure<LoginResponse>(InvalidToken());
 
-        var accessToken = _jwtProvider.CreateAccessToken(user.Id, user.Email.Value, user.Roles);
+        var accessToken = _jwtProvider.CreateAccessToken(user.Id, user.Email.Value, user.Roles, user.Permissions);
 
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
