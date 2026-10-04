@@ -104,6 +104,8 @@ public sealed class OrdersOutboxDispatcherTestFixture : IAsyncDisposable
 
         public string[] Roles => [];
 
+        public IReadOnlyCollection<string> Permissions => [];
+
         public bool IsAuthenticated => false;
     }
 }

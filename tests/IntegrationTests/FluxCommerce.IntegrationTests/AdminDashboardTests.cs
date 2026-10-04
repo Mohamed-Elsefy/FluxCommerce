@@ -17,8 +17,8 @@ using Xunit;
 namespace FluxCommerce.IntegrationTests;
 
 /// <summary>
-/// Covers the administrative dashboard snapshot: <c>GET /admin/dashboard</c> composes the
-/// per-module overviews with the newest Orders in a single read-only call.
+/// Covers the adaptive dashboard snapshot (Phase 22 E1): any authenticated user receives 200,
+/// and every section is included only when entitled (null otherwise, never 403).
 /// </summary>
 [Collection(CheckoutTestCollection.Name)]
 public class AdminDashboardTests
@@ -36,29 +36,63 @@ public class AdminDashboardTests
     }
 
     [Fact]
-    public async Task GetDashboard_ReturnsComposedSnapshot()
+    public async Task GetDashboard_SuperAdmin_ReturnsFullSnapshot()
     {
         var userId = await RegisterAndLoginAsync();
         var created = await CreateOrderForCurrentUserAsync("SKU-DASH-1", userId);
-        AuthorizeAsAdmin();
+        AuthorizeAs(["SuperAdmin"], []);
 
         var response = await _client.GetAsync("admin/dashboard");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
-        Assert.True(data.Orders.Total >= 1);
+        Assert.True(data.Orders!.Total >= 1);
         Assert.True(data.Orders.Pending >= 1);
-        Assert.True(data.Users.Total >= 1);
-        Assert.True(data.Users.Customers >= 1);
+        Assert.True(data.Users!.Total >= 1);
         Assert.NotNull(data.Payments);
         Assert.NotNull(data.Inventory);
         Assert.Contains(data.RecentOrders, item => item.OrderId == created.OrderId);
     }
 
     [Fact]
-    public async Task GetDashboard_InvalidThreshold_ReturnsBadRequest()
+    public async Task GetDashboard_CustomerWithoutPermissions_ReturnsEmptySections()
     {
-        AuthorizeAsAdmin();
+        var userId = await RegisterAndLoginAsync();
+        await CreateOrderForCurrentUserAsync("SKU-DASH-2", userId);
+
+        var response = await _client.GetAsync("admin/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+        Assert.Null(data.Orders);
+        Assert.Null(data.Payments);
+        Assert.Null(data.Inventory);
+        Assert.Null(data.Users);
+        Assert.Empty(data.RecentOrders);
+    }
+
+    [Fact]
+    public async Task GetDashboard_ScopedAdmin_ReturnsOnlyEntitledSections()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-DASH-3", userId);
+        AuthorizeAs(["Admin"], [PermissionCatalog.OrdersRead]);
+
+        var response = await _client.GetAsync("admin/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+        Assert.NotNull(data.Orders);
+        Assert.Contains(data.RecentOrders, item => item.OrderId == created.OrderId);
+        Assert.Null(data.Payments);
+        Assert.Null(data.Inventory);
+        Assert.Null(data.Users);
+    }
+
+    [Fact]
+    public async Task GetDashboard_InvalidThreshold_ReturnsBadRequest_WithoutEntitlement()
+    {
+        await RegisterAndLoginAsync();
 
         var response = await _client.GetAsync("admin/dashboard?lowStockThreshold=-1");
 
@@ -66,21 +100,18 @@ public class AdminDashboardTests
     }
 
     [Fact]
-    public async Task GetDashboard_RequiresAdmin_Returns403ForCustomer()
+    public async Task GetDashboard_WithoutToken_ReturnsUnauthorized()
     {
-        var userId = await RegisterAndLoginAsync();
-        await CreateOrderForCurrentUserAsync("SKU-DASH-2", userId);
-
         var response = await _client.GetAsync("admin/dashboard");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    private void AuthorizeAsAdmin()
+    private void AuthorizeAs(IReadOnlyCollection<string> roles, IReadOnlyCollection<string> permissions)
     {
         var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"], PermissionCatalog.AdminBundle);
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var token = jwtProvider.CreateAccessToken(Guid.NewGuid(), "dash@flux.local", roles, permissions);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
     private async Task<CheckoutResponse> CreateOrderForCurrentUserAsync(string sku, Guid userId)

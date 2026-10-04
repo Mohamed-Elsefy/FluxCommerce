@@ -20,7 +20,6 @@ public static class PermissionCatalog
     public const string InventoryRead = "inventory.read";
     public const string InventoryManage = "inventory.manage";
     public const string CatalogManage = "catalog.manage";
-    public const string DashboardRead = "dashboard.read";
 
     /// <summary>Every permission the system knows, for validation and catalog listing.</summary>
     public static readonly IReadOnlyCollection<string> All = new[]
@@ -33,7 +32,6 @@ public static class PermissionCatalog
         InventoryRead,
         InventoryManage,
         CatalogManage,
-        DashboardRead,
     };
 
     /// <summary>Permissions granted automatically when the `Admin` role is assigned.</summary>

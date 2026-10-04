@@ -189,6 +189,8 @@ public sealed class RabbitMQOrdersConsumerTestFixture : IAsyncDisposable
 
         public string[] Roles => [];
 
+        public IReadOnlyCollection<string> Permissions => [];
+
         public bool IsAuthenticated => false;
     }
 }

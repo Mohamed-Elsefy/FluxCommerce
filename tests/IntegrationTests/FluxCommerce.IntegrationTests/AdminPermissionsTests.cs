@@ -139,7 +139,7 @@ public class AdminPermissionsTests
         AuthorizeAsSuperAdmin();
         var grant = await _client.PostAsJsonAsync(
             $"admin/users/{userId}/permissions",
-            new { permission = PermissionCatalog.DashboardRead });
+            new { permission = PermissionCatalog.OrdersRead });
         grant.EnsureSuccessStatusCode();
         _client.DefaultRequestHeaders.Authorization = null;
 
@@ -149,7 +149,7 @@ public class AdminPermissionsTests
 
         var claims = new JwtSecurityTokenHandler().ReadJwtToken(accessToken).Claims;
         Assert.Contains(claims, claim =>
-            claim.Type == PermissionCatalog.ClaimType && claim.Value == PermissionCatalog.DashboardRead);
+            claim.Type == PermissionCatalog.ClaimType && claim.Value == PermissionCatalog.OrdersRead);
     }
 
     private async Task<Guid> RegisterAndVerifyUserAsync()

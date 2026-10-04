@@ -71,7 +71,6 @@ Action-level permissions granted per admin by SuperAdmin (`area.action` strings,
 | `inventory.read` | All `GET /inventory/**` (item, reservation, lists, counts) |
 | `inventory.manage` | `POST /inventory`, `PATCH /inventory/{sku}` |
 | `catalog.manage` | All Catalog writes (reads stay anonymous) |
-| `dashboard.read` | `GET /admin/dashboard` |
 
 Assigning the `Admin` role grants nothing by itself — every permission is granted manually afterwards (amended 2026-10-04); user/permission management itself (`/admin/users/**`, `/admin/permissions`, `register-admin`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
 
@@ -743,20 +742,25 @@ Note inconsistent `api/` prefix (other modules have none).
 
 ---
 
-## 8. Dashboard — Tag `Dashboard`, `[Route admin/dashboard][Authorize(dashboard.read)]`
+## 8. Dashboard — Tag `Dashboard`, `[Route admin/dashboard][Authorize]` (Phase 22: adaptive)
 
-Single read-only snapshot composing the per-module overviews (each section produced by its owning module; the host never touches another module's state). For admin landing cards + recent-orders widget; drill down via the §4.5/§6.5 lists.
+Single read-only snapshot for the post-login landing screen: any authenticated user receives `200`
+(never a bare forbidden screen); every section is included only when entitled, otherwise `null`
+(objects) or `[]` (recent orders). For admin landing cards + recent-orders widget; drill down via
+the §4.5/§6.5 lists. Section gates: `orders`+`recentOrders` ← `orders.read`; `payments` ←
+`payments.read` or `payments.stats`; `inventory` ← `inventory.read` (handler skipped when
+unauthorized); `users` ← `SuperAdmin` role directly.
 
 | Field | Value |
 |---|---|
 | Endpoint | `/admin/dashboard` |
 | HTTPMethod | `GET` |
-| Authorization | `dashboard.read` (SuperAdmin passes) |
+| Authorization | Any authenticated JWT (`401` without token) |
 | Request | Query `lowStockThreshold?: int (default 5, inclusive available ceiling for the inventory section)` |
-| Response | `200 ApiResponse<AdminDashboardResponse { orders: AdminOrderCountsResponse, payments: PaymentAdminStatsResponse, inventory: InventoryCountsResponse, users: UserAdminCountsResponse, recentOrders: OrderSummaryResponse[5] (newest-first) }>` |
-| Status Codes | `200, 400, 401, 403` |
-| Validation | negative threshold → `400 ValidationFailed` |
-| Errors | First failing section's error surfaces (`400/404` as mapped) |
+| Response | `200 ApiResponse<AdminDashboardResponse { orders?: AdminOrderCountsResponse\|null, payments?: PaymentAdminStatsResponse\|null, inventory?: InventoryCountsResponse\|null, users?: UserAdminCountsResponse\|null, recentOrders: OrderSummaryResponse[5] (newest-first, empty when unauthorized) }>` |
+| Status Codes | `200, 400, 401` |
+| Validation | negative threshold → `400 ValidationFailed` (rejected regardless of entitlement) |
+| Errors | First failing entitled section's error surfaces (`400/404` as mapped) |
 | Pagination/Sorting/Filtering | Fixed (`recentOrders` newest 5; full paging via list endpoints) |
 
 ---

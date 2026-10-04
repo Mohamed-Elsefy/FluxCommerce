@@ -34,7 +34,7 @@ Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdm
 
 ### Permissions (strings, not an enum)
 
-Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|dashboard.read`. Wire: JWT `permission[]` claims, `UserResponse.permissions: string[]`, `GrantPermissionRequest.permission: string`. Assigning `Admin` stores the full bundle; grants apply on next login/refresh.
+Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage`. Wire: JWT `permission[]` claims, `UserResponse.permissions: string[]`, `GrantPermissionRequest.permission: string`. Assigning `Admin` stores the full bundle; grants apply on next login/refresh.
 
 ---
 

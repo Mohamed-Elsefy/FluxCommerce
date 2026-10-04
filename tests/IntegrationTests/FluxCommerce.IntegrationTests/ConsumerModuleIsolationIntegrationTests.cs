@@ -408,6 +408,8 @@ public class ConsumerModuleIsolationIntegrationTests
 
         public string[] Roles => [];
 
+        public IReadOnlyCollection<string> Permissions => [];
+
         public bool IsAuthenticated => false;
     }
 }

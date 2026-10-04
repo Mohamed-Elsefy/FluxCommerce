@@ -116,7 +116,7 @@ interface ResendVerificationResponse { emailSent: boolean; expiresAtUtc?: string
 { "isSuccess": true, "message": "Operation completed successfully.", "data": { "id": "…", "email": "ada@flux.local", "roles": ["Customer"], "isEmailVerified": true, "registeredAtUtc": "2026-09-04T10:00:00Z", "firstName": "Ada", "lastName": "Lovelace", "displayName": "Ada Lovelace", "phoneNumber": null, "isPhoneVerified": false, "avatarUrl": null, "preferredLanguage": "en", "timeZone": "UTC", "status": "Active" } }
 ```
 
-Roles constants (`Identity.Domain.Aggregates.Roles`): `Customer = "Customer"`, `Admin = "Admin"`, `SuperAdmin = "SuperAdmin"`. Permission catalog (`Identity.Domain.Aggregates.PermissionCatalog`, claim type `"permission"`): `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|dashboard.read` (`AdminBundle` = the full set, reference only — never auto-applied). JWT claims: `NameIdentifier=userId`, `Email`, `Role[]`, `permission[]`; lifetimes access `15m`, skew `5m`, refresh `7d` rotating, verify `24h`, reset `1h`. Grants are manual-only and apply on next login/refresh; `SuperAdmin` bypasses every gate.
+Roles constants (`Identity.Domain.Aggregates.Roles`): `Customer = "Customer"`, `Admin = "Admin"`, `SuperAdmin = "SuperAdmin"`. Permission catalog (`Identity.Domain.Aggregates.PermissionCatalog`, claim type `"permission"`): `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage` (`AdminBundle` = the full set, reference only — never auto-applied). JWT claims: `NameIdentifier=userId`, `Email`, `Role[]`, `permission[]`; lifetimes access `15m`, skew `5m`, refresh `7d` rotating, verify `24h`, reset `1h`. Grants are manual-only and apply on next login/refresh; `SuperAdmin` bypasses every gate.
 
 ---
 
@@ -459,13 +459,13 @@ interface HealthResponse { status: string; duration: number; components: { name:
 
 ```csharp
 sealed record AdminDashboardResponse(
-    AdminOrderCountsResponse Orders,
-    PaymentAdminStatsResponse Payments,
-    InventoryCountsResponse Inventory,
-    UserAdminCountsResponse Users,
-    IReadOnlyList<OrderSummaryResponse> RecentOrders); // newest 5
+    AdminOrderCountsResponse? Orders,
+    PaymentAdminStatsResponse? Payments,
+    InventoryCountsResponse? Inventory,
+    UserAdminCountsResponse? Users,
+    IReadOnlyList<OrderSummaryResponse> RecentOrders); // newest 5, empty when unauthorized
 ```
 
 ```ts
-interface AdminDashboardResponse { orders: AdminOrderCountsResponse; payments: PaymentAdminStatsResponse; inventory: InventoryCountsResponse; users: UserAdminCountsResponse; recentOrders: OrderSummaryResponse[] }
+interface AdminDashboardResponse { orders?: AdminOrderCountsResponse | null; payments?: PaymentAdminStatsResponse | null; inventory?: InventoryCountsResponse | null; users?: UserAdminCountsResponse | null; recentOrders: OrderSummaryResponse[] }
 ```

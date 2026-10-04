@@ -304,6 +304,7 @@ public abstract class ReliabilityTestBase : IAsyncLifetime
         public Guid? UserId => null;
         public string? Email => null;
         public string[] Roles => [];
+        public IReadOnlyCollection<string> Permissions => [];
         public bool IsAuthenticated => false;
     }
 }

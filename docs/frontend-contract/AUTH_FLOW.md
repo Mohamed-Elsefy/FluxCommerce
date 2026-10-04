@@ -53,7 +53,7 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 ```
 
 - Access token: short-lived JWT (15m, 5m clock tolerance). Decode `exp` client-side for proactive refresh; never trust claims for authz — server re-checks roles per policy.
-- Permission claims (Phase B, ADR-016): the access token additionally carries one `permission` claim per granted action-level permission (`orders.read`, `orders.cancel`, `orders.refund`, `payments.read`, `payments.stats`, `inventory.read`, `inventory.manage`, `catalog.manage`, `dashboard.read`). Grants/revokes take effect on the **next login/refresh** only — a demoted admin keeps rights until the current token expires. `GET /auth/me` returns the authoritative `permissions: string[]` for menu rendering; `SuperAdmin` bypasses every role/permission gate server-side.
+- Permission claims (Phase B, ADR-016; `dashboard.read` removed in Phase 22 E1): the access token additionally carries one `permission` claim per granted action-level permission (`orders.read`, `orders.cancel`, `orders.refund`, `payments.read`, `payments.stats`, `inventory.read`, `inventory.manage`, `catalog.manage`). Grants/revokes take effect on the **next login/refresh** only — a demoted admin keeps rights until the current token expires. `GET /auth/me` returns the authoritative `permissions: string[]` for menu rendering; `SuperAdmin` bypasses every role/permission gate server-side.
 - Refresh token: opaque DB-backed string (`TokenGenerator`), `7d` expiry (`refreshTokenExpiresAtUtc: DateTime`). Rotation: `RotateRefreshToken(oldValue, newValue, now, now+7d)` revokes old + issues new; presenting a revoked/reused/unknown value → `401 Unauthorized Identity.InvalidToken` (see `RefreshCommandHandler`: null token/user or rotation failure all map to `InvalidToken()`).
 - Verify/reset tokens: email link tokens (`24h` / `1h`), single-use.
 
@@ -76,7 +76,7 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 | `POST /admin/orders/{id}/refund` | `orders.refund` | — |
 | `GET /admin/payments/**` (except stats) | `payments.read` | — |
 | `GET /admin/payments/stats` | `payments.stats` | — |
-| `GET /admin/dashboard` | `dashboard.read` | — |
+| `GET /admin/dashboard` | Any authenticated JWT (adaptive: sections per permission, `null` when unauthorized) | Landing screen for everyone; no forbidden redirect |
 | Catalog reads, guest cart | Anonymous | Storefront, no token |
 | Auth cart (`/cart`, `/cart/items`, `/cart/merge`), `POST /orders/*`, `GET /orders*`, `GET /api/payments/mine`, `GET /api/payments/{id}` | Authenticated (+ ownership on orders/payments/cart) | Customer JWT; other-user ids → `403/404` masked |
 

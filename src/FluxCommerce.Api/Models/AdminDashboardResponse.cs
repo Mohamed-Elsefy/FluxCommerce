@@ -6,18 +6,18 @@ using FluxCommerce.Modules.Payments.Contracts.Responses;
 namespace FluxCommerce.Api.Models;
 
 /// <summary>
-/// Administrative dashboard snapshot combining the per-module overviews with the newest
-/// Orders. Every section is produced by its owning module's read path; the host only
-/// composes the results and never touches another module's state.
+/// Administrative dashboard snapshot with per-section visibility (Phase 22 E1): every section is
+/// included only when the caller is entitled to it, otherwise <c>null</c> (objects) or empty
+/// (recent orders). Any authenticated user receives <c>200</c> — never a bare forbidden screen.
 /// </summary>
-/// <param name="Orders">Order counts grouped by status.</param>
-/// <param name="Payments">Payment counts grouped by status plus succeeded totals per currency.</param>
-/// <param name="Inventory">Item totals and reservation counts grouped by status.</param>
-/// <param name="Users">User counts grouped by status and role.</param>
-/// <param name="RecentOrders">The newest Orders across customers (up to the requested limit).</param>
+/// <param name="Orders">Order counts, or <c>null</c> without <c>orders.read</c>.</param>
+/// <param name="Payments">Payment stats, or <c>null</c> without <c>payments.read</c>/<c>stats</c>.</param>
+/// <param name="Inventory">Inventory counts, or <c>null</c> without <c>inventory.read</c>.</param>
+/// <param name="Users">User counts, or <c>null</c> for non-SuperAdmin callers.</param>
+/// <param name="RecentOrders">The newest Orders (up to the limit), or empty without <c>orders.read</c>.</param>
 public sealed record AdminDashboardResponse(
-    AdminOrderCountsResponse Orders,
-    PaymentAdminStatsResponse Payments,
-    InventoryCountsResponse Inventory,
-    UserAdminCountsResponse Users,
+    AdminOrderCountsResponse? Orders,
+    PaymentAdminStatsResponse? Payments,
+    InventoryCountsResponse? Inventory,
+    UserAdminCountsResponse? Users,
     IReadOnlyList<OrderSummaryResponse> RecentOrders);

@@ -67,10 +67,10 @@ public sealed class JwtProviderPermissionTests
             Guid.NewGuid(),
             "admin@flux.local",
             [Roles.Admin],
-            [PermissionCatalog.DashboardRead]);
+            [PermissionCatalog.OrdersRead]);
 
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
         Assert.Contains(jwt.Claims, claim => claim.Type == ClaimTypes.Role && claim.Value == Roles.Admin);
-        Assert.Contains(jwt.Claims, claim => claim.Type == PermissionCatalog.ClaimType && claim.Value == PermissionCatalog.DashboardRead);
+        Assert.Contains(jwt.Claims, claim => claim.Type == PermissionCatalog.ClaimType && claim.Value == PermissionCatalog.OrdersRead);
     }
 }
