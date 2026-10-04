@@ -1,10 +1,9 @@
 using System.Net.Http.Headers;
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
-using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
-using FluxCommerce.Modules.Identity.Application.Commands.GrantPermission;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
+using FluxCommerce.Modules.Identity.Infrastructure.DbContexts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FluxCommerce.IntegrationTests;
@@ -53,19 +52,15 @@ public abstract class InventoryApiTestBase
         {
             var userId = await Factory.RegisterAdminAsync(email, Password, "Inventory", "Admin");
 
-            // Fresh admins start permission-less (ADR-016 D5): grant the full bundle explicitly,
-            // mirroring what SuperAdmin does in production after creating the account.
+            // Fresh admins start permission-less (ADR-016 D5): seed the full bundle directly through
+            // the domain (test setup has no request identity for the guarded command path),
+            // mirroring what SuperAdmin grants in production after creating the account.
             using var scope = Factory.Services.CreateScope();
-            var grantHandler = scope.ServiceProvider
-                .GetRequiredService<ICommandHandler<GrantPermissionCommand, Result<UserResponse>>>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var user = dbContext.Set<User>().Single(u => u.Id == userId);
             foreach (var permission in PermissionCatalog.AdminBundle)
-            {
-                var granted = await grantHandler.HandleAsync(
-                    new GrantPermissionCommand(userId, permission),
-                    CancellationToken.None);
-                if (granted.IsFailure)
-                    throw new InvalidOperationException($"Failed to grant {permission}: {granted.Error.Code}");
-            }
+                user.GrantPermission(permission);
+            await dbContext.SaveChangesAsync();
         }
         else
         {

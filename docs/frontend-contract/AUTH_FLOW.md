@@ -53,7 +53,7 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 ```
 
 - Access token: short-lived JWT (15m, 5m clock tolerance). Decode `exp` client-side for proactive refresh; never trust claims for authz — server re-checks roles per policy.
-- Permission claims (Phase B, ADR-016; `dashboard.read` removed in Phase 22 E1): the access token additionally carries one `permission` claim per granted action-level permission (`orders.read`, `orders.cancel`, `orders.refund`, `payments.read`, `payments.stats`, `inventory.read`, `inventory.manage`, `catalog.manage`). Grants/revokes take effect on the **next login/refresh** only — a demoted admin keeps rights until the current token expires. `GET /auth/me` returns the authoritative `permissions: string[]` for menu rendering; `SuperAdmin` bypasses every role/permission gate server-side.
+- Permission claims (Phase B, ADR-016; `dashboard.read` removed in Phase 22 E1; `users.*`/`admins.create` added in E3): the access token additionally carries one `permission` claim per granted action-level permission (`orders.read`, `orders.cancel`, `orders.refund`, `payments.read`, `payments.stats`, `inventory.read`, `inventory.manage`, `catalog.manage`, `users.read`, `users.manage`, `admins.create`). Grants/revokes take effect on the **next login/refresh** only — a demoted admin keeps rights until the current token expires. `GET /auth/me` returns the authoritative `permissions: string[]` for menu rendering; `SuperAdmin` bypasses every role/permission gate server-side.
 - Refresh token: opaque DB-backed string (`TokenGenerator`), `7d` expiry (`refreshTokenExpiresAtUtc: DateTime`). Rotation: `RotateRefreshToken(oldValue, newValue, now, now+7d)` revokes old + issues new; presenting a revoked/reused/unknown value → `401 Unauthorized Identity.InvalidToken` (see `RefreshCommandHandler`: null token/user or rotation failure all map to `InvalidToken()`).
 - Verify/reset tokens: email link tokens (`24h` / `1h`), single-use.
 
@@ -67,7 +67,10 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 |---|---|---|
 | `POST /auth/register,login,refresh,logout,verify-email,resend-verification,forgot-password,reset-password` | Anonymous | Public |
 | `POST /auth/change-password`, `PUT /auth/profile`, `GET /auth/me` | Any authenticated JWT | Any logged-in user |
-| `POST /auth/register-admin`, `/admin/users/**` (roles, unlock, list, counts, get, permissions) | `SuperAdmin` | Bootstrap/admin console only; `401` no JWT, `403` wrong role |
+| `POST /auth/register-admin` | `admins.create` | Delegated admin creation (account starts permission-less) |
+| `/admin/users` reads (`GET` list/counts/get/permissions) | `users.read` | Support viewers; customers get `401/403` |
+| `/admin/users` writes (roles/unlock/grant/revoke) | `users.manage` | Anti-escalation guards apply (no SuperAdmin role/target, grant-what-you-hold) |
+| `/admin/users/permissions` (catalog) | `SuperAdmin` | Bootstrap/admin console only |
 | Catalog writes | `catalog.manage` | Admin console with the permission; otherwise `401/403` |
 | `GET /inventory/**` | `inventory.read` | Reader permission |
 | `POST/PATCH /inventory/**` | `inventory.manage` | Stock-manager permission |

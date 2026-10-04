@@ -12,7 +12,7 @@ public class UnlockUserCommandHandlerTests
     private readonly FakeLocalizer _localizer = new();
 
     private UnlockUserCommandHandler CreateHandler() =>
-        new(_users, _unitOfWork, _localizer);
+        new(_users, new FakeCurrentUser(), _unitOfWork, _localizer);
 
     [Fact]
     public async Task HandleAsync_UnlocksLockedUser_AndPersists()
@@ -87,5 +87,23 @@ public class UnlockUserCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal(user.Id, result.Value.Id);
         Assert.Equal("Alice", result.Value.FirstName);
+    }
+
+    [Fact]
+    public async Task HandleAsync_TargetIsSuperAdmin_ByNonSuperAdmin_ReturnsForbidden()
+    {
+        var superAdmin = TestUsers.CreateVerified(roles: [Roles.SuperAdmin]);
+        await _users.AddAsync(superAdmin);
+        var handler = new UnlockUserCommandHandler(
+            _users,
+            new FakeCurrentUser { IsAuthenticated = true, Roles = [Roles.Admin] },
+            _unitOfWork,
+            _localizer);
+
+        var result = await handler.HandleAsync(new UnlockUserCommand(superAdmin.Id));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Identity.Forbidden", result.Error.Code);
+        Assert.Equal(0, _unitOfWork.SaveChangesCount);
     }
 }

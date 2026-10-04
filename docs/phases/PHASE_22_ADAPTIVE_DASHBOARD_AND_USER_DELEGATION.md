@@ -1,6 +1,6 @@
 # Phase 22 — Adaptive Dashboard & User-Management Delegation — Implementation Plan
 
-**Status:** E1–E2 implemented and green (2026-10-04); E3 planned.
+**Status:** E1–E3 implemented and green (2026-10-04).
 **Decision records:** `docs/adr/016-permission-based-authorization-and-superadmin-supremacy.md`
 (D1/D2/D4/D5), `docs/adr/017-user-management-delegation.md` (users.* family, escalation guards)
 **Prerequisite:** Phase 21 A–D complete (permission model, management surface, activation).

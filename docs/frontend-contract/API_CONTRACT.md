@@ -71,8 +71,11 @@ Action-level permissions granted per admin by SuperAdmin (`area.action` strings,
 | `inventory.read` | All `GET /inventory/**` (item, reservation, lists, counts) |
 | `inventory.manage` | `POST /inventory`, `PATCH /inventory/{sku}` |
 | `catalog.manage` | All Catalog writes (reads stay anonymous) |
+| `users.read` | `GET /admin/users`, `/counts`, `/{id}`, `/{id}/permissions` |
+| `users.manage` | Role assign, unlock, permission grant/revoke (under anti-escalation guards) |
+| `admins.create` | `POST /auth/register-admin` (creates permission-less admins) |
 
-Assigning the `Admin` role grants nothing by itself — every permission is granted manually afterwards (amended 2026-10-04); user/permission management itself (`/admin/users/**`, `/admin/permissions`, `register-admin`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
+Assigning the `Admin` role grants nothing by itself — every permission is granted manually afterwards (amended 2026-10-04); only the permission catalog document (`GET /admin/users/permissions`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
 
 ---
 
@@ -102,7 +105,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/auth/register-admin` |
 | HTTPMethod | `POST` |
-| Authorization | `Authorize(SuperAdminPolicy)` — JWT role `SuperAdmin` required; `401` no/invalid JWT, `403` non-SuperAdmin |
+| Authorization | `Authorize(admins.create)` — holder of the permission required (SuperAdmin passes); `401` no/invalid JWT, `403` otherwise |
 | Request | Body `RegisterAdminRequest { email, password, firstName, lastName }` (separate record, same 4 non-nullable strings as 1.1) |
 | Response | `201 ApiResponse<UserResponse>` (same as 1.1) via `Created()` |
 | Status Codes | `201, 400, 401, 403, 409` |
@@ -242,7 +245,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/{id:guid}/roles` |
 | HTTPMethod | `POST` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.manage)` |
 | Request | Body `AssignRoleRequest { role: string }` — C# `sealed record AssignRoleRequest(string Role)` only; `id` comes from route, NOT body. `Role` is `Customer|Admin|SuperAdmin`. |
 | Response | `200 ApiResponse<UserResponse>` |
 | Status Codes | `200, 400, 401, 403, 404, 409` |
@@ -256,7 +259,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/{id:guid}/unlock` |
 | HTTPMethod | `POST` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.manage)` |
 | Request | Route `id: Guid`, no body |
 | Response | `200 ApiResponse<UserResponse>` |
 | Status Codes | `200, 401, 403, 404` |
@@ -270,7 +273,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/{id:guid}/permissions` |
 | HTTPMethod | `POST` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.manage)` |
 | Request | Body `GrantPermissionRequest { permission: string }` — one catalog value from §0.5 |
 | Response | `200 ApiResponse<UserResponse>` (with updated `permissions`) |
 | Status Codes | `200, 400, 401, 403, 404, 409` |
@@ -284,7 +287,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/{id:guid}/permissions/{permission}` |
 | HTTPMethod | `DELETE` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.manage)` |
 | Request | Route `id: Guid` + `permission: string` |
 | Response | `200 ApiResponse<UserResponse>` (idempotent — absent permission still succeeds) |
 | Status Codes | `200, 400, 401, 403, 404` |
@@ -298,7 +301,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/{id:guid}/permissions` |
 | HTTPMethod | `GET` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.read)` |
 | Request | Route `id: Guid` |
 | Response | `200 ApiResponse<string[]>` (granted permission values) |
 | Status Codes | `200, 401, 403, 404` |
@@ -340,7 +343,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users` |
 | HTTPMethod | `GET` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.read)` |
 | Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Active\|Suspended\|Locked\|Deleted, role?: Customer\|Admin\|SuperAdmin, search?: string (email/first/last substring)` |
 | Response | `200 ApiResponse<PagedResult<UserAdminResponse>>` newest-first (`UserAdminResponse` = `UserResponse` + `failedAccessAttemptCount: int, lockoutEndUtc?: DateTime\|null, isLocked: bool`) |
 | Status Codes | `200, 400, 401, 403` |
@@ -356,7 +359,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/counts` |
 | HTTPMethod | `GET` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.read)` |
 | Request | None |
 | Response | `200 ApiResponse<UserAdminCountsResponse { total, pending, active, suspended, locked, deleted, customers, admins, superAdmins, unverified, lockedOut: int }>` |
 | Status Codes | `200, 401, 403` |
@@ -370,7 +373,7 @@ Assigning the `Admin` role grants nothing by itself — every permission is gran
 |---|---|
 | Endpoint | `/admin/users/{id:guid}` |
 | HTTPMethod | `GET` |
-| Authorization | `Authorize(SuperAdminPolicy)` |
+| Authorization | `Authorize(users.read)` |
 | Request | Route `id: Guid` |
 | Response | `200 ApiResponse<UserAdminResponse>` (same as 1.19 items) |
 | Status Codes | `200, 401, 403, 404` |

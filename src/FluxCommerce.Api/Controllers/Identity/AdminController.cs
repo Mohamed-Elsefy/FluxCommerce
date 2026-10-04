@@ -24,7 +24,7 @@ namespace FluxCommerce.Api.Controllers.Identity;
 
 [ApiController]
 [Route("admin/users")]
-[Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
+[Authorize]
 [Tags(EndpointTags.Identity)]
 public sealed class AdminController : ApiControllerBase
 {
@@ -63,16 +63,18 @@ public sealed class AdminController : ApiControllerBase
         _getPermissionCatalogHandler = getPermissionCatalogHandler;
     }
 
-    /// <summary>Assigns a role to a user. Requires SuperAdmin role.</summary>
+    /// <summary>Assigns a role to a user. Requires user-management rights.</summary>
     [HttpPost("{id:guid}/roles")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
     public async Task<IActionResult> AssignRole(Guid id, [FromBody] AssignRoleRequest request, CancellationToken cancellationToken)
     {
         var command = new AssignRoleCommand(id, request.Role);
         return Success(await _assignRoleHandler.HandleAsync(command, cancellationToken));
     }
 
-    /// <summary>Unlocks a locked user account. Requires SuperAdmin role.</summary>
+    /// <summary>Unlocks a locked user account. Requires user-management rights.</summary>
     [HttpPost("{id:guid}/unlock")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
     public async Task<IActionResult> UnlockUser(Guid id, CancellationToken cancellationToken)
     {
         var command = new UnlockUserCommand(id);
@@ -82,9 +84,10 @@ public sealed class AdminController : ApiControllerBase
     /// <summary>
     /// Lists users, newest first, with optional status, role and text-search filters.
     /// Pagination falls back to page 1 with a page size of 20 (maximum 100).
-    /// Requires SuperAdmin role.
+    /// Requires user-read rights.
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = AuthenticationConfiguration.UsersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<UserAdminResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -104,9 +107,10 @@ public sealed class AdminController : ApiControllerBase
 
     /// <summary>
     /// Returns aggregate user counts (by status, by role, unverified and currently
-    /// locked out) for the administrative overview. Requires SuperAdmin role.
+    /// locked out) for the administrative overview. Requires user-read rights.
     /// </summary>
     [HttpGet("counts")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<UserAdminCountsResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -119,9 +123,10 @@ public sealed class AdminController : ApiControllerBase
 
     /// <summary>
     /// Retrieves a single user by identity, including lockout visibility.
-    /// Requires SuperAdmin role.
+    /// Requires user-read rights.
     /// </summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<UserAdminResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -135,9 +140,10 @@ public sealed class AdminController : ApiControllerBase
 
     /// <summary>
     /// Grants one action-level permission to a user. Takes effect on the user's next
-    /// login/refresh. Requires SuperAdmin role.
+    /// login/refresh. Requires user-management rights.
     /// </summary>
     [HttpPost("{id:guid}/permissions")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -156,9 +162,10 @@ public sealed class AdminController : ApiControllerBase
 
     /// <summary>
     /// Revokes one action-level permission from a user. Revoking an absent permission is a
-    /// benign no-op. Requires SuperAdmin role.
+    /// benign no-op. Requires user-management rights.
     /// </summary>
     [HttpDelete("{id:guid}/permissions/{permission}")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -175,9 +182,10 @@ public sealed class AdminController : ApiControllerBase
     }
 
     /// <summary>
-    /// Lists the action-level permissions granted to a user. Requires SuperAdmin role.
+    /// Lists the action-level permissions granted to a user. Requires user-read rights.
     /// </summary>
     [HttpGet("{id:guid}/permissions")]
+    [Authorize(Policy = AuthenticationConfiguration.UsersReadPolicy)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<string>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -193,6 +201,7 @@ public sealed class AdminController : ApiControllerBase
     /// Lists the action-level permission catalog. Requires SuperAdmin role.
     /// </summary>
     [HttpGet("permissions")]
+    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<string>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

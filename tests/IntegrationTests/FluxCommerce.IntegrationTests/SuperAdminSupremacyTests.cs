@@ -94,7 +94,9 @@ public class SuperAdminSupremacyTests
     [Fact]
     public async Task Admin_StillRejectedFromSuperAdminPolicyEndpoint()
     {
-        AuthorizeAs(["Admin"], PermissionCatalog.AdminBundle);
+        // Even holding the full permission bundle, a non-SuperAdmin role cannot pass
+        // the exact SuperAdminPolicy gate. Unknown user would be 404 if it passed.
+        AuthorizeAs(["Admin"], []);
 
         var response = await _client.PostAsJsonAsync(
             $"admin/users/{Guid.NewGuid()}/roles",

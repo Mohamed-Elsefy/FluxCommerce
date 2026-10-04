@@ -122,8 +122,11 @@ public class IdentityArchitectureTests
     }
 
     [Fact]
-    public void AdminController_ShouldRequire_SuperAdminPolicy()
+    public void AdminController_Actions_ShouldRequire_PermissionPolicies()
     {
+        // Phase E3: the class-level SuperAdmin gate is split per action — reads require
+        // users.read, writes require users.manage, and only the permission catalog document
+        // stays SuperAdmin-only.
         var apiAssembly = ArchitectureRegistry.Api;
         var adminController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AdminController");
 
@@ -134,29 +137,43 @@ public class IdentityArchitectureTests
             .FirstOrDefault();
 
         Assert.NotNull(classAuth);
-        Assert.Equal("SuperAdmin", classAuth!.Policy);
+        Assert.Null(classAuth!.Policy);
+
+        var expectedPolicies = new Dictionary<string, string>
+        {
+            ["AssignRole"] = "users.manage",
+            ["UnlockUser"] = "users.manage",
+            ["GetUsers"] = "users.read",
+            ["GetUserCounts"] = "users.read",
+            ["GetUser"] = "users.read",
+            ["GrantPermission"] = "users.manage",
+            ["RevokePermission"] = "users.manage",
+            ["GetUserPermissions"] = "users.read",
+            ["GetPermissionCatalog"] = "SuperAdmin",
+        };
 
         var methods = adminController.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly)
-            .Where(m => m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false).Any());
+            .Where(m => m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false).Any()
+                || m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpGetAttribute), false).Any()
+                || m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpDeleteAttribute), false).Any())
+            .ToList();
 
-        Assert.True(methods.Any(), "AdminController should have POST actions");
+        Assert.NotEmpty(methods);
 
         foreach (var method in methods)
         {
-            var methodAuth = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            var methodAuth = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false)
                 .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                 .FirstOrDefault();
 
-            // Class-level SuperAdmin covers all, but if method has its own it must also be SuperAdmin
-            if (methodAuth != null)
-            {
-                Assert.Equal("SuperAdmin", methodAuth.Policy);
-            }
+            Assert.True(expectedPolicies.TryGetValue(method.Name, out var expected), $"Unexpected AdminController action: {method.Name}");
+            Assert.NotNull(methodAuth);
+            Assert.Equal(expected, methodAuth!.Policy);
         }
     }
 
     [Fact]
-    public void RegisterAdmin_ShouldRequire_SuperAdminPolicy()
+    public void RegisterAdmin_ShouldRequire_AdminsCreatePermission()
     {
         var apiAssembly = ArchitectureRegistry.Api;
         var authController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AuthController");
@@ -173,7 +190,7 @@ public class IdentityArchitectureTests
             .FirstOrDefault();
 
         Assert.NotNull(authAttr);
-        Assert.Equal("SuperAdmin", authAttr!.Policy);
+        Assert.Equal("admins.create", authAttr!.Policy);
     }
 
     [Fact]

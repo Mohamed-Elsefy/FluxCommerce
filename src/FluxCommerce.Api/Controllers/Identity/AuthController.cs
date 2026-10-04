@@ -93,9 +93,9 @@ public sealed class AuthController : ApiControllerBase
         return Success(await _registerCustomerHandler.HandleAsync(command, cancellationToken));
     }
 
-    /// <summary>Registers a new administrator account. Requires SuperAdmin role.</summary>
+    /// <summary>Registers a new administrator account. Requires the admins.create permission.</summary>
     [HttpPost("register-admin")]
-    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.AdminsCreatePolicy)]
     public async Task<IActionResult> RegisterAdmin([FromBody] RegisterAdminRequest request, CancellationToken cancellationToken)
     {
         var command = new RegisterAdminCommand(request.Email, request.Password, request.FirstName, request.LastName);
