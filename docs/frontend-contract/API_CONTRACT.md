@@ -749,7 +749,7 @@ Single read-only snapshot for the post-login landing screen: any authenticated u
 (objects) or `[]` (recent orders). For admin landing cards + recent-orders widget; drill down via
 the §4.5/§6.5 lists. Section gates: `orders`+`recentOrders` ← `orders.read`; `payments` ←
 `payments.read` or `payments.stats`; `inventory` ← `inventory.read` (handler skipped when
-unauthorized); `users` ← `SuperAdmin` role directly.
+unauthorized); `catalog` ← `catalog.manage`; `users` ← `SuperAdmin` role directly.
 
 | Field | Value |
 |---|---|
@@ -757,7 +757,7 @@ unauthorized); `users` ← `SuperAdmin` role directly.
 | HTTPMethod | `GET` |
 | Authorization | Any authenticated JWT (`401` without token) |
 | Request | Query `lowStockThreshold?: int (default 5, inclusive available ceiling for the inventory section)` |
-| Response | `200 ApiResponse<AdminDashboardResponse { orders?: AdminOrderCountsResponse\|null, payments?: PaymentAdminStatsResponse\|null, inventory?: InventoryCountsResponse\|null, users?: UserAdminCountsResponse\|null, recentOrders: OrderSummaryResponse[5] (newest-first, empty when unauthorized) }>` |
+| Response | `200 ApiResponse<AdminDashboardResponse { orders?: AdminOrderCountsResponse\|null, payments?: PaymentAdminStatsResponse\|null, inventory?: InventoryCountsResponse\|null, catalog?: CatalogCountsResponse\|null, users?: UserAdminCountsResponse\|null, recentOrders: OrderSummaryResponse[5] (newest-first, empty when unauthorized) }>` |
 | Status Codes | `200, 400, 401` |
 | Validation | negative threshold → `400 ValidationFailed` (rejected regardless of entitlement) |
 | Errors | First failing entitled section's error surfaces (`400/404` as mapped) |

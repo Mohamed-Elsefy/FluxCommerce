@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Inventory.Contracts.Responses;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
@@ -13,11 +14,13 @@ namespace FluxCommerce.Api.Models;
 /// <param name="Orders">Order counts, or <c>null</c> without <c>orders.read</c>.</param>
 /// <param name="Payments">Payment stats, or <c>null</c> without <c>payments.read</c>/<c>stats</c>.</param>
 /// <param name="Inventory">Inventory counts, or <c>null</c> without <c>inventory.read</c>.</param>
+/// <param name="Catalog">Catalog counts, or <c>null</c> without <c>catalog.manage</c>.</param>
 /// <param name="Users">User counts, or <c>null</c> for non-SuperAdmin callers.</param>
 /// <param name="RecentOrders">The newest Orders (up to the limit), or empty without <c>orders.read</c>.</param>
 public sealed record AdminDashboardResponse(
     AdminOrderCountsResponse? Orders,
     PaymentAdminStatsResponse? Payments,
     InventoryCountsResponse? Inventory,
+    CatalogCountsResponse? Catalog,
     UserAdminCountsResponse? Users,
     IReadOnlyList<OrderSummaryResponse> RecentOrders);

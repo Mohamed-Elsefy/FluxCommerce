@@ -7,6 +7,8 @@ using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.Responses;
+using FluxCommerce.Modules.Catalog.Application.Queries.GetCatalogCounts;
+using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUserCounts;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
@@ -27,9 +29,9 @@ namespace FluxCommerce.Api.Controllers.Admin;
 /// Adaptive administrative dashboard snapshot (Phase 22 E1): any authenticated user receives
 /// <c>200 OK</c>, and every section is included only when the caller is entitled to it —
 /// <c>orders.read</c> for orders, <c>payments.read</c> or <c>payments.stats</c> for payments,
-/// <c>inventory.read</c> for inventory, the <c>SuperAdmin</c> role for users. Each section is
-/// produced by its owning module's read path; the host only composes the results and never
-/// touches another module's state.
+/// <c>inventory.read</c> for inventory, <c>catalog.manage</c> for catalog, the <c>SuperAdmin</c>
+/// role for users. Each section is produced by its owning module's read path; the host only
+/// composes the results and never touches another module's state.
 /// </summary>
 [ApiController]
 [Route("admin/dashboard")]
@@ -45,6 +47,7 @@ public sealed class AdminDashboardController : ApiControllerBase
     private readonly IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>> _recentOrdersHandler;
     private readonly IQueryHandler<GetAdminPaymentStatsQuery, Result<PaymentAdminStatsResponse>> _paymentStatsHandler;
     private readonly IQueryHandler<GetInventoryCountsQuery, Result<InventoryCountsReadModel>> _inventoryCountsHandler;
+    private readonly IQueryHandler<GetCatalogCountsQuery, Result<CatalogCountsResponse>> _catalogCountsHandler;
     private readonly IQueryHandler<GetAdminUserCountsQuery, Result<UserAdminCountsResponse>> _userCountsHandler;
 
     public AdminDashboardController(
@@ -53,6 +56,7 @@ public sealed class AdminDashboardController : ApiControllerBase
         IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>> recentOrdersHandler,
         IQueryHandler<GetAdminPaymentStatsQuery, Result<PaymentAdminStatsResponse>> paymentStatsHandler,
         IQueryHandler<GetInventoryCountsQuery, Result<InventoryCountsReadModel>> inventoryCountsHandler,
+        IQueryHandler<GetCatalogCountsQuery, Result<CatalogCountsResponse>> catalogCountsHandler,
         IQueryHandler<GetAdminUserCountsQuery, Result<UserAdminCountsResponse>> userCountsHandler,
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer)
@@ -63,6 +67,7 @@ public sealed class AdminDashboardController : ApiControllerBase
         _recentOrdersHandler = recentOrdersHandler;
         _paymentStatsHandler = paymentStatsHandler;
         _inventoryCountsHandler = inventoryCountsHandler;
+        _catalogCountsHandler = catalogCountsHandler;
         _userCountsHandler = userCountsHandler;
     }
 
@@ -87,6 +92,7 @@ public sealed class AdminDashboardController : ApiControllerBase
         IReadOnlyList<OrderSummaryResponse> recentOrders = [];
         PaymentAdminStatsResponse? payments = null;
         InventoryCountsResponse? inventory = null;
+        CatalogCountsResponse? catalog = null;
         UserAdminCountsResponse? users = null;
 
         if (HasPermission(PermissionCatalog.OrdersRead))
@@ -144,7 +150,16 @@ public sealed class AdminDashboardController : ApiControllerBase
             users = userCounts.Value;
         }
 
-        return Success(Result.Success(new AdminDashboardResponse(orders, payments, inventory, users, recentOrders)));
+        if (HasPermission(PermissionCatalog.CatalogManage))
+        {
+            var catalogCounts = await _catalogCountsHandler.HandleAsync(new GetCatalogCountsQuery(), cancellationToken);
+            if (catalogCounts.IsFailure)
+                return Success(Result<AdminDashboardResponse>.Failure(catalogCounts.Error));
+
+            catalog = catalogCounts.Value;
+        }
+
+        return Success(Result.Success(new AdminDashboardResponse(orders, payments, inventory, catalog, users, recentOrders)));
     }
 
     private bool HasPermission(string permission) =>

@@ -462,10 +462,20 @@ sealed record AdminDashboardResponse(
     AdminOrderCountsResponse? Orders,
     PaymentAdminStatsResponse? Payments,
     InventoryCountsResponse? Inventory,
+    CatalogCountsResponse? Catalog,
     UserAdminCountsResponse? Users,
     IReadOnlyList<OrderSummaryResponse> RecentOrders); // newest 5, empty when unauthorized
 ```
 
 ```ts
-interface AdminDashboardResponse { orders?: AdminOrderCountsResponse | null; payments?: PaymentAdminStatsResponse | null; inventory?: InventoryCountsResponse | null; users?: UserAdminCountsResponse | null; recentOrders: OrderSummaryResponse[] }
+interface AdminDashboardResponse { orders?: AdminOrderCountsResponse | null; payments?: PaymentAdminStatsResponse | null; inventory?: InventoryCountsResponse | null; catalog?: CatalogCountsResponse | null; users?: UserAdminCountsResponse | null; recentOrders: OrderSummaryResponse[] }
+```
+
+```csharp
+// GET /admin/dashboard catalog section:
+sealed record CatalogCountsResponse(int TotalProducts, int ActiveProducts, int TotalCategories, int TotalVariants);
+```
+
+```ts
+interface CatalogCountsResponse { totalProducts: number; activeProducts: number; totalCategories: number; totalVariants: number }
 ```

@@ -51,6 +51,7 @@ public class AdminDashboardTests
         Assert.True(data.Users!.Total >= 1);
         Assert.NotNull(data.Payments);
         Assert.NotNull(data.Inventory);
+        Assert.NotNull(data.Catalog);
         Assert.Contains(data.RecentOrders, item => item.OrderId == created.OrderId);
     }
 
@@ -67,6 +68,7 @@ public class AdminDashboardTests
         Assert.Null(data.Orders);
         Assert.Null(data.Payments);
         Assert.Null(data.Inventory);
+        Assert.Null(data.Catalog);
         Assert.Null(data.Users);
         Assert.Empty(data.RecentOrders);
     }
@@ -86,7 +88,26 @@ public class AdminDashboardTests
         Assert.Contains(data.RecentOrders, item => item.OrderId == created.OrderId);
         Assert.Null(data.Payments);
         Assert.Null(data.Inventory);
+        Assert.Null(data.Catalog);
         Assert.Null(data.Users);
+    }
+
+    [Fact]
+    public async Task GetDashboard_CatalogManage_SeesCatalogSectionOnly()
+    {
+        await RegisterAndLoginAsync();
+        AuthorizeAs(["Admin"], [PermissionCatalog.CatalogManage]);
+
+        var response = await _client.GetAsync("admin/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+        Assert.NotNull(data.Catalog);
+        Assert.Null(data.Orders);
+        Assert.Null(data.Payments);
+        Assert.Null(data.Inventory);
+        Assert.Null(data.Users);
+        Assert.Empty(data.RecentOrders);
     }
 
     [Fact]
