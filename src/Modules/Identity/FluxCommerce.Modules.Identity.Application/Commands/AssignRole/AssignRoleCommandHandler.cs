@@ -5,7 +5,6 @@ using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Mappings;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
-using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Identity.Domain.Errors;
 
 namespace FluxCommerce.Modules.Identity.Application.Commands.AssignRole;
@@ -65,13 +64,8 @@ public sealed class AssignRoleCommandHandler : ICommandHandler<AssignRoleCommand
                 Error.Validation(assignResult.Error.Code, assignResult.Error.Description));
         }
 
-        if (string.Equals(trimmedRole, Roles.Admin, StringComparison.Ordinal))
-        {
-            // The Admin role carries the full admin permission bundle (ADR-016 D5). Grants are
-            // ensured idempotently: users promoted through older flows may already hold some.
-            foreach (var permission in PermissionCatalog.AdminBundle)
-                user.GrantPermission(permission);
-        }
+        // No automatic permissions: assigning a role never grants action-level permissions
+        // (ADR-016 D5). SuperAdmin grants them explicitly afterwards.
 
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

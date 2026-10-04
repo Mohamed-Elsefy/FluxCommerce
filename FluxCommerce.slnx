@@ -22,6 +22,7 @@
     <File Path="docs/adr/014-payment-refund-compensation.md" />
     <File Path="docs/adr/015-identity-roles-authorization-and-seeding.md" />
     <File Path="docs/adr/016-permission-based-authorization-and-superadmin-supremacy.md" />
+    <File Path="docs/adr/017-user-management-delegation.md" />
   </Folder>
   <Folder Name="/docs/completed/">
     <File Path="docs/completed/INDEX.md" />
@@ -71,6 +72,7 @@
     <File Path="docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IMPLEMENTATION_PLAN.md" />
     <File Path="docs/phases/PHASE_9_STRIPE_PAYMENTS_IMPLEMENTATION_PLAN.md" />
     <File Path="docs/phases/PHASE_21_PERMISSION_BASED_AUTHORIZATION.md" />
+    <File Path="docs/phases/PHASE_22_ADAPTIVE_DASHBOARD_AND_USER_DELEGATION.md" />
   </Folder>
   <Folder Name="/docs/refactoring/">
     <File Path="docs/refactoring/REFACTORING_1_BASELINE.md" />

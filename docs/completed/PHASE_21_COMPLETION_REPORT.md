@@ -18,7 +18,7 @@ green with no behavior change outside authorization:
 - **Architecture:** **178/178** (177 baseline + 1 new: no coarse `AdminPolicy` on controllers;
   `CatalogMutations` rule re-pointed to `catalog.manage`).
 - **Unit:** all green, including 5 supremacy handler tests, 9 domain permission tests, 3 JWT claim
-  tests, 10 grant/revoke handler tests, 2 bundle-grant tests.
+  tests, 10 grant/revoke handler tests, 2 no-auto-grant tests.
 - **Integration:** all green except 3 pre-existing environmental email-link failures and 1
   pre-existing SQLite concurrency flake (both reproduced on the clean tree during Phase D
   verification).
@@ -65,11 +65,12 @@ green with no behavior change outside authorization:
   `inventory.read`/`inventory.manage` (class-level gate split into method-level);
   admin orders → `orders.read/cancel/refund`; admin payments → `payments.read/stats`;
   dashboard → `dashboard.read`. User/permission management stays `SuperAdmin`-only.
-- `AssignRole(Admin)` + `RegisterAdmin` store the full bundle explicitly (idempotent ensure).
+- `AssignRole`/`RegisterAdmin` grant nothing — manual grants only (amended 2026-10-04; the earlier
+  bundle-on-assignment was removed before any deployment).
 - Test rework: `CatalogApiTestBase` mints `catalog.manage`; `CatalogAdminGatingTests` asserts the
   permission model (+2 new negative tests); `SuperAdminSupremacyTests` rewritten (8 tests incl.
   read-vs-manage split and scoped-admin proofs); `AdminOrdersListTests`/`AdminDashboardTests`
-  mint the bundle (+1 scoped-admin test); 2 bundle unit tests.
+  mint the bundle for test tokens (+1 scoped-admin test); 2 no-auto-grant unit tests.
 - New arch test `NoController_ShouldRequire_CoarseAdminPolicy` pins the migration.
 - Docs: `API_CONTRACT.md` (§0.4/§0.5/§1.14–1.17, inventory split, variant price fields),
   `ERROR_CATALOG.md` (2 new codes).
@@ -96,8 +97,9 @@ green with no behavior change outside authorization:
 
 ## 5. Rollout Warning (Binding, per User Decision)
 
-**No automatic backfill was implemented.** The moment Phase D deploys, every existing `Admin`
-account loses administrative access until `SuperAdmin` re-grants permissions. Required sequence:
+**No automatic grants exist — not on creation, assignment, or backfill.** Every `Admin` account,
+existing or newly created, starts permission-less until `SuperAdmin` grants permissions explicitly.
+Required sequence:
 
 1. Deploy A–C first (no behavior change possible).
 2. Extract the admin list (`GET /admin/users`, SuperAdmin).
@@ -105,7 +107,8 @@ account loses administrative access until `SuperAdmin` re-grants permissions. Re
    - sales-viewer ← `orders.read + payments.read + payments.stats + dashboard.read`
    - stock-manager ← `inventory.read + inventory.manage`
    - catalog-manager ← `catalog.manage`
-   - full-admin ← all 9 (or `POST /admin/users/{id}/roles` `Admin`, which stores the bundle)
+   - full-admin ← all 9 granted one by one (amended 2026-10-04: assigning `Admin` no longer
+     stores any bundle)
 4. Verify by logging in as each admin (permissions land on the next login/refresh).
 
 ## 6. Follow-Ups (Not in Scope)

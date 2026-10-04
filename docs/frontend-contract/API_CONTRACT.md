@@ -73,7 +73,7 @@ Action-level permissions granted per admin by SuperAdmin (`area.action` strings,
 | `catalog.manage` | All Catalog writes (reads stay anonymous) |
 | `dashboard.read` | `GET /admin/dashboard` |
 
-Assigning the `Admin` role grants the full bundle automatically; user/permission management itself (`/admin/users/**`, `/admin/permissions`, `register-admin`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
+Assigning the `Admin` role grants nothing by itself — every permission is granted manually afterwards (amended 2026-10-04); user/permission management itself (`/admin/users/**`, `/admin/permissions`, `register-admin`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
 
 ---
 
@@ -321,7 +321,65 @@ Assigning the `Admin` role grants the full bundle automatically; user/permission
 | Errors | — |
 | Pagination/Sorting/Filtering | — |
 
-> Assigning the `Admin` role (`1.12`) additionally stores the full §0.5 bundle on the user (Phase D). Grants apply to the access token on the user's next login/refresh.
+### 1.18 PUT /auth/profile
+
+| Field | Value |
+|---|---|
+| Endpoint | `/auth/profile` |
+| HTTPMethod | `PUT` |
+| Authorization | `Authorize` (any authenticated JWT) |
+| Request | Body `UpdateProfileRequest { firstName?: string\|null, lastName?: string\|null, phoneNumber?: string\|null, avatarUrl?: string\|null, preferredLanguage?: string\|null, timeZone?: string\|null }` — all nullable; `null` keeps current value, empty clears optional fields (phone/avatar) |
+| Response | `200 ApiResponse<UserResponse>` (same shape as 1.1, plus `permissions: string[]`) |
+| Status Codes | `200, 400, 401, 404` |
+| Validation | names non-empty/max lengths when supplied; phone ≤30; avatar ≤2048; language ≤10; timezone ≤64 |
+| Errors | `400 Validation`, `401`, `404 UserNotFound` (account deleted between login and call) |
+| Pagination/Sorting/Filtering | — |
+
+### 1.19 GET /admin/users
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Active\|Suspended\|Locked\|Deleted, role?: Customer\|Admin\|SuperAdmin, search?: string (email/first/last substring)` |
+| Response | `200 ApiResponse<PagedResult<UserAdminResponse>>` newest-first (`UserAdminResponse` = `UserResponse` + `failedAccessAttemptCount: int, lockoutEndUtc?: DateTime\|null, isLocked: bool`) |
+| Status Codes | `200, 400, 401, 403` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100`; status/role names case-insensitive, unknown → `400` |
+| Errors | `400 ValidationFailed/InvalidRole` |
+| Pagination | Yes (defaults `1/20`, max `100`) |
+| Sorting | Fixed newest-first (no param) |
+| Filtering | Yes (`status`, `role`, `search`) |
+
+### 1.20 GET /admin/users/counts
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/counts` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | None |
+| Response | `200 ApiResponse<UserAdminCountsResponse { total, pending, active, suspended, locked, deleted, customers, admins, superAdmins, unverified, lockedOut: int }>` |
+| Status Codes | `200, 401, 403` |
+| Validation | — |
+| Errors | — |
+| Pagination/Sorting/Filtering | — |
+
+### 1.21 GET /admin/users/{id}
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Route `id: Guid` |
+| Response | `200 ApiResponse<UserAdminResponse>` (same as 1.19 items) |
+| Status Codes | `200, 401, 403, 404` |
+| Validation | guid non-empty |
+| Errors | `404 UserNotFound` |
+| Pagination/Sorting/Filtering | — |
+
+> Assigning the `Admin` role (`1.12`) grants nothing by itself — permissions are granted explicitly via `1.14` (amended 2026-10-04). Grants apply to the access token on the user's next login/refresh.
 
 ---
 
@@ -543,14 +601,14 @@ Requests use `DataAnnotations`: `Add*` = `[Required]VariantId + [Required][Range
 | Endpoint | `/orders` |
 | HTTPMethod | `GET` |
 | Authorization | Authenticated |
-| Request | Query `pageNumber?: int, pageSize?: int` |
+| Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Cancelled\|Confirmed (case-insensitive, Phase P2)` |
 | Response | `200 ApiResponse<PagedResult<OrderSummaryResponse { orderId: Guid, orderNumber: string, status: string, grandTotal: OrderMoneyResponse { amount: number, currency: string }, itemCount: int, createdAtUtc: DateTimeOffset }>>` newest-first |
 | Status Codes | `200, 400, 401` |
-| Validation | `pageNumber>=1, 1<=pageSize<=100` else `400 ValidationFailed` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100` else `400 ValidationFailed`; unknown status → `400` |
 | Errors | `400 Validation`, `401` |
 | Pagination | Yes (defaults `1/20`, max `100`) |
 | Sorting | Fixed newest-first (no param) |
-| Filtering | No (only caller-owned) |
+| Filtering | Yes (`status`; only caller-owned) |
 
 ### GET /orders/{orderId}
 | Field | Value |
@@ -578,6 +636,16 @@ Requests use `DataAnnotations`: `Add*` = `[Required]VariantId + [Required][Range
 | Errors | `404`, `409 CancelConflict` |
 | Pagination/Sorting/Filtering | — |
 
+### 4.5 Admin orders — `[Route admin/orders]` (permission-gated, §0.5)
+
+| Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
+|---|---|---|---|---|---|---|---|
+| `/admin/orders` | `GET` | `orders.read` | Query `pageNumber?, pageSize?, status? (Pending\|Cancelled\|Confirmed), customerId?: Guid, search?: string (order-number substring), from?: DateTimeOffset, to?: DateTimeOffset` | `200 ApiResponse<PagedResult<OrderSummaryResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / `from>to` → `400 ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
+| `/admin/orders/counts` | `GET` | `orders.read` | None | `200 ApiResponse<AdminOrderCountsResponse { total, pending, confirmed, cancelled: int }>` | `200,401,403` | — | — |
+| `/admin/orders/{orderId:guid}` | `GET` | `orders.read` | Route `orderId` (no ownership scoping) | `200 ApiResponse<OrderDetailsResponse>` | `200,401,403,404` | `404 Order.NotFound` | — |
+| `/admin/orders/{orderId:guid}/cancel` | `POST` | `orders.cancel` | Route `orderId`, no body (force-cancel any `Pending` order; compensation flows via `order_cancelled` as for customer cancel) | `200 ApiResponse<OrderDetailsResponse>` | `200,401,403,404,409` | must be `Pending`; `404 Order.NotFound`, `409 Order.CancelConflict` (use refund for `Confirmed`) | — |
+| `/admin/orders/{orderId:guid}/refund` | `POST` | `orders.refund` | Route `orderId` + Body `RefundOrderRequest { reason: string ([Required][StringLength(500,Min 1)]) }` | `200 ApiResponse<OrderDetailsResponse>` (current order; refund completes async via saga → Stripe → `PaymentRefunded`) | `200,400,401,403,404,409` | reason required 1..500; only paid (`Completed` saga) eligible; `404 Order.NotFound`, `409 Order.RefundConflict` (incl. in-flight duplicate → still `200` idempotent) | — |
+
 ---
 
 ## 5. Inventory — Tag `Inventory`, `[Route inventory][Authorize]`
@@ -590,6 +658,9 @@ Reads require `inventory.read`, writes (`POST /`, `PATCH /{sku}`) require `inven
 | `/inventory/{sku}` | `GET` | `inventory.read` | Route `sku: string` (not guid) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | `400 InvalidSku`; `404 SkuNotFound` | — |
 | `/inventory/{sku}` | `PATCH` | `inventory.manage` | Route `sku` + Body `AdjustStockRequest { quantity: int (1..max) }` additive-only (no manual decrement; consumption via reservation commit) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | same | — |
 | `/inventory/reservations/{id:guid}` | `GET` | `inventory.read` | Route `id: Guid` | `200 ApiResponse<InventoryReservationResponse { reservationId: Guid, orderId: Guid, sku: string, quantity: int, status: Pending\|Committed\|Released\|Expired, expiresAt: DateTimeOffset, createdAtUtc, updatedAtUtc }>` | `200,400,401,403,404` | `400 InvalidReservationId`; `404` | — (ids never enumerable) |
+| `/inventory` | `GET` | `inventory.read` | Query `pageNumber?, pageSize?, search?: string (SKU substring, case-insensitive), maxAvailable?: int (available-quantity ceiling)` | `200 ApiResponse<PagedResult<InventoryItemResponse>>` ordered by SKU | `200,400,401,403` | pagination rules; negative `maxAvailable` → `400 ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed by SKU; Filtering yes |
+| `/inventory/counts` | `GET` | `inventory.read` | Query `lowStockThreshold?: int (default 5, inclusive available ceiling)` | `200 ApiResponse<InventoryCountsResponse { totalItems, totalOnHand, totalReserved, lowStockItems, pendingReservations, committedReservations, releasedReservations, expiredReservations: int }>` | `200,400,401,403` | negative threshold → `400 ValidationFailed` | — |
+| `/inventory/reservations` | `GET` | `inventory.read` | Query `pageNumber?, pageSize?, status?: Pending\|Committed\|Released\|Expired, sku?: string (exact, normalized), orderId?: Guid` | `200 ApiResponse<PagedResult<InventoryReservationResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / bad SKU / empty orderId → `400` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
 
 ---
 
@@ -638,6 +709,29 @@ Note inconsistent `api/` prefix (other modules have none).
 | Pagination/Sorting/Filtering | — |
 | Frontend note | Not called by SPA. SPA uses `Stripe.PublishableKey` + `ClientSecret` (from `PaymentIntentResult`, backend-only) via Stripe.js; poll `GET /api/payments/{id}` / `GET /orders/{id}` for `Succeeded→Order Confirmed`, `Failed→compensate`, `Refunded→post-pay compensation`. |
 
+### GET /api/payments/mine
+| Field | Value |
+|---|---|
+| Endpoint | `/api/payments/mine` |
+| HTTPMethod | `GET` |
+| Authorization | Authenticated (scoped to caller — never another customer's payments) |
+| Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Processing\|Succeeded\|Failed\|Cancelled\|Refunded (case-insensitive)` |
+| Response | `200 ApiResponse<PagedResult<PaymentAdminResponse { id, orderId, customerId, amount: number, currency: string, status: string, providerPaymentIntentId?: string\|null, provider?: string\|null, createdAtUtc: DateTimeOffset, updatedAtUtc?: DateTimeOffset\|null, version: long }>>` newest-first (same shape as admin view) |
+| Status Codes | `200, 400, 401` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100`; unknown status → `400 Payment.ValidationFailed` |
+| Errors | `400 Validation`, `401` |
+| Pagination | Yes (defaults `1/20`, max `100`) |
+| Sorting | Fixed newest-first (no param) |
+| Filtering | Yes (`status`; only caller-owned) |
+
+### 6.5 Admin payments — `[Route admin/payments]` (permission-gated, §0.5; read-only, no Stripe calls)
+
+| Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
+|---|---|---|---|---|---|---|---|
+| `/admin/payments` | `GET` | `payments.read` | Query `pageNumber?, pageSize?, status?, orderId?: Guid, customerId?: Guid, from?: DateTimeOffset, to?: DateTimeOffset` | `200 ApiResponse<PagedResult<PaymentAdminResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / `from>to` → `400 Payment.ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
+| `/admin/payments/stats` | `GET` | `payments.stats` | None | `200 ApiResponse<PaymentAdminStatsResponse { total, pending, processing, succeeded, failed, cancelled, refunded: int, totalsByCurrency: [{ currency: string, succeededCount: int, succeededTotalAmount: number }] }>` | `200,401,403` | — | — |
+| `/admin/payments/{paymentId:guid}` | `GET` | `payments.read` | Route `paymentId` (no ownership scoping) | `200 ApiResponse<PaymentAdminResponse>` | `200,401,403,404` | `404 Payment.NotFound` | — |
+
 ---
 
 ## 7. Health (no auth, no envelope)
@@ -646,6 +740,24 @@ Note inconsistent `api/` prefix (other modules have none).
 |---|---|---|---|---|---|
 | `/health/live` | `GET` | None (predicate `tag==app`) | None | `{ status: string, duration: number (ms, property is `duration` not `durationMs`), components: [{ name, status, description, duration }] }` | `200` healthy, `503` otherwise |
 | `/health` | `GET` | None (all checks: `app, sql_server[database,infrastructure], redis[cache,infrastructure], rabbitmq[messaging,infrastructure]`) | None | Same shape | `200/503` |
+
+---
+
+## 8. Dashboard — Tag `Dashboard`, `[Route admin/dashboard][Authorize(dashboard.read)]`
+
+Single read-only snapshot composing the per-module overviews (each section produced by its owning module; the host never touches another module's state). For admin landing cards + recent-orders widget; drill down via the §4.5/§6.5 lists.
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/dashboard` |
+| HTTPMethod | `GET` |
+| Authorization | `dashboard.read` (SuperAdmin passes) |
+| Request | Query `lowStockThreshold?: int (default 5, inclusive available ceiling for the inventory section)` |
+| Response | `200 ApiResponse<AdminDashboardResponse { orders: AdminOrderCountsResponse, payments: PaymentAdminStatsResponse, inventory: InventoryCountsResponse, users: UserAdminCountsResponse, recentOrders: OrderSummaryResponse[5] (newest-first) }>` |
+| Status Codes | `200, 400, 401, 403` |
+| Validation | negative threshold → `400 ValidationFailed` |
+| Errors | First failing section's error surfaces (`400/404` as mapped) |
+| Pagination/Sorting/Filtering | Fixed (`recentOrders` newest 5; full paging via list endpoints) |
 
 ---
 

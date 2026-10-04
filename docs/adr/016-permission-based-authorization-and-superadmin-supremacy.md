@@ -2,8 +2,11 @@
 
 ## Status
 
-Accepted (2026-10-01) — Decisions locked by user on 4 points (action-level granularity, Admin-as-bundle,
-SuperAdmin-only management, no backfill).
+Accepted (2026-10-01) — Decisions locked by user on 4 points (action-level granularity,
+manual grants, SuperAdmin-only management, no backfill).
+
+**Amendment (2026-10-04):** D5 re-decided by user — no automatic grants at all (see amended D5).
+All other decisions stand.
 
 ## Context
 
@@ -68,11 +71,14 @@ Five interlocked decisions (user-confirmed):
 *   `UserResponse` + `UserAdminResponse` gain additive `Permissions: string[]` so the frontend can
     render per-permission UI without a second call.
 
-### D5 — `Admin` is a grant-on-assignment bundle; existing admins restart empty
+### D5 — No automatic grants; every permission is granted manually (amended 2026-10-04)
 
-*   `AssignRole(Admin)` additionally stores the full admin permission bundle explicitly (all §4
-    permissions except none — user/permission management itself is not bundleable and stays
-    `SuperAdmin`-only with `register-admin`).
+*   Neither `register-admin` nor `AssignRole(Admin)` grants anything: a newly created or newly
+    promoted admin starts permission-less, and `SuperAdmin` grants each permission explicitly
+    afterwards through the Phase C surface. (The original "Admin-as-bundle" decision is superseded.)
+*   `PermissionCatalog.AdminBundle` is kept purely as the reference full set (e.g. for UIs offering
+    a "grant all" shortcut and for tests minting fully-privileged tokens) — it is **not** applied
+    automatically anywhere in production code.
 *   Removing the `Admin` role does not strip explicitly granted permissions (explicit revoke is
     the tool). No automatic backfill: existing `Admin` accounts lose admin access at activation
     until re-granted manually (user decision; operational warning is part of the Phase 21 completion

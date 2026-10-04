@@ -81,10 +81,8 @@ public sealed class RegisterAdminCommandHandler : ICommandHandler<RegisterAdminC
             verificationToken: verificationToken,
             verificationTokenExpiresAtUtc: verificationTokenExpiresAtUtc);
 
-        // A freshly registered Admin carries the full admin permission bundle (ADR-016 D5),
-        // so the account is operational without a follow-up grant round.
-        foreach (var permission in PermissionCatalog.AdminBundle)
-            user.GrantPermission(permission);
+        // No automatic permissions: a freshly registered Admin starts empty (ADR-016 D5).
+        // SuperAdmin grants action-level permissions explicitly afterwards.
 
         await _userRepository.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -30,7 +30,11 @@ enum UserStatus { Pending = 0, Active = 1, Suspended = 2, Locked = 3, Deleted = 
 
 ### Roles (strings, not an enum)
 
-Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Wire: `LoginResponse.roles: string[]`, `UserResponse.roles: string[]`, JWT `Role[]` claims, `AssignRoleRequest.role: string`. Policies `Customer|Admin|SuperAdmin` = `RequireRole(...)`.
+Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Wire: `LoginResponse.roles: string[]`, `UserResponse.roles: string[]`, JWT `Role[]` claims, `AssignRoleRequest.role: string`. Role policies are role-or-SuperAdmin (SuperAdmin passes all); `SuperAdmin` policy stays exact.
+
+### Permissions (strings, not an enum)
+
+Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|dashboard.read`. Wire: JWT `permission[]` claims, `UserResponse.permissions: string[]`, `GrantPermissionRequest.permission: string`. Assigning `Admin` stores the full bundle; grants apply on next login/refresh.
 
 ---
 
@@ -211,6 +215,7 @@ Backend-only: `PaymentWebhookAction (Ignore=0,Succeed=1,Fail=2,Cancel=3,Process=
 - `CheckoutPersistStatus`: `Created=0, Duplicate=1` (implicit values, no explicit assignment; idempotent-replay signal, frontend sees `CheckoutResponse` or `Order.IdempotencyConflict 409`)
 - `CartCheckoutConsumptionStatus`: `Consumed=0, AlreadyEmpty=1, CartNotFound=2, AccessDenied=3, ConcurrencyConflict=4, Failed=5` (best-effort post-checkout cart clear; checkout still succeeds)
 - `OrderSagaTransitionOutcome`: `Applied=0, Duplicate=1, Conflicting=2, Invalid=3, Ignored=4` (implicit; reservation-expiry on terminal saga → `Ignored`)
+- `RefundRequestOutcome`: `Applied=0, Duplicate=1, NotEligible=2, OrderNotFound=3` (explicit; admin refund saga decision, frontend sees `OrderDetailsResponse` or `404/409`)
 - `OutboxStatus`: `Pending=0, InProgress=1, Published=2, Failed=3`
 - `ConsumerMessageAction`: `Ack=0, Requeue=1, Reject=2, DeadLetter=3`; `ConsumerFailureClassification`: `Retryable=0, Permanent=1`; `ConsumerBackoffType` (Fixed/Linear/Exponential + `MaxDelay`) — broker internals, no UI mapping.
 

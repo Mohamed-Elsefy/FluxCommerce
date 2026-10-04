@@ -61,16 +61,26 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 
 ## 4. Roles and endpoint matrix
 
-`Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Policies = `RequireRole(...)` each.
+`Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Role policies are role-or-SuperAdmin (SuperAdmin passes all); `SuperAdmin` policy stays exact. Permission policies (Phase 21, full catalog in `API_CONTRACT.md` §0.5) require the matching `permission` claim — SuperAdmin passes those too.
 
 | Endpoint | Policy | Frontend meaning |
 |---|---|---|
 | `POST /auth/register,login,refresh,logout,verify-email,resend-verification,forgot-password,reset-password` | Anonymous | Public |
-| `POST /auth/change-password`, `GET /auth/me` | Any authenticated JWT | Any logged-in user |
-| `POST /auth/register-admin`, `POST /admin/users/{id}/roles`, `POST /admin/users/{id}/unlock` | `SuperAdmin` | Bootstrap/admin console only; `401` no JWT, `403` wrong role |
-| Catalog writes, `GET /inventory/*` | `Admin` | Admin console; customers get `401/403` |
+| `POST /auth/change-password`, `PUT /auth/profile`, `GET /auth/me` | Any authenticated JWT | Any logged-in user |
+| `POST /auth/register-admin`, `/admin/users/**` (roles, unlock, list, counts, get, permissions) | `SuperAdmin` | Bootstrap/admin console only; `401` no JWT, `403` wrong role |
+| Catalog writes | `catalog.manage` | Admin console with the permission; otherwise `401/403` |
+| `GET /inventory/**` | `inventory.read` | Reader permission |
+| `POST/PATCH /inventory/**` | `inventory.manage` | Stock-manager permission |
+| `GET /admin/orders/**` | `orders.read` | Sales-viewer permission |
+| `POST /admin/orders/{id}/cancel` | `orders.cancel` | — |
+| `POST /admin/orders/{id}/refund` | `orders.refund` | — |
+| `GET /admin/payments/**` (except stats) | `payments.read` | — |
+| `GET /admin/payments/stats` | `payments.stats` | — |
+| `GET /admin/dashboard` | `dashboard.read` | — |
 | Catalog reads, guest cart | Anonymous | Storefront, no token |
-| Auth cart (`/cart`, `/cart/items`, `/cart/merge`), `POST /orders/*`, `GET /orders*`, `GET /api/payments/{id}` | Authenticated (+ ownership on orders/payments/cart) | Customer JWT; other-user ids → `403/404` masked |
+| Auth cart (`/cart`, `/cart/items`, `/cart/merge`), `POST /orders/*`, `GET /orders*`, `GET /api/payments/mine`, `GET /api/payments/{id}` | Authenticated (+ ownership on orders/payments/cart) | Customer JWT; other-user ids → `403/404` masked |
+
+`SuperAdmin` passes every row above (supremacy); a missing permission → `403` like a wrong role.
 
 `GET /auth/me` resolves user from `ICurrentUser` (JWT `NameIdentifier`) — no id param, so no IDOR.
 

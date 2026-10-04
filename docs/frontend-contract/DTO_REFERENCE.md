@@ -59,6 +59,8 @@ sealed record ForgotPasswordRequest(string Email);
 sealed record ResetPasswordRequest(string Token, string NewPassword);
 sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword, string ConfirmPassword);
 sealed record AssignRoleRequest(string Role); // id comes from route POST /admin/users/{id}/roles, NOT body
+sealed record UpdateProfileRequest(string? FirstName, string? LastName, string? PhoneNumber, string? AvatarUrl, string? PreferredLanguage, string? TimeZone); // all nullable: null keeps, empty clears optional
+sealed record GrantPermissionRequest(string Permission); // id comes from route POST /admin/users/{id}/permissions, NOT body
 ```
 
 ```ts
@@ -72,6 +74,8 @@ interface ForgotPasswordRequest { email: string }
 interface ResetPasswordRequest { token: string; newPassword: string }
 interface ChangePasswordRequest { currentPassword: string; newPassword: string; confirmPassword: string }
 interface AssignRoleRequest { role: string } // "Customer" | "Admin" | "SuperAdmin"
+interface UpdateProfileRequest { firstName?: string | null; lastName?: string | null; phoneNumber?: string | null; avatarUrl?: string | null; preferredLanguage?: string | null; timeZone?: string | null }
+interface GrantPermissionRequest { permission: string } // one catalog value, see §0.5 in API_CONTRACT.md
 ```
 
 Validation (Fluent, → `400`): email format/max 254/lowercased; password `8..128` + upper+lower+digit+special; names required/trimmed; tokens required; `confirmPassword == newPassword`; `role` in known roles.
@@ -89,7 +93,9 @@ Validation (Fluent, → `400`): email format/max 254/lowercased; password `8..12
 
 ```csharp
 sealed record LoginResponse(Guid UserId, string Email, IReadOnlyCollection<string> Roles, string AccessToken, string RefreshToken, DateTime RefreshTokenExpiresAtUtc);
-sealed record UserResponse(Guid Id, string Email, IReadOnlyCollection<string> Roles, bool IsEmailVerified, DateTime RegisteredAtUtc, string FirstName, string LastName, string? DisplayName, string? PhoneNumber, bool IsPhoneVerified, string? AvatarUrl, string PreferredLanguage, string TimeZone, UserStatus Status);
+sealed record UserResponse(Guid Id, string Email, IReadOnlyCollection<string> Roles, bool IsEmailVerified, DateTime RegisteredAtUtc, string FirstName, string LastName, string? DisplayName, string? PhoneNumber, bool IsPhoneVerified, string? AvatarUrl, string PreferredLanguage, string TimeZone, UserStatus Status, IReadOnlyCollection<string> Permissions);
+sealed record UserAdminResponse(Guid Id, string Email, IReadOnlyCollection<string> Roles, bool IsEmailVerified, DateTime RegisteredAtUtc, string FirstName, string LastName, string? DisplayName, string? PhoneNumber, bool IsPhoneVerified, string? AvatarUrl, string PreferredLanguage, string TimeZone, UserStatus Status, int FailedAccessAttemptCount, DateTime? LockoutEndUtc, bool IsLocked, IReadOnlyCollection<string> Permissions);
+sealed record UserAdminCountsResponse(int Total, int Pending, int Active, int Suspended, int Locked, int Deleted, int Customers, int Admins, int SuperAdmins, int Unverified, int LockedOut);
 sealed record ResendVerificationResponse(bool EmailSent, DateTime? ExpiresAtUtc);
 enum UserStatus { Pending = 0, Active = 1, Suspended = 2, Locked = 3, Deleted = 4 }
 ```
@@ -97,7 +103,9 @@ enum UserStatus { Pending = 0, Active = 1, Suspended = 2, Locked = 3, Deleted = 
 ```ts
 type UserStatus = "Pending" | "Active" | "Suspended" | "Locked" | "Deleted";
 interface LoginResponse { userId: string; email: string; roles: string[]; accessToken: string; refreshToken: string; refreshTokenExpiresAtUtc: string }
-interface UserResponse { id: string; email: string; roles: string[]; isEmailVerified: boolean; registeredAtUtc: string; firstName: string; lastName: string; displayName?: string | null; phoneNumber?: string | null; isPhoneVerified: boolean; avatarUrl?: string | null; preferredLanguage: string; timeZone: string; status: UserStatus }
+interface UserResponse { id: string; email: string; roles: string[]; isEmailVerified: boolean; registeredAtUtc: string; firstName: string; lastName: string; displayName?: string | null; phoneNumber?: string | null; isPhoneVerified: boolean; avatarUrl?: string | null; preferredLanguage: string; timeZone: string; status: UserStatus; permissions: string[] }
+interface UserAdminResponse extends UserResponse { failedAccessAttemptCount: number; lockoutEndUtc?: string | null; isLocked: boolean }
+interface UserAdminCountsResponse { total: number; pending: number; active: number; suspended: number; locked: number; deleted: number; customers: number; admins: number; superAdmins: number; unverified: number; lockedOut: number }
 interface ResendVerificationResponse { emailSent: boolean; expiresAtUtc?: string | null }
 ```
 
@@ -108,7 +116,7 @@ interface ResendVerificationResponse { emailSent: boolean; expiresAtUtc?: string
 { "isSuccess": true, "message": "Operation completed successfully.", "data": { "id": "…", "email": "ada@flux.local", "roles": ["Customer"], "isEmailVerified": true, "registeredAtUtc": "2026-09-04T10:00:00Z", "firstName": "Ada", "lastName": "Lovelace", "displayName": "Ada Lovelace", "phoneNumber": null, "isPhoneVerified": false, "avatarUrl": null, "preferredLanguage": "en", "timeZone": "UTC", "status": "Active" } }
 ```
 
-Roles constants (`Identity.Domain.Aggregates.Roles`): `Customer = "Customer"`, `Admin = "Admin"`, `SuperAdmin = "SuperAdmin"`. Policies `Customer|Admin|SuperAdmin` = `RequireRole(...)`. JWT claims: `NameIdentifier=userId`, `Email`, `Role[]`; lifetimes access `15m`, skew `5m`, refresh `7d` rotating, verify `24h`, reset `1h`.
+Roles constants (`Identity.Domain.Aggregates.Roles`): `Customer = "Customer"`, `Admin = "Admin"`, `SuperAdmin = "SuperAdmin"`. Permission catalog (`Identity.Domain.Aggregates.PermissionCatalog`, claim type `"permission"`): `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|dashboard.read` (`AdminBundle` = the full set, reference only — never auto-applied). JWT claims: `NameIdentifier=userId`, `Email`, `Role[]`, `permission[]`; lifetimes access `15m`, skew `5m`, refresh `7d` rotating, verify `24h`, reset `1h`. Grants are manual-only and apply on next login/refresh; `SuperAdmin` bypasses every gate.
 
 ---
 
@@ -296,6 +304,7 @@ interface CartResponse { cartId: string; userId?: string | null; version: number
 ```csharp
 sealed record CheckoutAddressRequest([Required][StringLength(100)] string RecipientName, [Required][StringLength(200)] string Line1, [StringLength(200)] string? Line2, [Required][StringLength(100)] string City, [Required][StringLength(100)] string Region, [Required][StringLength(20)] string PostalCode, [Required][StringLength(2, MinimumLength = 2)] string CountryCode);
 sealed record CheckoutRequest([Required] Guid CartId, [Required] CheckoutAddressRequest ShippingAddress, [Required] CheckoutAddressRequest BillingAddress);
+sealed record RefundOrderRequest([Required][StringLength(500, MinimumLength = 1)] string Reason); // admin refund only
 ```
 
 ```ts
@@ -318,6 +327,7 @@ sealed record OrderAddressResponse(string RecipientName, string Line1, string? L
 sealed record OrderLineItemResponse(string ProductName, string Sku, int Quantity, decimal UnitPrice, string UnitPriceCurrency, decimal LineTotal, string LineTotalCurrency);
 sealed record OrderSummaryResponse(Guid OrderId, string OrderNumber, string Status, OrderMoneyResponse GrandTotal, int ItemCount, DateTimeOffset CreatedAtUtc);
 sealed record OrderDetailsResponse(Guid OrderId, string OrderNumber, string Status, OrderMoneyResponse Subtotal, OrderMoneyResponse ShippingCost, OrderMoneyResponse Discount, OrderMoneyResponse GrandTotal, int ItemCount, DateTimeOffset CreatedAtUtc, OrderAddressResponse ShippingAddress, OrderAddressResponse BillingAddress, IReadOnlyList<OrderLineItemResponse> LineItems);
+sealed record AdminOrderCountsResponse(int Total, int Pending, int Confirmed, int Cancelled);
 ```
 
 ```ts
@@ -327,9 +337,11 @@ interface OrderLineItemResponse { productName: string; sku: string; quantity: nu
 interface CheckoutResponse { orderId: string; orderNumber: string; status: string; createdAtUtc: string }
 interface OrderSummaryResponse { orderId: string; orderNumber: string; status: string; grandTotal: OrderMoneyResponse; itemCount: number; createdAtUtc: string }
 interface OrderDetailsResponse { orderId: string; orderNumber: string; status: string; subtotal: OrderMoneyResponse; shippingCost: OrderMoneyResponse; discount: OrderMoneyResponse; grandTotal: OrderMoneyResponse; itemCount: number; createdAtUtc: string; shippingAddress: OrderAddressResponse; billingAddress: OrderAddressResponse; lineItems: OrderLineItemResponse[] }
+interface AdminOrderCountsResponse { total: number; pending: number; confirmed: number; cancelled: number }
+interface RefundOrderRequest { reason: string } // 1..500 chars, required
 ```
 
-Query shape (Application layer): `GetMyOrdersQuery(int? PageNumber, int? PageSize)` → handler defaults via `OrderPaginationRules`: `DefaultPageNumber=1, DefaultPageSize=20, MinPageNumber=1, MinPageSize=1, MaxPageSize=100` (`pageNumber>=1, 1<=pageSize<=100` else `Error.Validation("Order.ValidationFailed")` → `400`). `Status: string` values: `Pending|Cancelled|Confirmed` (`OrderStatus.ToString()`).
+Query shapes (Application layer): `GetMyOrdersQuery(int? PageNumber, int? PageSize, string? Status = null)` → handler defaults via `OrderPaginationRules`: `DefaultPageNumber=1, DefaultPageSize=20, MinPageNumber=1, MinPageSize=1, MaxPageSize=100` (`pageNumber>=1, 1<=pageSize<=100` else `Error.Validation("Order.ValidationFailed")` → `400`; unknown status → same). `Status: string` values: `Pending|Cancelled|Confirmed` (`OrderStatus.ToString()`).
 
 ```json
 // POST /orders/checkout → ApiResponse<CheckoutResponse>
@@ -351,6 +363,7 @@ sealed record CreateInventoryItemRequest([Required(AllowEmptyStrings = false), S
 sealed record AdjustStockRequest([Range(1, int.MaxValue)] int Quantity); // additive only
 sealed record InventoryItemResponse(string Sku, int OnHandQuantity, int ReservedQuantity, int AvailableQuantity, DateTimeOffset UpdatedAtUtc); // Available = OnHand - Reserved, computed
 sealed record InventoryReservationResponse(Guid ReservationId, Guid OrderId, string Sku, int Quantity, InventoryReservationStatus Status, DateTimeOffset ExpiresAt, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
+sealed record InventoryCountsResponse(int TotalItems, int TotalOnHand, int TotalReserved, int LowStockItems, int PendingReservations, int CommittedReservations, int ReleasedReservations, int ExpiredReservations);
 enum InventoryReservationStatus { Pending = 0, Committed = 1, Released = 2, Expired = 3 }
 ```
 
@@ -359,6 +372,7 @@ interface CreateInventoryItemRequest { sku: string; onHandQuantity: number }
 interface AdjustStockRequest { quantity: number }
 interface InventoryItemResponse { sku: string; onHandQuantity: number; reservedQuantity: number; availableQuantity: number; updatedAtUtc: string }
 interface InventoryReservationResponse { reservationId: string; orderId: string; sku: string; quantity: number; status: "Pending" | "Committed" | "Released" | "Expired"; expiresAt: string; createdAtUtc: string; updatedAtUtc: string }
+interface InventoryCountsResponse { totalItems: number; totalOnHand: number; totalReserved: number; lowStockItems: number; pendingReservations: number; committedReservations: number; releasedReservations: number; expiredReservations: number }
 ```
 
 ```json
@@ -381,9 +395,9 @@ sealed record InventoryReservationReadModel(Guid ReservationId, Guid OrderId, st
 
 ---
 
-## 6. Payments (`FluxCommerce.Modules.Payments` — no `*.Contracts` DTOs)
+## 6. Payments (`FluxCommerce.Modules.Payments.Contracts.Responses` for admin/customer shapes)
 
-`GET /api/payments/{id}` returns an anonymous object (not a named record); webhook is raw-body, no envelope.
+`GET /api/payments/{id}` returns an anonymous object (not a named record); webhook is raw-body, no envelope. The admin/customer list views use the explicit `PaymentAdminResponse` contract below.
 
 ```csharp
 // GET /api/payments/{paymentId} → ApiResponse<object>:
@@ -397,6 +411,20 @@ enum PaymentStatus { Pending = 0, Processing = 1, Succeeded = 2, Failed = 3, Can
 
 ```ts
 interface PaymentResponse { id: string; orderId: string; customerId: string; amount: number; currency: string; status: "Pending" | "Processing" | "Succeeded" | "Failed" | "Cancelled" | "Refunded"; providerPaymentIntentId?: string | null; provider?: string | null; createdAtUtc: string; updatedAtUtc?: string | null; version: number }
+```
+
+```csharp
+// GET /api/payments/mine + GET /admin/payments* → ApiResponse<PagedResult<PaymentAdminResponse>>:
+sealed record PaymentAdminResponse(Guid Id, Guid OrderId, Guid CustomerId, decimal Amount, string Currency, string Status, string? ProviderPaymentIntentId, string? Provider, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc, long Version);
+// GET /admin/payments/stats:
+sealed record PaymentCurrencyTotalResponse(string Currency, int SucceededCount, decimal SucceededTotalAmount);
+sealed record PaymentAdminStatsResponse(int Total, int Pending, int Processing, int Succeeded, int Failed, int Cancelled, int Refunded, IReadOnlyList<PaymentCurrencyTotalResponse> TotalsByCurrency);
+```
+
+```ts
+interface PaymentAdminResponse { id: string; orderId: string; customerId: string; amount: number; currency: string; status: "Pending" | "Processing" | "Succeeded" | "Failed" | "Cancelled" | "Refunded"; providerPaymentIntentId?: string | null; provider?: string | null; createdAtUtc: string; updatedAtUtc?: string | null; version: number }
+interface PaymentCurrencyTotalResponse { currency: string; succeededCount: number; succeededTotalAmount: number }
+interface PaymentAdminStatsResponse { total: number; pending: number; processing: number; succeeded: number; failed: number; cancelled: number; refunded: number; totalsByCurrency: PaymentCurrencyTotalResponse[] }
 ```
 
 ```json
@@ -417,8 +445,27 @@ interface AuthHeader { Authorization: "Bearer <accessToken-15m>" }
 interface LocaleInput { "Accept-Language"?: "en" | "fr" | "de" | "es" | "ar"; culture?: string }
 // Tracing (optional in, always echoed out)
 interface CorrelationHeaders { "X-Correlation-ID"?: string; } // response echoes X-Correlation-ID + X-Request-ID (both Guid:N if generated)
-// Paging (catalog list/search + GET /orders)
+// Paging (catalog list/search + GET /orders + admin lists + GET /api/payments/mine)
 interface PagingQuery { pageNumber?: number; pageSize?: number } // >=1, 1..100; defaults 1/20
 // Health (no envelope)
 interface HealthResponse { status: string; duration: number; components: { name: string; status: string; description: string | null; duration: number }[] }
+```
+
+---
+
+## 8. Dashboard (`FluxCommerce.Api.Models` — host composition, no new persistence)
+
+`GET /admin/dashboard` composes the per-module contracts above; every section shape is defined in its module section (§1/§4/§5/§6).
+
+```csharp
+sealed record AdminDashboardResponse(
+    AdminOrderCountsResponse Orders,
+    PaymentAdminStatsResponse Payments,
+    InventoryCountsResponse Inventory,
+    UserAdminCountsResponse Users,
+    IReadOnlyList<OrderSummaryResponse> RecentOrders); // newest 5
+```
+
+```ts
+interface AdminDashboardResponse { orders: AdminOrderCountsResponse; payments: PaymentAdminStatsResponse; inventory: InventoryCountsResponse; users: UserAdminCountsResponse; recentOrders: OrderSummaryResponse[] }
 ```

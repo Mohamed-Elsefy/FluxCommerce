@@ -134,7 +134,7 @@ public class AssignRoleCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_AdminRole_GrantsFullPermissionBundle()
+    public async Task HandleAsync_AdminRole_GrantsNoPermissions()
     {
         var user = TestUsers.CreateVerified(roles: [Roles.Customer]);
         await _users.AddAsync(user);
@@ -143,8 +143,8 @@ public class AssignRoleCommandHandlerTests
         var result = await handler.HandleAsync(new AssignRoleCommand(user.Id, Roles.Admin));
 
         Assert.True(result.IsSuccess);
-        Assert.All(PermissionCatalog.AdminBundle, permission => Assert.Contains(permission, user.Permissions));
-        Assert.All(PermissionCatalog.AdminBundle, permission => Assert.Contains(permission, result.Value.Permissions));
+        Assert.Empty(user.Permissions);
+        Assert.Empty(result.Value.Permissions);
     }
 
     [Fact]

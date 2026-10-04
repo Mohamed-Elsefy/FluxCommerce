@@ -13,8 +13,9 @@
    `SuperAdminPolicy`-gated identity bootstrapping surface itself, which stays exact.
 2. Replace the coarse `Admin`-role gate on ~40 administrative actions with **action-level permissions**
    (9) that `SuperAdmin` grants/revokes per admin (e.g. one admin reads sales, another manages stock).
-3. Assigning the `Admin` role grants the full admin permission bundle explicitly (stored, not implied);
-   existing `Admin` accounts start empty and are re-granted manually (user decision — see §8).
+3. Assigning the `Admin` role grants nothing by itself; every permission — for existing and
+   newly created admins alike — is granted manually by `SuperAdmin` afterwards (amended 2026-10-04;
+   the bundle once auto-granted on assignment was removed).
 
 ## 2. Non-Goals
 
@@ -94,11 +95,12 @@ role/permission requirement; otherwise the required role/permission claim must b
 - **Declared rule:** permission changes take effect on the next login/refresh (documented in
   `AUTH_FLOW.md`). No token revocation list (out of scope, consistent with current design).
 
-### 6.3 Role Semantics & Bundle
+### 6.3 Role Semantics (Amended 2026-10-04: No Automatic Grants)
 
-- Assigning `Admin` grants the full admin permission bundle **explicitly stored** on the user
-  (all catalog permissions in §4 except none — the bundle is the full set; user management stays
-  SuperAdmin-only and is therefore not in any bundle).
+- Assigning `Admin` (via `register-admin` or role assignment) grants **nothing**: every permission —
+  for existing and newly created admins alike — is granted manually by `SuperAdmin` afterwards.
+  (`PermissionCatalog.AdminBundle` remains only as the reference full set, e.g. for UIs offering
+  a "grant all" shortcut.)
 - `SuperAdmin` assignment is unchanged (role only; supremacy comes from the handler, not claims).
 - Removing the `Admin` role does **not** strip explicitly granted permissions (explicit revoke is
   the SuperAdmin's tool; documented behavior).
@@ -151,7 +153,7 @@ New error codes: `Identity.InvalidPermission` (400), `Identity.PermissionAlready
 
 ### Phase D — Activation (Breaking by Design)
 
-- Re-point the ~40 actions per §5; `AssignRole(Admin)` stores the full bundle;
+- Re-point the ~40 actions per §5; no automatic grants on `AssignRole`/`RegisterAdmin` (manual only);
   update `AuthorizationTests` + `CatalogAdminGatingTests` to the permission model
   (Admin-without-permission → 403; permission-without-Admin-role → 200);
   `API_CONTRACT.md` + `ERROR_CATALOG.md` sync.
@@ -161,12 +163,12 @@ New error codes: `Identity.InvalidPermission` (400), `Identity.PermissionAlready
 
 ## 8. Rollout Warning (Binding)
 
-By user decision there is **no automatic backfill**: the moment Phase D deploys, every existing
-`Admin` account loses administrative access until `SuperAdmin` re-grants permissions
-(`GET /admin/users` lists the accounts beforehand). Mitigation: deploy A–C first (no behavior
-change), extract the admin list, then deploy D inside a maintenance window with the grants
-scripted per person (e.g. sales-viewer ← `orders.read + payments.read + payments.stats +
-dashboard.read`; stock-manager ← `inventory.read + inventory.manage`).
+By user decision there is **no automatic backfill and no automatic grant on creation**: every
+`Admin` account — existing and newly created — starts permission-less until `SuperAdmin` grants
+permissions explicitly (`GET /admin/users` lists the accounts beforehand). Mitigation: deploy A–C
+first (no behavior change), extract the admin list, then deploy D inside a maintenance window
+with the grants scripted per person (e.g. sales-viewer ← `orders.read + payments.read +
+payments.stats + dashboard.read`; stock-manager ← `inventory.read + inventory.manage`).
 
 ## 9. Effort Estimate
 

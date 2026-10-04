@@ -44,7 +44,13 @@ Semantics: `items` = this page only (may be `[]`); `totalCount` = total matches 
 | `GET /catalog/products` | Yes | `pageNumber?, pageSize?` | Unspecified (no sort params) |
 | `GET /catalog` (search) | Yes | `searchTerm?, categoryId?, status?, visibility?, sortBy?, sortDirection?, pageNumber?, pageSize?` | `sortBy: Name\|CreatedAtUtc` + `sortDirection: Ascending\|Descending`; nulls = server default |
 | `GET /catalog/categories` | Yes | `pageNumber?, pageSize?` | Unspecified |
-| `GET /orders` | Yes | `pageNumber?, pageSize?` | Fixed newest-first (no sort param) |
+| `GET /orders` | Yes | `pageNumber?, pageSize?, status?` | Fixed newest-first (no sort param) |
+| `GET /api/payments/mine` | Yes | `pageNumber?, pageSize?, status?` | Fixed newest-first (no sort param) |
+| `GET /admin/orders` | Yes | `pageNumber?, pageSize?, status?, customerId?, search?, from?, to?` | Fixed newest-first (no sort param) |
+| `GET /admin/payments` | Yes | `pageNumber?, pageSize?, status?, orderId?, customerId?, from?, to?` | Fixed newest-first (no sort param) |
+| `GET /inventory` | Yes | `pageNumber?, pageSize?, search?, maxAvailable?` | Fixed by SKU (no sort param) |
+| `GET /inventory/reservations` | Yes | `pageNumber?, pageSize?, status?, sku?, orderId?` | Fixed newest-first (no sort param) |
+| `GET /admin/users` | Yes | `pageNumber?, pageSize?, status?, role?, search?` | Fixed newest-first (no sort param) |
 | `GET /catalog/products/{id}/variants` | No | — | Unspecified collection |
 | `GET /catalog/attribute-definitions` | No | — | Unspecified collection |
 | `GET /catalog/products/{id}/attributes` | No | — | Unspecified collection |
