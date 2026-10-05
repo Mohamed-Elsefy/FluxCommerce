@@ -124,9 +124,9 @@ public class IdentityArchitectureTests
     [Fact]
     public void AdminController_Actions_ShouldRequire_PermissionPolicies()
     {
-        // Phase E3: the class-level SuperAdmin gate is split per action — reads require
-        // users.read, writes require users.manage, and only the permission catalog document
-        // stays SuperAdmin-only.
+        // Reads are delegatable via users.read; every mutation (roles, unlock, grant, revoke)
+        // and the permission catalog document require SuperAdmin explicitly (class-level gate
+        // is plain authentication because policies do not inherit exclusively).
         var apiAssembly = ArchitectureRegistry.Api;
         var adminController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AdminController");
 
@@ -141,13 +141,13 @@ public class IdentityArchitectureTests
 
         var expectedPolicies = new Dictionary<string, string>
         {
-            ["AssignRole"] = "users.manage",
-            ["UnlockUser"] = "users.manage",
+            ["AssignRole"] = "SuperAdmin",
+            ["UnlockUser"] = "SuperAdmin",
             ["GetUsers"] = "users.read",
             ["GetUserCounts"] = "users.read",
             ["GetUser"] = "users.read",
-            ["GrantPermission"] = "users.manage",
-            ["RevokePermission"] = "users.manage",
+            ["GrantPermission"] = "SuperAdmin",
+            ["RevokePermission"] = "SuperAdmin",
             ["GetUserPermissions"] = "users.read",
             ["GetPermissionCatalog"] = "SuperAdmin",
         };
@@ -166,14 +166,18 @@ public class IdentityArchitectureTests
                 .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                 .FirstOrDefault();
 
+            if (methodAuth is null)
+            {
+                Assert.Fail($"AdminController.{method.Name} has no explicit policy; every action must declare one (class-level gate is plain authentication).");
+            }
+
             Assert.True(expectedPolicies.TryGetValue(method.Name, out var expected), $"Unexpected AdminController action: {method.Name}");
-            Assert.NotNull(methodAuth);
             Assert.Equal(expected, methodAuth!.Policy);
         }
     }
 
     [Fact]
-    public void RegisterAdmin_ShouldRequire_AdminsCreatePermission()
+    public void RegisterAdmin_ShouldRequire_SuperAdminPolicy()
     {
         var apiAssembly = ArchitectureRegistry.Api;
         var authController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AuthController");
@@ -190,7 +194,7 @@ public class IdentityArchitectureTests
             .FirstOrDefault();
 
         Assert.NotNull(authAttr);
-        Assert.Equal("admins.create", authAttr!.Policy);
+        Assert.Equal("SuperAdmin", authAttr!.Policy);
     }
 
     [Fact]

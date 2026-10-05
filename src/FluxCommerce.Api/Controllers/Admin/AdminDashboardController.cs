@@ -29,8 +29,8 @@ namespace FluxCommerce.Api.Controllers.Admin;
 /// Adaptive administrative dashboard snapshot (Phase 22 E1): any authenticated user receives
 /// <c>200 OK</c>, and every section is included only when the caller is entitled to it —
 /// <c>orders.read</c> for orders, <c>payments.read</c> or <c>payments.stats</c> for payments,
-/// <c>inventory.read</c> for inventory, <c>catalog.manage</c> for catalog, the <c>SuperAdmin</c>
-/// role for users. Each section is produced by its owning module's read path; the host only
+/// <c>inventory.read</c> for inventory, <c>catalog.manage</c> for catalog, <c>users.read</c> for
+/// users. Each section is produced by its owning module's read path; the host only
 /// composes the results and never touches another module's state.
 /// </summary>
 [ApiController]
@@ -141,7 +141,7 @@ public sealed class AdminDashboardController : ApiControllerBase
                 counts.ExpiredReservations);
         }
 
-        if (IsSuperAdmin())
+        if (HasPermission(PermissionCatalog.UsersRead))
         {
             var userCounts = await _userCountsHandler.HandleAsync(new GetAdminUserCountsQuery(), cancellationToken);
             if (userCounts.IsFailure)

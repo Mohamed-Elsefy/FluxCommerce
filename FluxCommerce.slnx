@@ -73,6 +73,7 @@
     <File Path="docs/phases/PHASE_9_STRIPE_PAYMENTS_IMPLEMENTATION_PLAN.md" />
     <File Path="docs/phases/PHASE_21_PERMISSION_BASED_AUTHORIZATION.md" />
     <File Path="docs/phases/PHASE_22_ADAPTIVE_DASHBOARD_AND_USER_DELEGATION.md" />
+    <File Path="docs/phases/PHASE_23_DASHBOARD_DATA_COMPLETION.md" />
   </Folder>
   <Folder Name="/docs/refactoring/">
     <File Path="docs/refactoring/REFACTORING_1_BASELINE.md" />

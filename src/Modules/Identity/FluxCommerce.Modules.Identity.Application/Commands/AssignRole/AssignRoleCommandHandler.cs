@@ -4,7 +4,6 @@ using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Mappings;
-using FluxCommerce.Modules.Identity.Application.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Domain.Errors;
 
@@ -14,20 +13,17 @@ public sealed class AssignRoleCommandHandler : ICommandHandler<AssignRoleCommand
 {
     private readonly IUserRepository _userRepository;
     private readonly IRoleRepository _roleRepository;
-    private readonly ICurrentUser _currentUser;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILocalizer _localizer;
 
     public AssignRoleCommandHandler(
         IUserRepository userRepository,
         IRoleRepository roleRepository,
-        ICurrentUser currentUser,
         IUnitOfWork unitOfWork,
         ILocalizer localizer)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
-        _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
     }
@@ -49,14 +45,6 @@ public sealed class AssignRoleCommandHandler : ICommandHandler<AssignRoleCommand
                 Error.NotFound("Identity.UserNotFound", "The user account was not found."));
 
         var trimmedRole = command.Role.Trim();
-
-        var assignable = DelegationGuard.CheckRoleAssignable(_currentUser, trimmedRole);
-        if (assignable is not null)
-            return Result.Failure<UserResponse>(assignable);
-
-        var accessible = DelegationGuard.CheckTargetAccessible(_currentUser, user);
-        if (accessible is not null)
-            return Result.Failure<UserResponse>(accessible);
 
         // Double-check role existence at handler level (defense-in-depth, handles race after validation)
         var roleExists = await _roleRepository.ExistsAsync(trimmedRole, cancellationToken);

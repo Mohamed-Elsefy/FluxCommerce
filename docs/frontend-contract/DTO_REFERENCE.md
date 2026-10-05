@@ -116,7 +116,7 @@ interface ResendVerificationResponse { emailSent: boolean; expiresAtUtc?: string
 { "isSuccess": true, "message": "Operation completed successfully.", "data": { "id": "…", "email": "ada@flux.local", "roles": ["Customer"], "isEmailVerified": true, "registeredAtUtc": "2026-09-04T10:00:00Z", "firstName": "Ada", "lastName": "Lovelace", "displayName": "Ada Lovelace", "phoneNumber": null, "isPhoneVerified": false, "avatarUrl": null, "preferredLanguage": "en", "timeZone": "UTC", "status": "Active" } }
 ```
 
-Roles constants (`Identity.Domain.Aggregates.Roles`): `Customer = "Customer"`, `Admin = "Admin"`, `SuperAdmin = "SuperAdmin"`. Permission catalog (`Identity.Domain.Aggregates.PermissionCatalog`, claim type `"permission"`): `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|users.read|users.manage|admins.create` (`AdminBundle` = the full set, reference only — never auto-applied). JWT claims: `NameIdentifier=userId`, `Email`, `Role[]`, `permission[]`; lifetimes access `15m`, skew `5m`, refresh `7d` rotating, verify `24h`, reset `1h`. Grants are manual-only and apply on next login/refresh; `SuperAdmin` bypasses every gate.
+Roles constants (`Identity.Domain.Aggregates.Roles`): `Customer = "Customer"`, `Admin = "Admin"`, `SuperAdmin = "SuperAdmin"`. Permission catalog (`Identity.Domain.Aggregates.PermissionCatalog`, claim type `"permission"`): `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|users.read` (`AdminBundle` = the full set, reference only — never auto-applied). JWT claims: `NameIdentifier=userId`, `Email`, `Role[]`, `permission[]`; lifetimes access `15m`, skew `5m`, refresh `7d` rotating, verify `24h`, reset `1h`. Grants are manual-only and apply on next login/refresh; `SuperAdmin` bypasses every gate.
 
 ---
 
@@ -134,7 +134,7 @@ sealed record CreateCategoryRequest(string? Name, string? Slug, string? Descript
 sealed record UpdateCategoryRequest(string? Name, string? Slug, string? Description, Guid? ParentId);
 sealed record CreateProductVariantRequest(string? Sku, string? Name, decimal UnitPriceAmount, string Currency); // Currency non-null
 sealed record CreateProductVariantsRequest(IReadOnlyCollection<CreateProductVariantRequest>? Variants); // nullable wrapper
-sealed record UpdateProductVariantRequest(string? Sku, string? Name); // only 2 fields, no price/status
+sealed record UpdateProductVariantRequest(string? Sku, string? Name, decimal? UnitPriceAmount = null, string? Currency = null, VariantStatus? Status = null); // price needs amount+currency together; status Active/Inactive
 ```
 
 ```ts
@@ -143,7 +143,7 @@ interface CreateProductRequest { name?: string | null; slug?: string | null; des
 interface CreateCategoryRequest { name?: string | null; slug?: string | null; description?: string | null; parentId?: string | null }
 interface CreateProductVariantRequest { sku?: string | null; name?: string | null; unitPriceAmount: number; currency: string }
 interface CreateProductVariantsRequest { variants?: CreateProductVariantRequest[] | null }
-interface UpdateProductVariantRequest { sku?: string | null; name?: string | null }
+interface UpdateProductVariantRequest { sku?: string | null; name?: string | null; unitPriceAmount?: number | null; currency?: string | null; status?: 0 | 1 | null } // VariantStatus number on wire
 ```
 
 ```json

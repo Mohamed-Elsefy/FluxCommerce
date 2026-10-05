@@ -118,6 +118,24 @@ public class AdminPermissionsTests
     }
 
     [Fact]
+    public async Task PermissionCatalog_SuperAdmin_CanList_UsersRead_Cannot()
+    {
+        var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
+
+        var readerToken = jwtProvider.CreateAccessToken(
+            Guid.NewGuid(), "reader@flux.local", ["Admin"], [PermissionCatalog.UsersRead]);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", readerToken);
+
+        var denied = await _client.GetAsync("admin/users/permissions");
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+
+        AuthorizeAsSuperAdmin();
+
+        var allowed = await _client.GetAsync("admin/users/permissions");
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+    }
+
+    [Fact]
     public async Task GrantPermission_RequiresSuperAdmin_Returns403ForCustomer()
     {
         var userId = await RegisterAndVerifyUserAsync();

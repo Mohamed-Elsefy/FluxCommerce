@@ -14,7 +14,7 @@ public class AssignRoleCommandHandlerTests
     private readonly FakeLocalizer _localizer = new();
 
     private AssignRoleCommandHandler CreateHandler() =>
-        new(_users, _roles, new FakeCurrentUser(), _unitOfWork, _localizer);
+        new(_users, _roles, _unitOfWork, _localizer);
 
     [Fact]
     public async Task HandleAsync_ValidRole_AssignsAndPersists()
@@ -147,77 +147,4 @@ public class AssignRoleCommandHandlerTests
         Assert.Empty(result.Value.Permissions);
     }
 
-    [Fact]
-    public async Task HandleAsync_AdminRole_ByScopedCaller_Succeeds()
-    {
-        var user = TestUsers.CreateVerified(roles: [Roles.Customer]);
-        await _users.AddAsync(user);
-        var handler = new AssignRoleCommandHandler(
-            _users,
-            _roles,
-            new FakeCurrentUser { IsAuthenticated = true, Roles = [Roles.Admin], Permissions = ["users.manage"] },
-            _unitOfWork,
-            _localizer);
-
-        var result = await handler.HandleAsync(new AssignRoleCommand(user.Id, Roles.Admin));
-
-        Assert.True(result.IsSuccess);
-        Assert.Contains(Roles.Admin, user.Roles);
-        Assert.Empty(user.Permissions);
-    }
-
-    [Fact]
-    public async Task HandleAsync_SuperAdminRole_ByNonSuperAdmin_ReturnsForbidden()
-    {
-        var user = TestUsers.CreateVerified(roles: [Roles.Customer]);
-        await _users.AddAsync(user);
-        var handler = new AssignRoleCommandHandler(
-            _users,
-            _roles,
-            new FakeCurrentUser { IsAuthenticated = true, Roles = [Roles.Admin] },
-            _unitOfWork,
-            _localizer);
-
-        var result = await handler.HandleAsync(new AssignRoleCommand(user.Id, Roles.SuperAdmin));
-
-        Assert.True(result.IsFailure);
-        Assert.Equal("Identity.Forbidden", result.Error.Code);
-        Assert.DoesNotContain(Roles.SuperAdmin, user.Roles);
-    }
-
-    [Fact]
-    public async Task HandleAsync_SuperAdminRole_BySuperAdmin_Succeeds()
-    {
-        var user = TestUsers.CreateVerified(roles: [Roles.Customer]);
-        await _users.AddAsync(user);
-        var handler = new AssignRoleCommandHandler(
-            _users,
-            _roles,
-            new FakeCurrentUser { IsAuthenticated = true, Roles = [Roles.SuperAdmin] },
-            _unitOfWork,
-            _localizer);
-
-        var result = await handler.HandleAsync(new AssignRoleCommand(user.Id, Roles.SuperAdmin));
-
-        Assert.True(result.IsSuccess);
-        Assert.Contains(Roles.SuperAdmin, user.Roles);
-    }
-
-    [Fact]
-    public async Task HandleAsync_TargetIsSuperAdmin_ByNonSuperAdmin_ReturnsForbidden()
-    {
-        var superAdmin = TestUsers.CreateVerified(roles: [Roles.SuperAdmin]);
-        await _users.AddAsync(superAdmin);
-        var handler = new AssignRoleCommandHandler(
-            _users,
-            _roles,
-            new FakeCurrentUser { IsAuthenticated = true, Roles = [Roles.Admin] },
-            _unitOfWork,
-            _localizer);
-
-        var result = await handler.HandleAsync(new AssignRoleCommand(superAdmin.Id, Roles.Admin));
-
-        Assert.True(result.IsFailure);
-        Assert.Equal("Identity.Forbidden", result.Error.Code);
-    }
 }

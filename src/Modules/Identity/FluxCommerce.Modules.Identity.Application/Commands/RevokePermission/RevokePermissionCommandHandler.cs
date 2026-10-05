@@ -4,7 +4,6 @@ using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
 using FluxCommerce.Modules.Identity.Application.Mappings;
-using FluxCommerce.Modules.Identity.Application.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 
 namespace FluxCommerce.Modules.Identity.Application.Commands.RevokePermission;
@@ -12,18 +11,15 @@ namespace FluxCommerce.Modules.Identity.Application.Commands.RevokePermission;
 public sealed class RevokePermissionCommandHandler : ICommandHandler<RevokePermissionCommand, Result<UserResponse>>
 {
     private readonly IUserRepository _userRepository;
-    private readonly ICurrentUser _currentUser;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILocalizer _localizer;
 
     public RevokePermissionCommandHandler(
         IUserRepository userRepository,
-        ICurrentUser currentUser,
         IUnitOfWork unitOfWork,
         ILocalizer localizer)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
-        _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
     }
@@ -45,10 +41,6 @@ public sealed class RevokePermissionCommandHandler : ICommandHandler<RevokePermi
         if (user is null)
             return Result.Failure<UserResponse>(
                 Error.NotFound("Identity.UserNotFound", "The user account was not found."));
-
-        var accessible = DelegationGuard.CheckTargetAccessible(_currentUser, user);
-        if (accessible is not null)
-            return Result.Failure<UserResponse>(accessible);
 
         user.RevokePermission(command.Permission.Trim());
 

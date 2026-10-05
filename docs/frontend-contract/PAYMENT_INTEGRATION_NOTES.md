@@ -16,7 +16,7 @@
 
 Rules: never ship `SecretKey`/`WebhookSecret` to the browser (server-only; both `""` in dev config until user-secrets/env). `PublishableKey` (`""` in dev) is the only Stripe key the SPA may hold — inject via app env, not via API. Never trust client-side amounts — pricing is Catalog-authoritative; the intent amount is the order `GrandTotal` staged by the saga, so the Stripe charge always equals the real order total.
 
-## 2. What the SPA does today (no client-secret endpoint yet)
+## 2. What the SPA does today
 
 ```ts
 // After POST /orders/checkout (Pending) → poll order as payment proxy:
@@ -31,7 +31,7 @@ async function awaitOrder(orderId: string, accessToken: string) {
 }
 ```
 
-`GET /api/payments/{paymentId}` returns `ApiResponse<{id,orderId,customerId,amount,currency,status,providerPaymentIntentId,provider,createdAtUtc,updatedAtUtc,version}>` with ownership-masked `404`, but `paymentId` is not returned by checkout and `OrderDetails` carries no payment fields — so payment polling is only possible when the id is known out-of-band. Webhook timing is async (seconds); keep the order-pending UI with cancel option (`POST /orders/{id}/cancel` while `Pending`).
+`GET /api/payments/{paymentId}` returns `ApiResponse<{id,orderId,customerId,amount,currency,status,providerPaymentIntentId,provider,createdAtUtc,updatedAtUtc,version}>` with ownership-masked `404`. Payment ids are discoverable via `GET /api/payments/mine` (own payments, newest-first, optional `status` filter). Webhook timing is async (seconds); keep the order-pending UI with cancel option (`POST /orders/{id}/cancel` while `Pending`).
 
 ## 3. Client-secret endpoint (landed)
 

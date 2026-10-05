@@ -2,9 +2,15 @@
 
 ## Status
 
-Accepted (2026-10-04) — User-confirmed: new `users.read` / `users.manage` / `admins.create`
-permissions; SuperAdmin-only catalog document; escalation guards as specified below.
-Amends ADR-016 (user management is no longer exclusively SuperAdmin; D5 "no auto-grants" stands).
+Accepted (2026-10-04) — User-confirmed: `users.read` for readable user surfaces.
+Amends ADR-016 (user reads are delegatable; D5 "no auto-grants" stands).
+
+**Amendment (2026-10-05):** the `users.manage` / `admins.create` half of this ADR was rolled back
+the same day it landed (never deployed): granting must stay SuperAdmin-only, so the write-side
+delegation, the escalation guards, and the two permissions were removed again. What remains in
+force from this ADR is `users.read` (list/counts/details/per-user permission values) plus the
+`register-admin`-stays-SuperAdmin rule. The rejected-alternatives section below is kept as the
+rationale trail.
 
 ## Context
 
@@ -17,36 +23,29 @@ without opening a privilege-escalation path to SuperAdmin-equivalence.
 The dashboard (Phase 22 E1) additionally needs a readable users section for non-SuperAdmin holders,
 which is only coherent if user reads are delegatable.
 
-## Decision
+## Decision (Final State After the 2026-10-05 Rollback)
 
-### D1 — Three new permissions (catalog 8 → 11 after the `dashboard.read` deletion)
+### D1 — One new permission: `users.read` (catalog back to 9)
 
 *   `users.read` — `GET /admin/users`, `/counts`, `/{id}`, `/{id}/permissions` (a user's values).
-*   `users.manage` — `POST /{id}/unlock`, `POST /{id}/roles`, `POST /{id}/permissions`,
-    `DELETE /{id}/permissions/{permission}`.
-*   `admins.create` — `POST /auth/register-admin` (creates permission-less accounts, unchanged).
-*   `GET /admin/users/permissions` (catalog document) stays `SuperAdmin`-only by explicit user
-    decision: `users.read` holders see granted *values*, which are self-descriptive.
+*   The `users.manage` / `admins.create` permissions drafted earlier the same day were **removed
+    before any deployment**: granting stays exclusively SuperAdmin, so no delegation surface —
+    and no escalation surface — exists for writes.
+*   `GET /admin/users/permissions` (catalog document) stays `SuperAdmin`-only, as do role
+    assignment, unlock, grant/revoke, and `register-admin`.
 
-### D2 — Enforcement moves to method level on `AdminController`
+### D2 — Method-level split retained on `AdminController`
 
 The class-level `SuperAdminPolicy` is split per action (same technique as the Phase D inventory
-split): reads → `users.read`, writes → `users.manage`. `register-admin` moves to `admins.create`.
-The `AdminController_ShouldRequire_SuperAdminPolicy` architecture test is narrowed to the
-remaining SuperAdmin-only actions (catalog document) or re-pointed accordingly at implementation.
+split): the four reads → `users.read`; every mutation and the catalog document carry an explicit
+`SuperAdminPolicy` method attribute (policies do not inherit exclusively, so the class-level gate
+is plain authentication). The architecture test pins this exact mapping.
 
-### D3 — Anti-escalation guards (SuperAdmin exempt from all three)
+### D3 — Anti-escalation guards: removed with the delegation surface
 
-Enforced inside the command handlers via `ICurrentUser` (gains `Permissions` in Phase 22 E1):
-
-1. Assigning the `SuperAdmin` role as non-SuperAdmin → `403 Identity.Forbidden`.
-2. Mutating a `SuperAdmin`-held account (roles/grant/revoke/unlock) as non-SuperAdmin → `403`.
-3. Granting a permission the granter does not hold → `403` (grant-what-you-hold).
-
-Rationale: without (3), `admins.create` + `users.manage` would mint arbitrary privilege
-(`create empty admin → grant everything`), i.e. de-facto SuperAdmin. With (1)–(3), delegated
-power is capped at the granter's own rights, and `register-admin`'s permission-less creation
-keeps the mint inert until a rights-holder grants within their own set.
+With writes back behind `SuperAdminPolicy`, handler-level guards would be unreachable dead code
+(R2 standards) and were deleted together with `DelegationGuard`. The `Identity.Forbidden` code
+was removed unused. SuperAdmin remains exempt from everything by supremacy (ADR-016 D1).
 
 ### D4 — Error and contract surface
 
@@ -59,32 +58,26 @@ keeps the mint inert until a rights-holder grants within their own set.
 ## Consequences
 
 Positive:
-*   Support (`users.read`) and operator (`users.manage`, `admins.create`) personas become
-    expressible; the dashboard users section gains a coherent gate.
-*   Guards (1)–(3) make delegation provably non-escalating beyond the granter's rights.
+*   Support (`users.read`) persona becomes expressible, and the dashboard users section gains a
+    coherent gate (`users.read` instead of a SuperAdmin role check).
 *   `SuperAdmin` path is untouched (supremacy + exact policy preserved).
 
 Negative / Trade-offs:
-*   Three policies + handler branches + ~12 new tests + rewiring of the users endpoints and their
-    existing tests (all `SuperAdmin`-minted users tests keep passing; Admin-minted ones are
-    re-scoped).
-*   `users.manage` + `admins.create` held jointly is intentionally powerful (can onboard + fully
-    empower within one's own rights) — must be granted as a pair only to trusted operators
-    (rollout note in the Phase 22 plan §9).
+*   One policy + four re-pointed reads + re-scoped tests (all `SuperAdmin`-minted users tests keep
+    passing; Admin-minted ones are re-scoped).
 *   Dead `dashboard.read` grants possibly stored from Phase 21 remain inert rows (accepted;
     validation only checks new grants against the catalog).
 
 ## Alternatives Considered
 
-*   **Keep all user management SuperAdmin-only** — rejected per user decision; blocks support delegation.
-*   **Single `users.manage` covering reads too** — rejected: forces a read/write bundle where a
-    read-only support role is the primary ask.
-*   **Per-request database permission check instead of grant-what-you-hold via claims** — rejected:
-    adds a DB round-trip and couples handlers to live role tables; claims + the refresh boundary
-    (ADR-016 D4) already deliver current-enough rights (≤15 min window, accepted).
-*   **Allow delegating the catalog document too** — rejected per explicit user decision
-    (not important for holders; values suffice).
-*   **Separate `UserPermissions` join table for the wider catalog** — still deferred (11 fixed
+*   **Keep all user management SuperAdmin-only** — partially adopted 2026-10-05: reads are
+    delegated via `users.read`, but all writes (roles, unlock, grant, revoke, admin creation,
+    catalog document) stayed SuperAdmin-only after review found no party besides SuperAdmin
+    should grant.
+*   **Single `users.manage` covering reads too** — moot after the rollback.
+*   **Per-request database permission check instead of grant-what-you-hold via claims** — moot
+    after the rollback (no delegated writes remain to guard).
+*   **Separate `UserPermissions` join table for the wider catalog** — still deferred (9 fixed
     strings; same rationale as ADR-015/016).
 
 ## References

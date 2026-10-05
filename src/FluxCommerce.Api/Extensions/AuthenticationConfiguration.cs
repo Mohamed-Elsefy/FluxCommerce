@@ -28,8 +28,6 @@ public static class AuthenticationConfiguration
     public const string InventoryManagePolicy = PermissionCatalog.InventoryManage;
     public const string CatalogManagePolicy = PermissionCatalog.CatalogManage;
     public const string UsersReadPolicy = PermissionCatalog.UsersRead;
-    public const string UsersManagePolicy = PermissionCatalog.UsersManage;
-    public const string AdminsCreatePolicy = PermissionCatalog.AdminsCreate;
 
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
@@ -87,8 +85,6 @@ public static class AuthenticationConfiguration
             options.AddPolicy(InventoryManagePolicy, policy => policy.AddRequirements(new PermissionRequirement(PermissionCatalog.InventoryManage)));
             options.AddPolicy(CatalogManagePolicy, policy => policy.AddRequirements(new PermissionRequirement(PermissionCatalog.CatalogManage)));
             options.AddPolicy(UsersReadPolicy, policy => policy.AddRequirements(new PermissionRequirement(PermissionCatalog.UsersRead)));
-            options.AddPolicy(UsersManagePolicy, policy => policy.AddRequirements(new PermissionRequirement(PermissionCatalog.UsersManage)));
-            options.AddPolicy(AdminsCreatePolicy, policy => policy.AddRequirements(new PermissionRequirement(PermissionCatalog.AdminsCreate)));
         });
 
         services.AddSingleton<IAuthorizationHandler, RoleOrSuperAdminHandler>();

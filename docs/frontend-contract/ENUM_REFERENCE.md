@@ -34,7 +34,7 @@ Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdm
 
 ### Permissions (strings, not an enum)
 
-Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|users.read|users.manage|admins.create`. Wire: JWT `permission[]` claims, `UserResponse.permissions: string[]`, `GrantPermissionRequest.permission: string`. Assigning `Admin` stores the full bundle; grants apply on next login/refresh.
+Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|users.read`. Wire: JWT `permission[]` claims, `UserResponse.permissions: string[]`, `GrantPermissionRequest.permission: string`. Assigning `Admin` grants nothing — every permission is granted manually; grants apply on next login/refresh (`AdminBundle` = reference full set only).
 
 ---
 
@@ -232,8 +232,8 @@ Backend-only: `PaymentWebhookAction (Ignore=0,Succeed=1,Fail=2,Cancel=3,Process=
 { "id": "…", "dataType": 0, "status": 0, "isRequired": false, "sortOrder": 0 }
 // ProductAttributeValueResponse — dataType NUMBER, value string:
 { "id": "…", "dataType": 0, "value": "cotton" }
-// UserResponse — status as NUMBER, roles as STRINGS:
-{ "id": "…", "roles": ["Customer"], "status": 1 }
+// UserResponse — status as NUMBER, roles/permissions as STRINGS:
+{ "id": "…", "roles": ["Customer"], "permissions": ["orders.read"], "status": 1 }
 // CheckoutResponse / OrderDetailsResponse — status as STRING:
 { "orderId": "…", "orderNumber": "ORD-ABC123DEF456", "status": "Pending" }
 // PaymentResponse — status as STRING:

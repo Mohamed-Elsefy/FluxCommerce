@@ -63,18 +63,18 @@ public sealed class AdminController : ApiControllerBase
         _getPermissionCatalogHandler = getPermissionCatalogHandler;
     }
 
-    /// <summary>Assigns a role to a user. Requires user-management rights.</summary>
+    /// <summary>Assigns a role to a user. Requires SuperAdmin role.</summary>
     [HttpPost("{id:guid}/roles")]
-    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
     public async Task<IActionResult> AssignRole(Guid id, [FromBody] AssignRoleRequest request, CancellationToken cancellationToken)
     {
         var command = new AssignRoleCommand(id, request.Role);
         return Success(await _assignRoleHandler.HandleAsync(command, cancellationToken));
     }
 
-    /// <summary>Unlocks a locked user account. Requires user-management rights.</summary>
+    /// <summary>Unlocks a locked user account. Requires SuperAdmin role.</summary>
     [HttpPost("{id:guid}/unlock")]
-    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
     public async Task<IActionResult> UnlockUser(Guid id, CancellationToken cancellationToken)
     {
         var command = new UnlockUserCommand(id);
@@ -140,10 +140,10 @@ public sealed class AdminController : ApiControllerBase
 
     /// <summary>
     /// Grants one action-level permission to a user. Takes effect on the user's next
-    /// login/refresh. Requires user-management rights.
+    /// login/refresh. Requires SuperAdmin role.
     /// </summary>
     [HttpPost("{id:guid}/permissions")]
-    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -162,10 +162,10 @@ public sealed class AdminController : ApiControllerBase
 
     /// <summary>
     /// Revokes one action-level permission from a user. Revoking an absent permission is a
-    /// benign no-op. Requires user-management rights.
+    /// benign no-op. Requires SuperAdmin role.
     /// </summary>
     [HttpDelete("{id:guid}/permissions/{permission}")]
-    [Authorize(Policy = AuthenticationConfiguration.UsersManagePolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.SuperAdminPolicy)]
     [ProducesResponseType(typeof(ApiResponse<UserResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

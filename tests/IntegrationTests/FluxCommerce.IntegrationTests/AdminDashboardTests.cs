@@ -111,6 +111,25 @@ public class AdminDashboardTests
     }
 
     [Fact]
+    public async Task GetDashboard_UsersRead_SeesUsersSectionOnly()
+    {
+        await RegisterAndLoginAsync();
+        AuthorizeAs(["Admin"], [PermissionCatalog.UsersRead]);
+
+        var response = await _client.GetAsync("admin/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+        Assert.NotNull(data.Users);
+        Assert.True(data.Users.Total >= 1);
+        Assert.Null(data.Orders);
+        Assert.Null(data.Payments);
+        Assert.Null(data.Inventory);
+        Assert.Null(data.Catalog);
+        Assert.Empty(data.RecentOrders);
+    }
+
+    [Fact]
     public async Task GetDashboard_InvalidThreshold_ReturnsBadRequest_WithoutEntitlement()
     {
         await RegisterAndLoginAsync();

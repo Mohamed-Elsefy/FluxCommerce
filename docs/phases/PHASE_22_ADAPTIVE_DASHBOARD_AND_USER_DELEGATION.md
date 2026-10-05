@@ -27,8 +27,9 @@ work needs a readable users surface without handing out full control.
    missing section permissions.
 2. New catalog section backed by a lightweight counts query (products total/active + categories
    total), gated by `catalog.manage`.
-3. New `users.*` permission family (`users.read`, `users.manage`, `admins.create`) so user
-   administration itself becomes delegatable — with explicit anti-escalation guards.
+3. New `users.read` permission so user administration becomes viewable — writes stay
+   SuperAdmin-only (the `users.manage` / `admins.create` delegation drafted mid-phase was rolled
+   back the same day: granting stays exclusively SuperAdmin).
 4. `dashboard.read` is deleted from the catalog (9 → 8 → 11, see §4): it has no data of its own
    once its gate is gone, and keeping it would create two paths to the same data.
 
@@ -46,13 +47,10 @@ work needs a readable users surface without handing out full control.
 |---|---|---|
 | Delete | `dashboard.read` | Gate removed with the dashboard remodel; existing stored grants become inert dead data (validation only checks new grants) |
 | Add | `users.read` | View users list/counts/details, a user's permissions |
-| Add | `users.manage` | Unlock, assign roles, grant/revoke permissions — under §6 guards |
-| Add | `admins.create` | `POST /auth/register-admin` (creates a permission-less admin) |
 
 `PermissionCatalog.AdminBundle` follows `All` automatically, so a "full admin" keeps working.
-`GET /admin/users/permissions` (catalog listing) stays `SuperAdmin`-only: `users.read` holders see
-a user's permission *values* but not the catalog document (user decision 2026-10-04; values are
-self-descriptive).
+`GET /admin/users/permissions` (catalog listing) stays `SuperAdmin`-only, as do all user
+mutations (roles, unlock, grant, revoke) and `register-admin`.
 
 ## 5. Section → Entitlement Mapping (Dashboard)
 
@@ -62,21 +60,18 @@ self-descriptive).
 | `payments` | `payments.read` **or** `payments.stats` | Either suffices so a stats-only viewer still gets revenue totals |
 | `inventory` | `inventory.read` | Handler invoked only when entitled (saves queries); `lowStockThreshold` validated in the controller so `400` does not depend on entitlement |
 | `catalog` (new, §7) | `catalog.manage` | Anonymous storefront reads stay anonymous; this is the management overview |
-| `users` | `SuperAdmin` role directly | No new permission needed; user management stays outside the grantable set except §8 |
+| `users` | `users.read` | Support viewers see counts; mutations stay SuperAdmin-only |
 
 `AdminDashboardResponse` sections become nullable (breaking pre-release contract change, documented
 in `API_CONTRACT.md` §8 and `DTO_REFERENCE.md` §8).
 
-## 6. Anti-Escalation Guards (`users.manage` Holders; SuperAdmin Exempt)
+## 6. Anti-Escalation Guards — Removed With the Delegation Rollback (2026-10-05)
 
-Enforced inside the command handlers via `ICurrentUser` (which gains `Permissions` in E1):
-
-1. Assigning the `SuperAdmin` role → `403` (`Identity.Forbidden`, new code, inline English
-   fallback like the Payments precedent — no resx churn for one message).
-2. Any mutation (roles/grant/revoke/unlock) targeting a `SuperAdmin`-held account → `403`.
-3. Granting a permission the granter does not hold → `403` (grant-what-you-hold).
-4. `register-admin` creates permission-less accounts, so `admins.create` + `users.manage` can never
-   mint rights beyond the creator's own.
+The guards drafted for delegated writes (no SuperAdmin assignment, no touching SuperAdmin-held
+accounts, grant-what-you-hold, `Identity.Forbidden`) were implemented, verified green, then
+deleted together with `users.manage` / `admins.create`: with all mutations back behind
+`SuperAdminPolicy`, handler-level guards would be unreachable dead code. `ICurrentUser.Permissions`
+remains (it powers the adaptive dashboard in E1).
 
 ## 7. New Catalog Counts Query (E2)
 
@@ -109,16 +104,19 @@ factory. No new tables, no migration.
   `catalog.manage` holders and `null` without it.
 - Docs: `API_CONTRACT.md` §8, `DTO_REFERENCE.md` §8.
 
-### E3 — `users.*` Delegation + Guards
+### E3 — `users.read` Delegation (Implemented; Write Delegation Rolled Back 2026-10-05)
 
-- Catalog +3 (8→11), 3 policies, `AdminController` method-level split (reads incl. per-user
-  permissions → `users.read`; writes → `users.manage`; catalog listing stays SuperAdmin),
-  `register-admin` → `admins.create`, §6 handler guards + `Identity.Forbidden`.
-- Tests: grant-unheld → 403, touch-SuperAdmin → 403, assign-SuperAdmin-role → 403,
-  `admins.create` flow works, `users.read` reads but cannot mutate; existing supremacy tests
-  extended, not rewritten.
+- `AdminController` method-level split: reads (`GetUsers`, `GetUserCounts`, `GetUser`,
+  `GetUserPermissions`) → `users.read`; every mutation (roles, unlock, grant, revoke), the catalog
+  document, and `register-admin` stay `SuperAdmin` (explicit method attributes; class-level gate is
+  plain authentication because policies do not inherit exclusively).
+- The `users.manage` / `admins.create` permissions and the `DelegationGuard` handler guards were
+  implemented, verified green, then **removed the same day** on review: no party besides
+  SuperAdmin should grant (see ADR-017 amendment). `UserDelegationTests` was replaced by
+  `UsersReadEnforcementTests` (reads 200, writes 403, no-permission 403).
+- Tests: `users.read` reads but cannot mutate; existing supremacy tests extended, not rewritten.
 - Docs: all catalog tables, `AUTH_FLOW.md` matrix, `API_CONTRACT.md` §1 (auth column changes),
-  `ERROR_CATALOG.md` (new code), this plan's §9 rollout note, completion report.
+  `ERROR_CATALOG.md` (the `Identity.Forbidden` row added for the guards was removed again).
 
 ## 9. Rollout Notes (Binding Where Marked)
 
@@ -126,9 +124,8 @@ factory. No new tables, no migration.
   Ship E1 first; it is behavior-safe otherwise (superset of visibility, no revocations).
 - Deleted `dashboard.read` grants already stored become inert automatically; no migration needed.
   Do **not** re-grant anything for E1.
-- E3 introduces a new escalation surface by design: grant `users.manage` only together with
-  `users.read` to trusted operators, and never alongside `admins.create` unless full delegation
-  is intended (the §6 guards cap the blast radius at the granter's own rights, but review anyway).
+- No new escalation surface exists after the rollback: every user-mutating action requires
+  SuperAdmin, so there is nothing to pair or review beyond the existing SuperAdmin discipline.
 - `users.read` deliberately does **not** include the permission catalog document (user decision);
   support staff see values, not the catalog.
 

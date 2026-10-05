@@ -38,7 +38,7 @@ async function localizedFetch(url: string, init: RequestInit = {}, culture = "en
 
 Titles are always localized; `detail` falls back to English when the key is untranslated (see §5).
 
-## 4. Translation keys (171 in `en`; group prefix → use)
+## 4. Translation keys (174 in `en`; group prefix → use)
 
 Full key list from `SharedResources.resx` (`en` authoritative):
 
@@ -58,7 +58,8 @@ Validation.Fields.AttributeId, Validation.Fields.DataType, Validation.Fields.Att
 Validation.Fields.SpecificationValue, Validation.Fields.SpecificationId, Validation.Fields.ImageId, Validation.Fields.ImageUrl,
 Validation.Fields.AltText, Validation.Fields.DisplayOrder, Validation.Fields.SortOrder, Validation.Fields.Images,
 Validation.Fields.PageNumber, Validation.Fields.PageSize, Validation.Fields.Quantity, Validation.Fields.CartId,
-Validation.Fields.Currency, Validation.Fields.UnitPriceAmount
+Validation.Fields.Currency, Validation.Fields.UnitPriceAmount, Validation.Fields.Permission, Validation.Fields.UserId,
+Validation.Permission.Invalid
 Authentication.Login.InvalidCredentials, Authentication.Login.LockedOut, Authentication.Login.EmailNotConfirmed,
 Authentication.Register.EmailAlreadyExists, Authentication.VerifyEmail.InvalidToken, Authentication.VerifyEmail.Success,
 Authentication.PasswordReset.InvalidToken, Authentication.PasswordReset.Success
@@ -96,7 +97,7 @@ Inventory.InvalidSku, Inventory.InvalidQuantity, Inventory.DuplicateSku, Invento
 
 ## 5. Fallback chain (why you sometimes get English)
 
-- Resource counts: `en` 171, `ar` 156, `fr/de/es` 140 — translations are incomplete (e.g. `fr` localizes `Errors.Title.NotFound → "Introuvable"` and login errors but lacks keys like `Cart.CartConcurrencyConflict`).
+- Resource counts: `en` 174, `ar` 159, `fr/de/es` 143 — translations are incomplete (e.g. `fr` localizes `Errors.Title.NotFound → "Introuvable"` and login errors but lacks keys like `Cart.CartConcurrencyConflict`).
 - `ILocalizer`: miss returns the key itself (`localizer[key] == key`, `Get(key) == key`).
 - `ErrorCodeLocalizer.Localize(code, fallback)`: code not in `CodeToKey` → English `description`; value == key (untranslated) → English `description`.
 - Net effect: request `fr` for an untranslated cart error → `detail` arrives in English, `title` in French, `Content-Language: fr`. Frontend must accept mixed-language payloads and always render `detail` as-is (never map `detail` back to a key).
