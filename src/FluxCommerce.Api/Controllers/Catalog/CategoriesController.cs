@@ -15,6 +15,9 @@ using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
+using ContractsCategoryStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.CategoryStatus;
+using DomainCategoryStatus = FluxCommerce.Modules.Catalog.Domain.Enums.CategoryStatus;
+
 using FluxCommerce.Api.Extensions;
 
 using Microsoft.AspNetCore.Authorization;
@@ -127,15 +130,26 @@ public sealed class CategoriesController : ApiControllerBase
         return Success(await _getCategoryHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists non-deleted categories with pagination.</summary>
+    /// <summary>Lists non-deleted categories with pagination and optional filters.</summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> List(
         [FromQuery] int? pageNumber,
         [FromQuery] int? pageSize,
+        [FromQuery] string? searchTerm,
+        [FromQuery] ContractsCategoryStatus? status,
         CancellationToken cancellationToken)
     {
-        var query = new ListCategoriesQuery(pageNumber, pageSize);
+        var query = new ListCategoriesQuery(pageNumber, pageSize, searchTerm, ToDomainStatus(status));
         return Success(await _listCategoriesHandler.HandleAsync(query, cancellationToken));
     }
+
+    private static DomainCategoryStatus? ToDomainStatus(ContractsCategoryStatus? status) =>
+        status switch
+        {
+            null => null,
+            ContractsCategoryStatus.Active => DomainCategoryStatus.Active,
+            ContractsCategoryStatus.Inactive => DomainCategoryStatus.Inactive,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
 }

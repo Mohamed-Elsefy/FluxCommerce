@@ -41,9 +41,9 @@ Semantics: `items` = this page only (may be `[]`); `totalCount` = total matches 
 
 | Endpoint | Paginated | Query | Ordering |
 |---|---|---|---|
-| `GET /catalog/products` | Yes | `pageNumber?, pageSize?` | Unspecified (no sort params) |
+| `GET /catalog/products` | Yes | `pageNumber?, pageSize?, searchTerm?, status?, visibility?, categoryId?` | Fixed `Name` (no sort params — `sortBy/sortDirection` stay `GET /catalog`-only) |
 | `GET /catalog` (search) | Yes | `searchTerm?, categoryId?, status?, visibility?, sortBy?, sortDirection?, pageNumber?, pageSize?` | `sortBy: Name\|CreatedAtUtc` + `sortDirection: Ascending\|Descending`; nulls = server default |
-| `GET /catalog/categories` | Yes | `pageNumber?, pageSize?` | Unspecified |
+| `GET /catalog/categories` | Yes | `pageNumber?, pageSize?, searchTerm?, status?` | Fixed `Name` (no sort params) |
 | `GET /orders` | Yes | `pageNumber?, pageSize?, status?` | Fixed newest-first (no sort param) |
 | `GET /api/payments/mine` | Yes | `pageNumber?, pageSize?, status?` | Fixed newest-first (no sort param) |
 | `GET /admin/orders` | Yes | `pageNumber?, pageSize?, status?, customerId?, search?, from?, to?` | Fixed newest-first (no sort param) |
@@ -73,8 +73,10 @@ Single-resource `GET …/{id}` never paginates. Non-paginated lists return `ApiR
 
 ```ts
 interface PagingQuery { pageNumber?: number; pageSize?: number } // both optional, 1-based
-// Sorting/filtering ONLY on GET /catalog:
+// Filtering on GET /catalog, GET /catalog/products, GET /catalog/categories (product status: 4 values; category status: Active|Inactive only):
 interface CatalogSearchQuery extends PagingQuery { searchTerm?: string; categoryId?: string; status?: "Draft"|"Active"|"Inactive"|"Archived"; visibility?: "Visible"|"Hidden"; sortBy?: "Name"|"CreatedAtUtc"; sortDirection?: "Ascending"|"Descending" }
+interface ProductListQuery extends PagingQuery { searchTerm?: string; categoryId?: string; status?: "Draft"|"Active"|"Inactive"|"Archived"; visibility?: "Visible"|"Hidden" } // no sortBy/sortDirection
+interface CategoryListQuery extends PagingQuery { searchTerm?: string; status?: "Active"|"Inactive" } // no sortBy/sortDirection
 ```
 
 ---
@@ -101,5 +103,5 @@ Rules: always render from echoed `data.pageNumber/pageSize/totalCount`, not requ
 - Don’t expect `totalPages/hasNext/cursors` — they don’t exist.
 - Don’t treat `items: []` as error — it means empty result or out-of-range page (`200`).
 - Don’t send `pageNumber=0` (1-based) or `pageSize>100` (both `400`).
-- Don’t add `sortBy/sortDirection` to `GET /orders`, `GET /catalog/products`, or `GET /catalog/categories` — only `GET /catalog` supports them.
+- Don’t add `sortBy/sortDirection` to `GET /orders`, `GET /catalog/products`, or `GET /catalog/categories` — only `GET /catalog` supports them (filtering IS supported on all three catalog lists).
 - Don’t wrap non-paginated lists (`variants`, `images`, `attributes`, `specs`, dashboard `recentOrders/recentPayments/recentUsers/dailySeries`) in pager logic — they are full `T[]`.

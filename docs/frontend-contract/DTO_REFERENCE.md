@@ -223,14 +223,16 @@ Not `*.Contracts` but required to build frontend query strings. All `int?` nulla
 ```csharp
 sealed record SearchCatalogProductsQuery(string SearchTerm, CatalogProductFilter? Filter = null, CatalogProductSortBy? SortBy = null, CatalogProductSortDirection? SortDirection = null, int? PageNumber = null, int? PageSize = null);
 sealed record CatalogProductFilter(Guid? CategoryId = null, ProductStatus? Status = null, ProductVisibility? Visibility = null, bool? IsDeleted = null);
-sealed record ListProductsQuery(int? PageNumber = null, int? PageSize = null);
-sealed record ListCategoriesQuery(int? PageNumber = null, int? PageSize = null);
+sealed record ListProductsQuery(int? PageNumber = null, int? PageSize = null, string? SearchTerm = null, ProductStatus? Status = null, ProductVisibility? Visibility = null, Guid? CategoryId = null);
+sealed record ListCategoriesQuery(int? PageNumber = null, int? PageSize = null, string? SearchTerm = null, CategoryStatus? Status = null);
 sealed record ListProductVariantsQuery(Guid ProductId); // no pagination
 sealed record ListAttributeDefinitionsQuery(); // no params, no pagination
 ```
 
 ```ts
 interface CatalogSearchQuery { searchTerm?: string; categoryId?: string; status?: "Draft" | "Active" | "Inactive" | "Archived"; visibility?: "Visible" | "Hidden"; sortBy?: "Name" | "CreatedAtUtc"; sortDirection?: "Ascending" | "Descending"; pageNumber?: number; pageSize?: number }
+interface ProductListQuery { searchTerm?: string; categoryId?: string; status?: "Draft" | "Active" | "Inactive" | "Archived"; visibility?: "Visible" | "Hidden"; pageNumber?: number; pageSize?: number } // GET /catalog/products — same filters as search, no sortBy/sortDirection
+interface CategoryListQuery { searchTerm?: string; status?: "Active" | "Inactive"; pageNumber?: number; pageSize?: number } // GET /catalog/categories
 interface CatalogImageSummary { id: string; imageUrl: string; altText?: string | null; displayOrder: number; isPrimary: boolean }
 interface CatalogProductListItem { id: string; name: string; slug: string; description?: string | null; categoryId: string; primaryImage?: CatalogImageSummary | null }
 ```

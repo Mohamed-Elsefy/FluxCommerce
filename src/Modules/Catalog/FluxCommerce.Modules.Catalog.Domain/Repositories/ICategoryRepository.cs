@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Catalog.Domain.Aggregates;
+using FluxCommerce.Modules.Catalog.Domain.Enums;
 using FluxCommerce.Modules.Catalog.Domain.ValueObjects;
 
 namespace FluxCommerce.Modules.Catalog.Domain.Repositories;
@@ -12,6 +13,13 @@ public interface ICategoryRepository
     Task<(IReadOnlyCollection<Category> Items, int TotalCount)> GetPagedAsync(
         int pageNumber,
         int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<Category> Items, int TotalCount)> SearchAsync(
+        string searchTerm,
+        CategoryStatus? status = null,
+        int pageNumber = 1,
+        int pageSize = 20,
         CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByIdAsync(Guid id, CancellationToken cancellationToken = default);

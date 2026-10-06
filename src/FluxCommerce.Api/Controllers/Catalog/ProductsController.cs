@@ -168,15 +168,25 @@ public sealed class ProductsController : ApiControllerBase
         return Success(await _getProductHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists non-deleted products with pagination.</summary>
+    /// <summary>Lists non-deleted products with pagination and optional filters.</summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> List(
         [FromQuery] int? pageNumber,
         [FromQuery] int? pageSize,
+        [FromQuery] string? searchTerm,
+        [FromQuery] ContractsProductStatus? status,
+        [FromQuery] ContractsProductVisibility? visibility,
+        [FromQuery] Guid? categoryId,
         CancellationToken cancellationToken)
     {
-        var query = new ListProductsQuery(pageNumber, pageSize);
+        var query = new ListProductsQuery(
+            pageNumber,
+            pageSize,
+            searchTerm,
+            ToDomainStatus(status),
+            ToDomainVisibility(visibility),
+            categoryId);
         return Success(await _listProductsHandler.HandleAsync(query, cancellationToken));
     }
 

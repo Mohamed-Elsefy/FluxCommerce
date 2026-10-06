@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Catalog.Domain.Aggregates;
+using FluxCommerce.Modules.Catalog.Domain.Enums;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Domain.ValueObjects;
 using FluxCommerce.Modules.Catalog.Infrastructure.DbContexts;
@@ -33,6 +34,39 @@ public sealed class CategoryRepository : ICategoryRepository
     {
         IQueryable<Category> query = Categories.AsNoTracking()
             .Where(category => !category.IsDeleted);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderBy(category => category.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    public async Task<(IReadOnlyCollection<Category> Items, int TotalCount)> SearchAsync(
+        string searchTerm,
+        CategoryStatus? status = null,
+        int pageNumber = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Category> query = Categories.AsNoTracking()
+            .Where(category => !category.IsDeleted);
+
+        if (status is not null)
+            query = query.Where(category => category.Status == status.Value);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+
+            query = query.Where(category =>
+                category.Name.Contains(term) ||
+                category.Slug.Value.Contains(term));
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
 
