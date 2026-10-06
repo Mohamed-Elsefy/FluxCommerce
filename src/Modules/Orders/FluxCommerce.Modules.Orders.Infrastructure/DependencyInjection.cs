@@ -17,6 +17,8 @@ using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrderCounts;
 using FluxCommerce.Modules.Orders.Application.Queries.GetAdminOrders;
 using FluxCommerce.Modules.Orders.Application.Queries.GetMyOrders;
 using FluxCommerce.Modules.Orders.Application.Queries.GetOrder;
+using FluxCommerce.Modules.Orders.Application.Queries.GetOrderDailyPoints;
+using FluxCommerce.Modules.Orders.Application.ReadModels;
 using FluxCommerce.Modules.Orders.Application.Services;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
@@ -94,6 +96,7 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetAdminOrdersQuery, Result<PagedResult<OrderSummaryResponse>>>, GetAdminOrdersQueryHandler>();
         services.AddScoped<IQueryHandler<GetAdminOrderQuery, Result<OrderDetailsResponse>>, GetAdminOrderQueryHandler>();
         services.AddScoped<IQueryHandler<GetAdminOrderCountsQuery, Result<AdminOrderCountsResponse>>, GetAdminOrderCountsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetOrderDailyPointsQuery, Result<IReadOnlyList<OrderDailyPointReadModel>>>, GetOrderDailyPointsQueryHandler>();
         services.AddScoped<ICommandHandler<CancelOrderCommand, Result<OrderDetailsResponse>>, CancelOrderCommandHandler>();
 
         return services;

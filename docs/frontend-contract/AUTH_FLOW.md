@@ -78,7 +78,9 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 | `POST /admin/orders/{id}/refund` | `orders.refund` | — |
 | `GET /admin/payments/**` (except stats) | `payments.read` | — |
 | `GET /admin/payments/stats` | `payments.stats` | — |
-| `GET /admin/dashboard` | Any authenticated JWT (adaptive: sections per permission, `null` when unauthorized) | Landing screen for everyone; no forbidden redirect |
+| `GET /admin/dashboard` | Any authenticated JWT (adaptive: objects `null` when unauthorized, recent/series lists `[]` — never 403) | Landing screen for everyone; no forbidden redirect |
+| `GET /admin/dashboard` sections | `orders`+`recentOrders` ← `orders.read`; `payments` ← `payments.read` or `payments.stats`; `recentPayments` ← `payments.read` only (stats-only viewers get stats but no list); `inventory` ← `inventory.read`; `catalog` ← `catalog.manage`; `users`+`recentUsers` ← `users.read`; `dailySeries` ← `orders.read` or `payments.read`/`stats` (unauthorized side zeroed, shape stable) | Render cards per non-`null` section + `recent*` widgets + `dailySeries` chart |
+| `GET /admin/dashboard` validation | `lowStockThreshold<0` → `400`; `days∉1..90` → `400 Dashboard.ValidationFailed` — both rejected regardless of entitlement | Validate query locally before relying on sections |
 | Catalog reads, guest cart | Anonymous | Storefront, no token |
 | Auth cart (`/cart`, `/cart/items`, `/cart/merge`), `POST /orders/*`, `GET /orders*`, `GET /api/payments/mine`, `GET /api/payments/{id}` | Authenticated (+ ownership on orders/payments/cart) | Customer JWT; other-user ids → `403/404` masked |
 

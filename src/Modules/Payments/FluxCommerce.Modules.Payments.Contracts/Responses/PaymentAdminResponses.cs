@@ -29,6 +29,8 @@ public sealed record PaymentCurrencyTotalResponse(
 /// <summary>
 /// Aggregate Payment stats for the administrative overview.
 /// Returned by <c>GET /admin/payments/stats</c>.
+/// <c>RefundedTotalsByCurrency</c> reuses the same currency-total shape so net
+/// revenue stays computable from one snapshot (Phase 23 F1).
 /// </summary>
 public sealed record PaymentAdminStatsResponse(
     int Total,
@@ -38,4 +40,5 @@ public sealed record PaymentAdminStatsResponse(
     int Failed,
     int Cancelled,
     int Refunded,
-    IReadOnlyList<PaymentCurrencyTotalResponse> TotalsByCurrency);
+    IReadOnlyList<PaymentCurrencyTotalResponse> TotalsByCurrency,
+    IReadOnlyList<PaymentCurrencyTotalResponse> RefundedTotalsByCurrency);

@@ -184,6 +184,17 @@ public sealed class PaymentAdminStore : IPaymentAdminStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var refundedTotalsByCurrency = await _context.Payments
+            .AsNoTracking()
+            .Where(payment => payment.Status == PaymentStatus.Refunded)
+            .GroupBy(payment => payment.Currency)
+            .Select(group => new PaymentCurrencyTotalReadModel(
+                group.Key,
+                group.Count(),
+                group.Sum(payment => payment.Amount)))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         return new PaymentAdminStatsReadModel(
             pending + processing + succeeded + failed + cancelled + refunded,
             pending,
@@ -192,7 +203,35 @@ public sealed class PaymentAdminStore : IPaymentAdminStore
             failed,
             cancelled,
             refunded,
-            totalsByCurrency);
+            totalsByCurrency,
+            refundedTotalsByCurrency);
+    }
+
+    public async Task<IReadOnlyList<PaymentDailyPointReadModel>> GetDailyPointsAsync(
+        DateTimeOffset fromUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // SQLite cannot translate DateTimeOffset comparisons, so the date filter runs in memory
+        // over a lightweight projection stream (same precedent as the bounded newest-first key
+        // windows): only in-window points are retained regardless of history size.
+        var points = new List<PaymentDailyPointReadModel>();
+
+        await foreach (var row in _context.Payments
+            .AsNoTracking()
+            .Select(payment => new PaymentDailyPointReadModel(
+                payment.CreatedAtUtc,
+                payment.Amount,
+                payment.Currency,
+                payment.Status))
+            .AsAsyncEnumerable()
+            .WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
+        {
+            if (row.CreatedAtUtc >= fromUtc)
+                points.Add(row);
+        }
+
+        return points;
     }
 
     private static IQueryable<Payment> ApplyFilters(

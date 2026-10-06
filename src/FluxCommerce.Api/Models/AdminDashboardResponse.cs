@@ -17,10 +17,16 @@ namespace FluxCommerce.Api.Models;
 /// <param name="Catalog">Catalog counts, or <c>null</c> without <c>catalog.manage</c>.</param>
 /// <param name="Users">User counts, or <c>null</c> without <c>users.read</c>.</param>
 /// <param name="RecentOrders">The newest Orders (up to the limit), or empty without <c>orders.read</c>.</param>
+/// <param name="RecentPayments">The newest Payments (up to the limit), or empty without <c>payments.read</c>.</param>
+/// <param name="RecentUsers">The newest Users (up to the limit), or empty without <c>users.read</c>.</param>
+/// <param name="DailySeries">Trailing daily orders/revenue (oldest first, zero-filled), or empty unless <c>orders.read</c> or <c>payments.read</c>/<c>stats</c>. The unauthorized side is zeroed, not omitted.</param>
 public sealed record AdminDashboardResponse(
     AdminOrderCountsResponse? Orders,
     PaymentAdminStatsResponse? Payments,
     InventoryCountsResponse? Inventory,
     CatalogCountsResponse? Catalog,
     UserAdminCountsResponse? Users,
-    IReadOnlyList<OrderSummaryResponse> RecentOrders);
+    IReadOnlyList<OrderSummaryResponse> RecentOrders,
+    IReadOnlyList<PaymentAdminResponse> RecentPayments,
+    IReadOnlyList<UserAdminResponse> RecentUsers,
+    IReadOnlyList<DailySeriesPointResponse> DailySeries);

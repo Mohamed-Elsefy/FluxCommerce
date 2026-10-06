@@ -42,6 +42,12 @@ public sealed class GetAdminPaymentStatsQueryHandler
                     total.Currency,
                     total.SucceededCount,
                     total.SucceededTotalAmount))
+                .ToList(),
+            stats.RefundedTotalsByCurrency
+                .Select(total => new PaymentCurrencyTotalResponse(
+                    total.Currency,
+                    total.SucceededCount,
+                    total.SucceededTotalAmount))
                 .ToList()));
     }
 }

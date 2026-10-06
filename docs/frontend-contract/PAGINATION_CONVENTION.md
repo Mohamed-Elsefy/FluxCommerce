@@ -51,6 +51,7 @@ Semantics: `items` = this page only (may be `[]`); `totalCount` = total matches 
 | `GET /inventory` | Yes | `pageNumber?, pageSize?, search?, maxAvailable?` | Fixed by SKU (no sort param) |
 | `GET /inventory/reservations` | Yes | `pageNumber?, pageSize?, status?, sku?, orderId?` | Fixed newest-first (no sort param) |
 | `GET /admin/users` | Yes | `pageNumber?, pageSize?, status?, role?, search?` | Fixed newest-first (no sort param) |
+| `GET /admin/dashboard` | No — fixed windows, full arrays | `lowStockThreshold?: int (default 5, >=0)`, `days?: int (default 30, 1..90)` | Recents fixed newest-5 (`recentOrders/recentPayments/recentUsers`); `dailySeries` trailing `days`, oldest-first, zero-filled; full paging via the list endpoints above |
 | `GET /catalog/products/{id}/variants` | No | — | Unspecified collection |
 | `GET /catalog/attribute-definitions` | No | — | Unspecified collection |
 | `GET /catalog/products/{id}/attributes` | No | — | Unspecified collection |
@@ -68,6 +69,7 @@ Single-resource `GET …/{id}` never paginates. Non-paginated lists return `ApiR
 - Limits: `pageNumber >= 1`; `1 <= pageSize <= 100` (`PaginationRules.MinPageNumber=1, MinPageSize=1, MaxPageSize=100`; `OrderPaginationRules` same + defaults).
 - Catalog validates only when present (`ValidatePageNumber/ValidatePageSize` add `errors{pageNumber,pageSize}` → `400 ValidationProblemDetail` with `errors` dict). Orders validates resolved values (`Validate(pageNumber,pageSize)` → `Error.Validation("Order.ValidationFailed")` → `400`).
 - `400` examples: `pageNumber=0`, `pageSize=0`, `pageSize=101`. Never send `pageSize=0` to mean “all” — request `pageSize=100` repeatedly instead.
+- Dashboard windows (not pagination): `days` default `30`, range `1..90` (outside → `400 Dashboard.ValidationFailed`); `lowStockThreshold` default `5`, negative → `400` — both rejected regardless of entitlement.
 
 ```ts
 interface PagingQuery { pageNumber?: number; pageSize?: number } // both optional, 1-based
@@ -100,4 +102,4 @@ Rules: always render from echoed `data.pageNumber/pageSize/totalCount`, not requ
 - Don’t treat `items: []` as error — it means empty result or out-of-range page (`200`).
 - Don’t send `pageNumber=0` (1-based) or `pageSize>100` (both `400`).
 - Don’t add `sortBy/sortDirection` to `GET /orders`, `GET /catalog/products`, or `GET /catalog/categories` — only `GET /catalog` supports them.
-- Don’t wrap non-paginated lists (`variants`, `images`, `attributes`, `specs`) in pager logic — they are full `T[]`.
+- Don’t wrap non-paginated lists (`variants`, `images`, `attributes`, `specs`, dashboard `recentOrders/recentPayments/recentUsers/dailySeries`) in pager logic — they are full `T[]`.

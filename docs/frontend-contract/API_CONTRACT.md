@@ -691,7 +691,7 @@ Note inconsistent `api/` prefix (other modules have none).
 | Response | `200 ApiResponse<PaymentInitializationResponse { paymentId: Guid (for GET /api/payments/{id} polling), orderId: Guid, clientSecret: string (runtime-only, never store), paymentReference?: string\|null (pi_* for support), status: string ("Pending") }>` |
 | Status Codes | `200, 400, 401, 404, 409` |
 | Validation | empty guid → `400 Payment.OrderIdRequired` |
-| Errors | `404 Payment.NotFound` (missing payment OR stranger — masked); `409 Payment.NotReady` (intent not created yet by saga — poll/retry shortly); `409 Payment.NotPayable` (terminal payment: Succeeded/Failed/Cancelled/Refunded); `500 Payment.ProviderUnavailable` (Stripe unreachable — retry) |
+| Errors | `404 Payment.NotFound` (missing payment OR stranger — masked); `409 Payment.NotReady` (intent not created yet by saga — poll/retry shortly); `409 Payment.NotPayable` (terminal payment: Succeeded/Failed/Cancelled/Refunded); `400 Payment.ProviderUnavailable` (`Failure` default branch — Stripe unreachable, retry) |
 | Pagination/Sorting/Filtering | — |
 | Frontend note | Read-only: never creates a Stripe intent (saga owns creation). Live secret re-fetched per call — retries reuse the single intent per order. Flow: `checkout (Pending) → GET by-order (until 200) → stripe.confirmCardPayment(clientSecret) → poll GET /orders/{id} until Confirmed/Cancelled`. |
 
@@ -729,7 +729,7 @@ Note inconsistent `api/` prefix (other modules have none).
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
 | `/admin/payments` | `GET` | `payments.read` | Query `pageNumber?, pageSize?, status?, orderId?: Guid, customerId?: Guid, from?: DateTimeOffset, to?: DateTimeOffset` | `200 ApiResponse<PagedResult<PaymentAdminResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / `from>to` → `400 Payment.ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
-| `/admin/payments/stats` | `GET` | `payments.stats` | None | `200 ApiResponse<PaymentAdminStatsResponse { total, pending, processing, succeeded, failed, cancelled, refunded: int, totalsByCurrency: [{ currency: string, succeededCount: int, succeededTotalAmount: number }] }>` | `200,401,403` | — | — |
+| `/admin/payments/stats` | `GET` | `payments.stats` | None | `200 ApiResponse<PaymentAdminStatsResponse { total, pending, processing, succeeded, failed, cancelled, refunded: int, totalsByCurrency: [{ currency: string, succeededCount: int, succeededTotalAmount: number }], refundedTotalsByCurrency: [{ currency: string, succeededCount: int, succeededTotalAmount: number }] }>` | `200,401,403` | — | — |
 | `/admin/payments/{paymentId:guid}` | `GET` | `payments.read` | Route `paymentId` (no ownership scoping) | `200 ApiResponse<PaymentAdminResponse>` | `200,401,403,404` | `404 Payment.NotFound` | — |
 
 ---
@@ -747,20 +747,21 @@ Note inconsistent `api/` prefix (other modules have none).
 
 Single read-only snapshot for the post-login landing screen: any authenticated user receives `200`
 (never a bare forbidden screen); every section is included only when entitled, otherwise `null`
-(objects) or `[]` (recent orders). For admin landing cards + recent-orders widget; drill down via
+(objects) or `[]` (recent lists). For admin landing cards + recent-widgets; drill down via
 the §4.5/§6.5 lists. Section gates: `orders`+`recentOrders` ← `orders.read`; `payments` ←
-`payments.read` or `payments.stats`; `inventory` ← `inventory.read` (handler skipped when
-unauthorized); `catalog` ← `catalog.manage`; `users` ← `users.read`.
+`payments.read` or `payments.stats`; `recentPayments` ← `payments.read` (stats-only viewers get
+the stats but no list); `inventory` ← `inventory.read` (handler skipped when
+unauthorized); `catalog` ← `catalog.manage`; `users`+`recentUsers` ← `users.read`.
 
 | Field | Value |
 |---|---|
 | Endpoint | `/admin/dashboard` |
 | HTTPMethod | `GET` |
 | Authorization | Any authenticated JWT (`401` without token) |
-| Request | Query `lowStockThreshold?: int (default 5, inclusive available ceiling for the inventory section)` |
-| Response | `200 ApiResponse<AdminDashboardResponse { orders?: AdminOrderCountsResponse\|null, payments?: PaymentAdminStatsResponse\|null, inventory?: InventoryCountsResponse\|null, catalog?: CatalogCountsResponse\|null, users?: UserAdminCountsResponse\|null, recentOrders: OrderSummaryResponse[5] (newest-first, empty when unauthorized) }>` |
+| Request | Query `lowStockThreshold?: int (default 5, inclusive available ceiling for the inventory section), days?: int (default 30, 1..90 — trailing calendar days for the series)` |
+| Response | `200 ApiResponse<AdminDashboardResponse { orders?: AdminOrderCountsResponse\|null, payments?: PaymentAdminStatsResponse\|null, inventory?: InventoryCountsResponse\|null, catalog?: CatalogCountsResponse\|null, users?: UserAdminCountsResponse\|null, recentOrders: OrderSummaryResponse[5] (newest-first, empty when unauthorized), recentPayments: PaymentAdminResponse[5] (newest-first, empty without payments.read), recentUsers: UserAdminResponse[5] (newest-first, empty without users.read), dailySeries: [{ date: "yyyy-MM-dd" (UTC), orders: int, revenue: [{ currency, amount }] }] (trailing days, oldest-first, zero-filled; empty unless orders.read or payments.read/stats — unauthorized side zeroed, not omitted) }>` |
 | Status Codes | `200, 400, 401` |
-| Validation | negative threshold → `400 ValidationFailed` (rejected regardless of entitlement) |
+| Validation | negative threshold → `400 ValidationFailed` (rejected regardless of entitlement); `days` outside `1..90` → `400 Dashboard.ValidationFailed` (rejected regardless of entitlement) |
 | Errors | First failing entitled section's error surfaces (`400/404` as mapped) |
 | Pagination/Sorting/Filtering | Fixed (`recentOrders` newest 5; full paging via list endpoints) |
 
@@ -779,11 +780,11 @@ unauthorized); `catalog` ← `catalog.manage`; `users` ← `users.read`.
 1. **Auth:** `POST /auth/register → POST /auth/verify-email (token from email link FrontendBaseUrl) → POST /auth/login (store access 15m in memory, refresh 7d opaque) → GET /auth/me`. Proactive refresh at ~13–14m; on `401` → `POST /auth/refresh` → retry once. `POST /auth/logout` revokes. `forgot → reset` via email token (reset `1h`). `change-password` needs JWT.
 2. **Catalog (storefront):** `GET /catalog?searchTerm&categoryId&status&visibility&sortBy&sortDirection&pageNumber&pageSize` for listing; `GET /catalog/products/{id}`, `GET /catalog/products/{id}/variants`, `GET .../images` (order by `displayOrder`), `GET .../attributes|specifications` for PDP. Admin CRUD mirrors same ids with a JWT carrying `catalog.manage`; lifecycle `activate/deactivate/archive/soft-delete/restore` are `POST …→204`.
 3. **Cart:** guest keeps `cartId` in localStorage (`POST /cart/guest → POST .../items → PUT/DELETE .../items/{variantId}`). After login: `POST /cart` (get-or-create auth cart) → `POST /cart/merge { guestCartId }` (atomic Lua, clears guest) → use `/cart*` auth endpoints. On `VersionConflict`/concurrency error: `GET` fresh cart and retry. Note cart `unitPriceAmount/currency` is a snapshot — checkout reprices from Catalog.
-4. **Checkout → Order → Payment:** `POST /orders/checkout { cartId, shipping, billing } + Idempotency-Key: <uuid>` (generate per checkout attempt, reuse same key+body on retry/network failure; new body = new key, else `409`). Returns `Pending` order → poll `GET /orders/{id}` (or list) until `Confirmed|Cancelled`. Payment status via `GET /api/payments/{paymentId}` (paymentId comes from saga/Stripe flow, not checkout response); Stripe.js uses backend `PublishableKey` + `ClientSecret` (backend-only `PaymentIntentResult`, no HTTP contract). Webhook is Stripe→API only, never SPA.
-5. **Errors/i18n:** send `Accept-Language` or `?culture=`; render `detail` (localized) + field `errors{}` map on 400; key logic on `status` (`Identity.*`, `Catalog.*`, `Cart.*`, `Order.*`, `Inventory.*`, `Payment.*` — business errors carry no `extensions.code`, only `detail`). Include `X-Correlation-ID` per flow and echo `X-Correlation-ID/X-Request-ID/traceId` in bug reports. `404` on orders/payments also means “not yours” (IDOR-masked). `403` means missing role/permission (never retry blindly; one refresh is legitimate for fresh grants, then show locked state).
-6. **Admin dashboard:** `GET /admin/dashboard` after login (any authenticated user, `200` always) → render cards per non-`null` section + `recentOrders`; drill down via admin lists. Re-read `me.permissions` after any grant flow.
+4. **Checkout → Order → Payment:** `POST /orders/checkout { cartId, shipping, billing } + Idempotency-Key: <uuid>` (generate per checkout attempt, reuse same key+body on retry/network failure; new body = new key, else `409`). Returns `Pending` order → poll `GET /orders/{id}` (or list) until `Confirmed|Cancelled`. Payment status via `GET /api/payments/{paymentId}` (paymentId comes from saga/Stripe flow, not checkout response); Stripe.js uses `PublishableKey` + `ClientSecret` from `GET /api/payments/by-order/{orderId}` (§6 `PaymentInitializationResponse` HTTP contract — the backend `PaymentIntentResult` itself stays internal). Webhook is Stripe→API only, never SPA.
+5. **Errors/i18n:** send `Accept-Language` or `?culture=`; render `detail` (localized) + field `errors{}` map on 400; key logic on `status` (`Identity.*`, `Catalog.*`, `Cart.*`, `Order.*`, `Inventory.*`, `Payment.*`, `Dashboard.*` — business errors carry no `extensions.code`, only `detail`). Include `X-Correlation-ID` per flow and echo `X-Correlation-ID/X-Request-ID/traceId` in bug reports. `404` on orders/payments also means “not yours” (IDOR-masked). `403` means missing role/permission (never retry blindly; one refresh is legitimate for fresh grants, then show locked state).
+6. **Admin dashboard:** `GET /admin/dashboard?lowStockThreshold=&days=` after login (any authenticated user, `200` always) → render cards per non-`null` section + `recentOrders/recentPayments/recentUsers` widgets + `dailySeries` chart (`days` default 30, max 90); net revenue = `payments.totalsByCurrency − payments.refundedTotalsByCurrency` per currency; drill down via admin lists. Re-read `me.permissions` after any grant flow.
 
-## Appendix C — Enum reference (wire as strings for status, ints or strings per serializer for others)
+## Appendix C — Enum reference (numbers in JSON bodies/responses; query strings accept names or numbers — see ENUM_REFERENCE.md)
 
 - `UserStatus`: `Pending|Active|Suspended|Locked|Deleted` (=0..4)
 - `ProductStatus`: `Draft|Active|Inactive|Archived`; `ProductVisibility`: `Visible|Hidden`; `CategoryStatus`: `Active|Inactive`; `VariantStatus`: `Active|Inactive`; `AttributeStatus`: `Active|Inactive`; `AttributeDataType`: `Text|Number|Decimal|Boolean|Date|DateTime`

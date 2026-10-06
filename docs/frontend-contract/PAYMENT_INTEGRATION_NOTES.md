@@ -37,7 +37,7 @@ async function awaitOrder(orderId: string, accessToken: string) {
 
 `GET /api/payments/by-order/{orderId}` (owner JWT) → `200 ApiResponse<PaymentInitializationResponse{PaymentId,OrderId,ClientSecret,PaymentReference,Status}>`.
 
-Behavior matrix: anonymous → `401`; empty guid → `400 Payment.OrderIdRequired`; missing payment or stranger → masked `404 Payment.NotFound`; intent not created yet (saga lag) → `409 Payment.NotReady` (poll/retry); terminal payment → `409 Payment.NotPayable`; Stripe unreachable → `500 Payment.ProviderUnavailable`. The secret is re-fetched live from Stripe per call, so retries reuse the single intent per order — no `Version+1`, no second intent. `ClientSecret` is runtime-only: never store it.
+Behavior matrix: anonymous → `401`; empty guid → `400 Payment.OrderIdRequired`; missing payment or stranger → masked `404 Payment.NotFound`; intent not created yet (saga lag) → `409 Payment.NotReady` (poll/retry); terminal payment → `409 Payment.NotPayable`; Stripe unreachable → `400 Payment.ProviderUnavailable` (`Failure` default branch — retry, never `500`). The secret is re-fetched live from Stripe per call, so retries reuse the single intent per order — no `Version+1`, no second intent. `ClientSecret` is runtime-only: never store it.
 
 ## 4. Stripe.js flow (via the §3 endpoint)
 
@@ -57,3 +57,4 @@ Handle `requires_action` inside `confirmCardPayment` (Stripe.js manages the 3-DS
 - Intent amount is the authoritative order `GrandTotal` (checkout reprices from Catalog; saga stages it on `create_payment_requested`) — multi-currency works if the catalog/order currency is non-USD; still verify amounts in Stripe dashboard test mode before demoing.
 - Webhook local testing needs Stripe CLI forwarding with the configured `WebhookSecret` (tolerance 300s, `throwOnApiVersionMismatch: false`); duplicate deliveries must return `200` (check `AlreadyProcessed` log).
 - Status mapping for UI: `Payment Pending/Processing` → spinner; `Succeeded` → success; `Failed/Cancelled` → error + `GET /orders/{id}` reason; `Refunded` → post-pay refund notice.
+- Admin consumption (no Stripe calls from SPA): `GET /admin/payments/stats` (`payments.stats`) returns counts plus `totalsByCurrency` (Succeeded) and `refundedTotalsByCurrency` (Refunded, same shape) — net revenue = succeeded − refunded per currency, computed client-side. `GET /admin/dashboard` payments section needs `payments.read` or `payments.stats`; `recentPayments` needs `payments.read` only; `dailySeries[].revenue` carries Succeeded-only per-currency amounts.

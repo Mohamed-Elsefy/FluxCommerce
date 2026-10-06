@@ -19,4 +19,5 @@ public sealed record PaymentAdminStatsReadModel(
     int Failed,
     int Cancelled,
     int Refunded,
-    IReadOnlyList<PaymentCurrencyTotalReadModel> TotalsByCurrency);
+    IReadOnlyList<PaymentCurrencyTotalReadModel> TotalsByCurrency,
+    IReadOnlyList<PaymentCurrencyTotalReadModel> RefundedTotalsByCurrency);

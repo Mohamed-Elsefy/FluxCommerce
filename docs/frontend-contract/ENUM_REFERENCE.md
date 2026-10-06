@@ -237,7 +237,11 @@ Backend-only: `PaymentWebhookAction (Ignore=0,Succeed=1,Fail=2,Cancel=3,Process=
 // CheckoutResponse / OrderDetailsResponse — status as STRING:
 { "orderId": "…", "orderNumber": "ORD-ABC123DEF456", "status": "Pending" }
 // PaymentResponse — status as STRING:
+// GET /api/payments/mine → PagedResult<PaymentAdminResponse> (status STRING, same union):
 { "id": "…", "status": "Succeeded" }
+// GET /admin/dashboard — NO enums: recent lists reuse the shapes above; dailySeries uses
+// plain strings/numbers (date is an invariant "yyyy-MM-dd" UTC string, never localized):
+{ "recentOrders": [], "recentPayments": [], "recentUsers": [], "dailySeries": [{ "date": "2026-10-05", "orders": 2, "revenue": [{ "currency": "USD", "amount": 140.00 }] }] }
 // InventoryReservationResponse — status as NUMBER:
 { "reservationId": "…", "status": 0 }
 // GET /catalog?status=Active&visibility=Visible&sortBy=Name&sortDirection=Ascending

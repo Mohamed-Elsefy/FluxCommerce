@@ -27,4 +27,14 @@ public interface IPaymentAdminStore
 
     Task<PaymentAdminStatsReadModel> GetStatsAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Daily-series projection: lightweight amount/currency/status rows for Payments created at
+    /// or after <paramref name="fromUtc"/>. The date filter runs in memory over a lightweight
+    /// projection stream (SQLite cannot translate <c>DateTimeOffset</c> comparisons); the
+    /// succeeded-only revenue filter and day bucketing also run in memory at the consumer.
+    /// </summary>
+    Task<IReadOnlyList<PaymentDailyPointReadModel>> GetDailyPointsAsync(
+        DateTimeOffset fromUtc,
+        CancellationToken cancellationToken = default);
 }

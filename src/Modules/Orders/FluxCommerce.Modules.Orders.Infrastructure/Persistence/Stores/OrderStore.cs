@@ -245,6 +245,30 @@ public sealed class OrderStore : IOrderStore
             cancelled);
     }
 
+    public async Task<IReadOnlyList<OrderDailyPointReadModel>> GetCreatedPointsAsync(
+        DateTimeOffset fromUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // SQLite cannot translate DateTimeOffset comparisons (same reason the paging windows avoid
+        // ordering by DateTimeOffset columns), so the date filter runs in memory over a lightweight
+        // timestamp stream, mirroring the bounded newest-first key windows: only in-window points
+        // are retained regardless of history size.
+        var points = new List<OrderDailyPointReadModel>();
+
+        await foreach (var createdAtUtc in _context.Orders
+            .AsNoTracking()
+            .Select(order => order.CreatedAtUtc)
+            .AsAsyncEnumerable()
+            .WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
+        {
+            if (createdAtUtc >= fromUtc)
+                points.Add(new OrderDailyPointReadModel(createdAtUtc));
+        }
+
+        return points;
+    }
+
     private static IQueryable<Order> ApplyAdminFilters(
         IQueryable<Order> query,
         OrderStatus? status,

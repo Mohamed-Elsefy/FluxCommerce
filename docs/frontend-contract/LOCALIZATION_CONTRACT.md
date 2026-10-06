@@ -93,7 +93,7 @@ Order.InvalidAddress, Order.CancelConflict
 Inventory.InvalidSku, Inventory.InvalidQuantity, Inventory.DuplicateSku, Inventory.InvalidReservationId
 ```
 
-`ErrorCodeLocalizer.CodeToKey` maps ~90 `Error.Code → key` (Identity/Catalog/Cart/Order/Inventory; **zero Payment keys**). Notable remaps: `Identity.EmailNotVerified → Authentication.Login.EmailNotConfirmed`, `Identity.AccountLocked → Authentication.Login.LockedOut`, `*.NotFound/SkuNotFound/ReservationNotFound → Errors.NotFound`, `Order.QueryAuthenticationRequired → Authorization.Unauthorized`.
+`ErrorCodeLocalizer.CodeToKey` maps ~90 `Error.Code → key` (Identity/Catalog/Cart/Order/Inventory; **zero Payment keys, zero Dashboard keys**). Notable remaps: `Identity.EmailNotVerified → Authentication.Login.EmailNotConfirmed`, `Identity.AccountLocked → Authentication.Login.LockedOut`, `*.NotFound/SkuNotFound/ReservationNotFound → Errors.NotFound`, `Order.QueryAuthenticationRequired → Authorization.Unauthorized`.
 
 ## 5. Fallback chain (why you sometimes get English)
 
@@ -101,6 +101,8 @@ Inventory.InvalidSku, Inventory.InvalidQuantity, Inventory.DuplicateSku, Invento
 - `ILocalizer`: miss returns the key itself (`localizer[key] == key`, `Get(key) == key`).
 - `ErrorCodeLocalizer.Localize(code, fallback)`: code not in `CodeToKey` → English `description`; value == key (untranslated) → English `description`.
 - Net effect: request `fr` for an untranslated cart error → `detail` arrives in English, `title` in French, `Content-Language: fr`. Frontend must accept mixed-language payloads and always render `detail` as-is (never map `detail` back to a key).
+- Dashboard codes without keys (`Payment.*`, `Dashboard.ValidationFailed`) always take the English-fallback path: `title` still localized, `detail` English, `Content-Language` still the resolved culture.
+- `dailySeries.date` (`"yyyy-MM-dd"`, UTC) is invariant — never localized. Format `amount` values with `Intl.NumberFormat(resolved)` per §5 rules; currency codes stay UPPER.
 
 Placeholders: messages use `{0}, {1}` (`MinLength/MaxLength/Range`, e.g. page-size range) formatted in current culture — render with `Intl.NumberFormat(resolved)`.
 

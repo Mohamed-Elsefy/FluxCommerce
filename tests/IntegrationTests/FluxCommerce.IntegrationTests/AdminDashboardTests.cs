@@ -9,8 +9,13 @@ using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 using FluxCommerce.Modules.Identity.Domain.Aggregates;
+using FluxCommerce.Modules.Orders.Domain.Aggregates;
+using FluxCommerce.Modules.Orders.Domain.ValueObjects;
+using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Contracts.Requests;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
+using FluxCommerce.Modules.Payments.Domain.Aggregates;
+using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -53,6 +58,8 @@ public class AdminDashboardTests
         Assert.NotNull(data.Inventory);
         Assert.NotNull(data.Catalog);
         Assert.Contains(data.RecentOrders, item => item.OrderId == created.OrderId);
+        Assert.Equal(30, data.DailySeries.Count);
+        Assert.True(data.DailySeries[^1].Orders >= 1);
     }
 
     [Fact]
@@ -71,6 +78,9 @@ public class AdminDashboardTests
         Assert.Null(data.Catalog);
         Assert.Null(data.Users);
         Assert.Empty(data.RecentOrders);
+        Assert.Empty(data.RecentPayments);
+        Assert.Empty(data.RecentUsers);
+        Assert.Empty(data.DailySeries);
     }
 
     [Fact]
@@ -122,11 +132,141 @@ public class AdminDashboardTests
         var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
         Assert.NotNull(data.Users);
         Assert.True(data.Users.Total >= 1);
+        Assert.NotEmpty(data.RecentUsers);
         Assert.Null(data.Orders);
         Assert.Null(data.Payments);
         Assert.Null(data.Inventory);
         Assert.Null(data.Catalog);
         Assert.Empty(data.RecentOrders);
+        Assert.Empty(data.RecentPayments);
+    }
+
+    [Fact]
+    public async Task GetDashboard_PaymentsRead_SeesRecentPaymentsButNoUsersSection()
+    {
+        await RegisterAndLoginAsync();
+        var orderId = SeedPayment();
+        try
+        {
+            AuthorizeAs(["Admin"], [PermissionCatalog.PaymentsRead]);
+
+            var response = await _client.GetAsync("admin/dashboard");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+            Assert.NotNull(data.Payments);
+            Assert.Contains(data.RecentPayments, item => item.OrderId == orderId);
+            Assert.Null(data.Users);
+            Assert.Empty(data.RecentUsers);
+            Assert.Null(data.Orders);
+            Assert.Empty(data.RecentOrders);
+        }
+        finally
+        {
+            DeletePayment(orderId);
+        }
+    }
+
+    [Fact]
+    public async Task GetDashboard_PaymentsStatsOnly_SeesStatsButNoRecentPayments()
+    {
+        await RegisterAndLoginAsync();
+        var orderId = SeedPayment();
+        try
+        {
+            AuthorizeAs(["Admin"], [PermissionCatalog.PaymentsStats]);
+
+            var response = await _client.GetAsync("admin/dashboard");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+            Assert.NotNull(data.Payments);
+            Assert.Empty(data.RecentPayments);
+            Assert.Null(data.Users);
+            Assert.Empty(data.RecentUsers);
+        }
+        finally
+        {
+            DeletePayment(orderId);
+        }
+    }
+
+    [Fact]
+    public async Task GetDashboard_DailySeries_MergesOrdersAndRevenueAcrossDays()
+    {
+        var userId = await RegisterAndLoginAsync();
+        var created = await CreateOrderForCurrentUserAsync("SKU-DASH-SERIES", userId);
+        BackdateOrder(created.OrderId, DateTimeOffset.UtcNow.AddDays(-2));
+
+        var paymentOrderId = SeedSucceededPayment(DateTimeOffset.UtcNow.AddDays(-1), 77.77m);
+        try
+        {
+            AuthorizeAs(["Admin"], [PermissionCatalog.OrdersRead, PermissionCatalog.PaymentsRead]);
+
+            var response = await _client.GetAsync("admin/dashboard?days=5");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+
+            Assert.Equal(5, data.DailySeries.Count);
+            Assert.Equal(
+                Enumerable.Range(0, 5).Select(index => DateTime.UtcNow.AddDays(index - 4).ToString("yyyy-MM-dd")).ToList(),
+                data.DailySeries.Select(point => point.Date).ToList());
+
+            var twoDaysAgo = data.DailySeries.Single(point => point.Date == DateDaysAgo(2));
+            Assert.True(twoDaysAgo.Orders >= 1);
+
+            var yesterday = data.DailySeries.Single(point => point.Date == DateDaysAgo(1));
+            var revenue = Assert.Single(yesterday.Revenue);
+            Assert.Equal("USD", revenue.Currency);
+            Assert.Equal(77.77m, revenue.Amount);
+        }
+        finally
+        {
+            DeletePayment(paymentOrderId);
+        }
+    }
+
+    [Fact]
+    public async Task GetDashboard_DailySeries_StatsOnlyViewer_SeesRevenueWithOrdersZeroed()
+    {
+        await RegisterAndLoginAsync();
+        var paymentOrderId = SeedSucceededPayment(DateTimeOffset.UtcNow.AddDays(-1), 33.33m);
+        try
+        {
+            AuthorizeAs(["Admin"], [PermissionCatalog.PaymentsStats]);
+
+            var response = await _client.GetAsync("admin/dashboard?days=5");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var data = (await response.ReadJsonAsync<ApiResponseDto<AdminDashboardResponse>>()).Data!;
+
+            Assert.Equal(5, data.DailySeries.Count);
+            Assert.NotNull(data.Payments);
+            Assert.All(data.DailySeries, point => Assert.Equal(0, point.Orders));
+
+            var yesterday = data.DailySeries.Single(point => point.Date == DateDaysAgo(1));
+            var revenue = Assert.Single(yesterday.Revenue);
+            Assert.Equal("USD", revenue.Currency);
+            Assert.Equal(33.33m, revenue.Amount);
+        }
+        finally
+        {
+            DeletePayment(paymentOrderId);
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(91)]
+    public async Task GetDashboard_InvalidDays_ReturnsBadRequest(int days)
+    {
+        await RegisterAndLoginAsync();
+
+        var response = await _client.GetAsync($"admin/dashboard?days={days}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -152,6 +292,63 @@ public class AdminDashboardTests
         var jwtProvider = _factory.Services.GetRequiredService<IJwtProvider>();
         var token = jwtProvider.CreateAccessToken(Guid.NewGuid(), "dash@flux.local", roles, permissions);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    private Guid SeedPayment()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+
+        var orderId = Guid.NewGuid();
+        dbContext.Set<Payment>().Add(new Payment(Guid.NewGuid(), orderId, 40.00m, "USD", Guid.NewGuid()));
+        dbContext.SaveChanges();
+
+        return orderId;
+    }
+
+    private Guid SeedSucceededPayment(DateTimeOffset createdAt, decimal amount)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+
+        var orderId = Guid.NewGuid();
+        var payment = new Payment(Guid.NewGuid(), orderId, amount, "USD", Guid.NewGuid());
+        payment.Succeed($"pi_{Guid.NewGuid():N}");
+        dbContext.Set<Payment>().Add(payment);
+        dbContext.SaveChanges();
+        dbContext.ChangeTracker.Clear();
+
+        var tracked = dbContext.Set<Payment>().Single(item => item.Id == payment.Id);
+        dbContext.Entry(tracked).Property(item => item.CreatedAtUtc).CurrentValue = createdAt;
+        dbContext.SaveChanges();
+
+        return orderId;
+    }
+
+    private void BackdateOrder(Guid orderId, DateTimeOffset createdAt)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+
+        var order = dbContext.Set<Order>().Single(item => item.Id == new OrderId(orderId));
+        dbContext.Entry(order).Property(item => item.CreatedAtUtc).CurrentValue = createdAt;
+        dbContext.SaveChanges();
+    }
+
+    private static string DateDaysAgo(int days) =>
+        DateTime.UtcNow.AddDays(-days).ToString("yyyy-MM-dd");
+
+    private void DeletePayment(Guid orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+
+        var payment = dbContext.Set<Payment>().SingleOrDefault(item => item.OrderId == orderId);
+        if (payment is not null)
+        {
+            dbContext.Set<Payment>().Remove(payment);
+            dbContext.SaveChanges();
+        }
     }
 
     private async Task<CheckoutResponse> CreateOrderForCurrentUserAsync(string sku, Guid userId)

@@ -2,7 +2,7 @@
 
 > All machine-readable `Error.Code` values, their HTTP status, meaning, trigger, and localized message key.
 > How to use: branch on `status` first, then human `detail` (already localized). Do NOT expect `extensions.code` on business errors (see §0). Display `detail`, never raw `code`. On `400` validation read `errors{field:[msg]}`.
-> `ErrorCodeLocalizer.CodeToKey`: `code → resource key` (90 entries, Identity/Catalog/Cart/Order/Inventory only — **zero Payment keys, zero `Identity.InvalidRole`, zero `Cart.InvalidMergeSource`, zero inventory-lifecycle keys beyond `InvalidReservationId`**); miss → fallback raw English `description` (quoted in tables below). Cultures `en/fr/de/es/ar` via `?culture=` > cookie > `Accept-Language`. If resource value == key, fallback is used.
+> `ErrorCodeLocalizer.CodeToKey`: `code → resource key` (90 entries, Identity/Catalog/Cart/Order/Inventory only — **zero Payment keys, zero Dashboard keys, zero `Identity.InvalidRole`, zero `Cart.InvalidMergeSource`, zero inventory-lifecycle keys beyond `InvalidReservationId`**); miss → fallback raw English `description` (quoted in tables below). Cultures `en/fr/de/es/ar` via `?culture=` > cookie > `Accept-Language`. If resource value == key, fallback is used.
 
 ---
 
@@ -147,7 +147,7 @@ Note masked cases: `CartAccessDenied→404` (not 403), `VariantUnavailable→404
 | `Inventory.InvalidQuantity` | 400 | Bad qty | `onHand<0`, `adjust<=0` (also DataAnnotations) | `Inventory.InvalidQuantity` |
 | `Inventory.InvalidOrderId` | 400 | Bad order id | Reservation op with empty order id (saga path, not HTTP) | No key → fallback `"A valid order identifier is required."` |
 | `Inventory.InvalidReservationId` | 400 | Bad reservation id | `GET /inventory/reservations/{id}` empty guid | `Inventory.InvalidReservationId` |
-| `Inventory.ValidationFailed` | 400 | List/count params bad | Admin lists: bad pagination/status/SKU/order filter; negative low-stock threshold | `Errors.RequestValidation` |
+| `Inventory.ValidationFailed` | 400 | List/count params bad | Admin lists: bad pagination/status/SKU/order filter; negative low-stock threshold — including `GET /admin/dashboard?lowStockThreshold=-1` (rejected even without `inventory.read`) | `Errors.RequestValidation` |
 | `Inventory.InvalidExpiration` | 400 | Bad expiry | Reservation `expiresAt <= now` (saga path) | No key → fallback `"A reservation expiration must be in the future."` |
 | `Inventory.SkuNotFound` | 404 | No such SKU | `GET/PATCH /inventory/{sku}` unknown | `Errors.NotFound` |
 | `Inventory.ReservationNotFound` | 404 | No such reservation | `GET /inventory/reservations/{id}` unknown | `Errors.NotFound` |
@@ -175,6 +175,9 @@ Note masked cases: `CartAccessDenied→404` (not 403), `VariantUnavailable→404
 | `Payment.InvalidCurrency` / `Payment.CurrencyMismatch` | 400 | Bad currency | Non-ISO3 / mixed currencies (backend-only) | Fallbacks `"Payment currency must be a valid ISO 4217 currency code."` / `"All payment amounts must share the same currency."` |
 | `Payment.ProviderPaymentIntentIdRequired` | 400 | Missing `pi_*` | Succeed without intent id (backend-only) | Fallback `"Provider Payment Intent ID is required."` |
 | `Payment.InvalidStateTransition` / `Payment.AlreadySucceeded` / `Payment.AlreadyFailed` / `Payment.AlreadyCancelled` / `Payment.AlreadyRefunded` | 409/400 | Terminal-state write | Double succeed/fail/cancel/refund (backend-only) | Fallbacks `"Payment cannot transition…"`, `"Payment has already succeeded/failed/cancelled/refunded and cannot be modified."` |
+| `Payment.NotReady` | 409 | Intent not created yet | `GET /api/payments/by-order/{orderId}` before the saga stages the intent — poll/retry shortly | Fallback `"Payment is not ready yet; retry shortly."` |
+| `Payment.NotPayable` | 409 | Terminal payment | `GET /api/payments/by-order/{orderId}` on `Succeeded/Failed/Cancelled/Refunded` payment | Fallback `"Payment can no longer be initialized."` |
+| `Payment.ProviderUnavailable` | 400 (`Failure` default) | Stripe unreachable | `GET /api/payments/by-order/{orderId}` when the live secret fetch fails — retry, do not create a second order | Fallback `"Payment provider is temporarily unavailable."` |
 
 Stripe webhook (`POST /api/payments/webhook`) never uses this catalog: `400 empty` on missing `Stripe-Signature`/empty payload/bad signature; `200 empty` on processed **and** duplicate (`AlreadyProcessed`).
 
@@ -196,9 +199,17 @@ Stripe webhook (`POST /api/payments/webhook`) never uses this catalog: `400 empt
 
 `Order.InvalidQuantity`, `Order.QuantityLimitExceeded`, `Order.LineItemNotFound`, `Order.EmptyOrder`, `Order.InvalidOrderNumber`, `Order.InvalidCustomer`, `Order.InvalidStateTransition`, `OrderSaga.InvalidStateTransition`, `Catalog.InvalidUnitPrice` (no `CodeToKey` entry → English fallback), `Catalog.InvalidSeoMetadata` (key exists). These surface as `Catalog/Order.ValidationFailed (400)` or `Conflict (409)` with the umbrella code, not their own.
 
-## 9. Retry policy + examples
+## 9. Dashboard (host composition — zero `CodeToKey` entries, English fallback)
 
-Retry (once, after refetch): `Cart.CartConcurrencyConflict (409)` → `GET` cart + retry; `Cart.CatalogOperationFailed (400)` → retry; `Payment.StripeError (400)` → poll, don’t double-post; `Inventory.ReservationLifecycleFailed (400)` → retry saga-side only. Never retry: `409 Duplicate*/IdempotencyConflict/CancelConflict/InsufficientStock` (change input/key), `401/403` (login/role fix), `404` masked (don’t probe ids).
+| Error Code | HTTP Status | Meaning | When Happens | User-facing message key |
+|---|---|---|---|---|
+| `Dashboard.ValidationFailed` | 400 | Days window out of range | `GET /admin/dashboard?days=` outside `1..90` — rejected regardless of entitlement (same as the threshold rule) | No key → fallback `"The days window must be between 1 and 90."` |
+| `Inventory.ValidationFailed` | 400 | Negative threshold | `GET /admin/dashboard?lowStockThreshold=-1` — rejected regardless of entitlement (see §5) | `Errors.RequestValidation` |
+
+First failing entitled section's error surfaces (`400/404` as mapped in §§1–6); unauthorized sections are skipped silently (`null`/`[]`, never 403).
+
+## 10. Retry policy + examples
+Retry (once, after refetch): `Cart.CartConcurrencyConflict (409)` → `GET` cart + retry; `Cart.CatalogOperationFailed (400)` → retry; `Payment.StripeError` / `Payment.ProviderUnavailable (400)` → poll, don’t double-post; `Payment.NotReady (409)` → poll `by-order` until `200`; `Inventory.ReservationLifecycleFailed (400)` → retry saga-side only. Never retry: `409 Duplicate*/IdempotencyConflict/CancelConflict/InsufficientStock/NotPayable` (change input/key), `401/403` (login/role fix), `404` masked (don’t probe ids), `400 Dashboard.ValidationFailed` (fix `days`).
 
 ```json
 // 409 Cart.CartConcurrencyConflict → detail (en): "The cart was modified by another request. Reload the cart and try again."

@@ -52,4 +52,14 @@ public interface IOrderStore
     /// </summary>
     Task<AdminOrderCountsReadModel> GetAdminOrderCountsAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Daily-series projection: creation timestamps of Orders created at or after
+    /// <paramref name="fromUtc"/>. The date filter runs in memory over a lightweight timestamp
+    /// stream (SQLite cannot translate <c>DateTimeOffset</c> comparisons); day bucketing also
+    /// runs in memory at the consumer.
+    /// </summary>
+    Task<IReadOnlyList<OrderDailyPointReadModel>> GetCreatedPointsAsync(
+        DateTimeOffset fromUtc,
+        CancellationToken cancellationToken = default);
 }

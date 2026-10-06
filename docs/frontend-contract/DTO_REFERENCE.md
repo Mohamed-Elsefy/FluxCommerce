@@ -418,13 +418,13 @@ interface PaymentResponse { id: string; orderId: string; customerId: string; amo
 sealed record PaymentAdminResponse(Guid Id, Guid OrderId, Guid CustomerId, decimal Amount, string Currency, string Status, string? ProviderPaymentIntentId, string? Provider, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc, long Version);
 // GET /admin/payments/stats:
 sealed record PaymentCurrencyTotalResponse(string Currency, int SucceededCount, decimal SucceededTotalAmount);
-sealed record PaymentAdminStatsResponse(int Total, int Pending, int Processing, int Succeeded, int Failed, int Cancelled, int Refunded, IReadOnlyList<PaymentCurrencyTotalResponse> TotalsByCurrency);
+sealed record PaymentAdminStatsResponse(int Total, int Pending, int Processing, int Succeeded, int Failed, int Cancelled, int Refunded, IReadOnlyList<PaymentCurrencyTotalResponse> TotalsByCurrency, IReadOnlyList<PaymentCurrencyTotalResponse> RefundedTotalsByCurrency);
 ```
 
 ```ts
 interface PaymentAdminResponse { id: string; orderId: string; customerId: string; amount: number; currency: string; status: "Pending" | "Processing" | "Succeeded" | "Failed" | "Cancelled" | "Refunded"; providerPaymentIntentId?: string | null; provider?: string | null; createdAtUtc: string; updatedAtUtc?: string | null; version: number }
 interface PaymentCurrencyTotalResponse { currency: string; succeededCount: number; succeededTotalAmount: number }
-interface PaymentAdminStatsResponse { total: number; pending: number; processing: number; succeeded: number; failed: number; cancelled: number; refunded: number; totalsByCurrency: PaymentCurrencyTotalResponse[] }
+interface PaymentAdminStatsResponse { total: number; pending: number; processing: number; succeeded: number; failed: number; cancelled: number; refunded: number; totalsByCurrency: PaymentCurrencyTotalResponse[]; refundedTotalsByCurrency: PaymentCurrencyTotalResponse[] }
 ```
 
 ```json
@@ -447,6 +447,9 @@ interface LocaleInput { "Accept-Language"?: "en" | "fr" | "de" | "es" | "ar"; cu
 interface CorrelationHeaders { "X-Correlation-ID"?: string; } // response echoes X-Correlation-ID + X-Request-ID (both Guid:N if generated)
 // Paging (catalog list/search + GET /orders + admin lists + GET /api/payments/mine)
 interface PagingQuery { pageNumber?: number; pageSize?: number } // >=1, 1..100; defaults 1/20
+// Dashboard fixed windows (NOT PagedResult — see §8): recents are fixed newest-5 full arrays,
+// dailySeries is a days-windowed full array (no pageNumber/pageSize on either)
+interface DashboardQuery { lowStockThreshold?: number; days?: number } // threshold default 5 (>=0); days default 30, 1..90
 // Health (no envelope)
 interface HealthResponse { status: string; duration: number; components: { name: string; status: string; description: string | null; duration: number }[] }
 ```
@@ -455,7 +458,11 @@ interface HealthResponse { status: string; duration: number; components: { name:
 
 ## 8. Dashboard (`FluxCommerce.Api.Models` — host composition, no new persistence)
 
-`GET /admin/dashboard` composes the per-module contracts above; every section shape is defined in its module section (§1/§4/§5/§6).
+`GET /admin/dashboard?lowStockThreshold=&days=` composes the per-module contracts above. Section
+shapes come from their module sections (§1/§4/§5/§6) **except** `CatalogCountsResponse`,
+`DailySeriesPointResponse`/`DailyRevenueResponse`, which are host-local (defined below).
+`dailySeries.revenue` counts **Succeeded payments only**, grouped per currency (refunds stay in
+`payments.refundedTotalsByCurrency`, never netted server-side).
 
 ```csharp
 sealed record AdminDashboardResponse(
@@ -464,11 +471,19 @@ sealed record AdminDashboardResponse(
     InventoryCountsResponse? Inventory,
     CatalogCountsResponse? Catalog,
     UserAdminCountsResponse? Users,
-    IReadOnlyList<OrderSummaryResponse> RecentOrders); // newest 5, empty when unauthorized
+    IReadOnlyList<OrderSummaryResponse> RecentOrders, // newest 5, empty when unauthorized
+    IReadOnlyList<PaymentAdminResponse> RecentPayments, // newest 5, empty without payments.read (stats-only viewers get stats but no list)
+    IReadOnlyList<UserAdminResponse> RecentUsers, // newest 5, empty without users.read
+    IReadOnlyList<DailySeriesPointResponse> DailySeries); // trailing days, oldest-first, zero-filled; empty unless orders.read or payments.read/stats
+// Daily series (host composition, Phase 23 F3):
+sealed record DailyRevenueResponse(string Currency, decimal Amount);
+sealed record DailySeriesPointResponse(string Date, int Orders, IReadOnlyList<DailyRevenueResponse> Revenue); // Date "yyyy-MM-dd" (UTC)
 ```
 
 ```ts
-interface AdminDashboardResponse { orders?: AdminOrderCountsResponse | null; payments?: PaymentAdminStatsResponse | null; inventory?: InventoryCountsResponse | null; catalog?: CatalogCountsResponse | null; users?: UserAdminCountsResponse | null; recentOrders: OrderSummaryResponse[] }
+interface AdminDashboardResponse { orders?: AdminOrderCountsResponse | null; payments?: PaymentAdminStatsResponse | null; inventory?: InventoryCountsResponse | null; catalog?: CatalogCountsResponse | null; users?: UserAdminCountsResponse | null; recentOrders: OrderSummaryResponse[]; recentPayments: PaymentAdminResponse[]; recentUsers: UserAdminResponse[]; dailySeries: DailySeriesPointResponse[] }
+interface DailyRevenueResponse { currency: string; amount: number }
+interface DailySeriesPointResponse { date: string; orders: number; revenue: DailyRevenueResponse[] }
 ```
 
 ```csharp
