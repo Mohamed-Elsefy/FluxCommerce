@@ -39,7 +39,9 @@ public sealed class ListProductsQueryHandler
         var hasFilters = !string.IsNullOrWhiteSpace(query.SearchTerm)
             || query.Status is not null
             || query.Visibility is not null
-            || query.CategoryId is not null;
+            || query.CategoryId is not null
+            || query.SortBy is not null
+            || query.SortDirection is not null;
 
         if (!hasFilters)
         {
@@ -56,8 +58,8 @@ public sealed class ListProductsQueryHandler
             query.Status,
             query.Visibility,
             isDeleted: null,
-            sortBy: null,
-            sortDirection: null,
+            sortBy: query.SortBy,
+            sortDirection: query.SortDirection,
             pageNumber: pageNumber,
             pageSize: pageSize,
             cancellationToken: cancellationToken);

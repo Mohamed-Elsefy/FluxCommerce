@@ -165,6 +165,71 @@ public class ListAndSearchQueryHandlerTests
     }
 
     [Fact]
+    public async Task ListProducts_SortByNameDescending_ReturnsSorted()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Apple", slug: "apple"));
+        await _products.AddAsync(TestProducts.Create(name: "Zebra", slug: "zebra"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(
+            SortBy: CatalogProductSortBy.Name,
+            SortDirection: CatalogProductSortDirection.Descending));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.TotalCount);
+        Assert.Equal("Zebra", result.Value.Items.ElementAt(0).Name);
+        Assert.Equal("Apple", result.Value.Items.ElementAt(1).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_SortByCreatedAtUtcAscending_ReturnsOldestFirst()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Zebra", slug: "zebra"));
+        await _products.AddAsync(TestProducts.Create(name: "Apple", slug: "apple"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(
+            SortBy: CatalogProductSortBy.CreatedAtUtc,
+            SortDirection: CatalogProductSortDirection.Ascending));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.TotalCount);
+        Assert.Equal("Zebra", result.Value.Items.ElementAt(0).Name);
+        Assert.Equal("Apple", result.Value.Items.ElementAt(1).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_WithPrimaryImage_ReturnsPrimaryImage()
+    {
+        var product = TestProducts.Create(name: "Phone", slug: "phone");
+        product.AddImage("https://example.com/a.jpg", "Front", true, 0, null, TestProducts.UtcNow);
+        product.AddImage("https://example.com/b.jpg", null, false, 1, null, TestProducts.UtcNow);
+        await _products.AddAsync(product);
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery());
+
+        Assert.True(result.IsSuccess);
+        var item = Assert.Single(result.Value.Items);
+        Assert.NotNull(item.PrimaryImage);
+        Assert.Equal("https://example.com/a.jpg", item.PrimaryImage.ImageUrl);
+        Assert.Equal("Front", item.PrimaryImage.AltText);
+    }
+
+    [Fact]
+    public async Task ListProducts_WithoutImages_ReturnsNullPrimaryImage()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Phone", slug: "phone"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery());
+
+        Assert.True(result.IsSuccess);
+        var item = Assert.Single(result.Value.Items);
+        Assert.Null(item.PrimaryImage);
+    }
+
+    [Fact]
     public async Task ListCategories_Paginates_ReturnsPageAndTotalCount()
     {
         for (var i = 1; i <= 5; i++)

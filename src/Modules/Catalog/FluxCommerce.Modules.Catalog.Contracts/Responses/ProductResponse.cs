@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Catalog.Contracts.Enums;
+using FluxCommerce.Modules.Catalog.Contracts.ReadModels;
 
 namespace FluxCommerce.Modules.Catalog.Contracts.Responses;
 
@@ -13,4 +14,5 @@ public sealed record ProductResponse(
     Guid CategoryId,
     bool IsDeleted,
     DateTime CreatedAtUtc,
-    DateTime? DeletedAtUtc);
+    DateTime? DeletedAtUtc,
+    CatalogImageSummary? PrimaryImage = null);

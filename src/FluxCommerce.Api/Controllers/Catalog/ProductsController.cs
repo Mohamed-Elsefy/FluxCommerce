@@ -168,7 +168,7 @@ public sealed class ProductsController : ApiControllerBase
         return Success(await _getProductHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists non-deleted products with pagination and optional filters.</summary>
+    /// <summary>Lists non-deleted products with pagination, optional filters and sorting.</summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> List(
@@ -178,6 +178,8 @@ public sealed class ProductsController : ApiControllerBase
         [FromQuery] ContractsProductStatus? status,
         [FromQuery] ContractsProductVisibility? visibility,
         [FromQuery] Guid? categoryId,
+        [FromQuery] ContractsCatalogProductSortBy? sortBy,
+        [FromQuery] ContractsCatalogProductSortDirection? sortDirection,
         CancellationToken cancellationToken)
     {
         var query = new ListProductsQuery(
@@ -186,7 +188,9 @@ public sealed class ProductsController : ApiControllerBase
             searchTerm,
             ToDomainStatus(status),
             ToDomainVisibility(visibility),
-            categoryId);
+            categoryId,
+            ToDomainSortBy(sortBy),
+            ToDomainSortDirection(sortDirection));
         return Success(await _listProductsHandler.HandleAsync(query, cancellationToken));
     }
 

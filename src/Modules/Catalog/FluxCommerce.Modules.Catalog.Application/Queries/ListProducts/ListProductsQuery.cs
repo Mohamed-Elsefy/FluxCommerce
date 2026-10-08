@@ -11,5 +11,7 @@ public sealed record ListProductsQuery(
     string? SearchTerm = null,
     ProductStatus? Status = null,
     ProductVisibility? Visibility = null,
-    Guid? CategoryId = null)
+    Guid? CategoryId = null,
+    CatalogProductSortBy? SortBy = null,
+    CatalogProductSortDirection? SortDirection = null)
     : IQuery<Result<PagedResult<ProductResponse>>>;

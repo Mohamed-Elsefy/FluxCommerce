@@ -442,7 +442,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 | HTTPMethod | `GET` |
 | Authorization | Anonymous |
 | Request | Route `id` |
-| Response | `200 ApiResponse<ProductResponse { id, name: string, slug: string, description?: string\|null, seo?: SeoResponse { title?: string\|null, description?: string\|null, keywords: string[] (IReadOnlyList<string> non-null, never null) }\|null, status: Draft\|Active\|Inactive\|Archived, visibility: Visible\|Hidden, categoryId: Guid, isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` |
+| Response | `200 ApiResponse<ProductResponse { id, name: string, slug: string, description?: string\|null, seo?: SeoResponse { title?: string\|null, description?: string\|null, keywords: string[] (IReadOnlyList<string> non-null, never null) }\|null, status: Draft\|Active\|Inactive\|Archived, visibility: Visible\|Hidden, categoryId: Guid, isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null, primaryImage?: CatalogImageSummary { id, imageUrl: string, altText?: string\|null, displayOrder: int, isPrimary: bool }\|null }>` |
 | Status Codes | `200, 400, 404` |
 | Validation | id guid |
 | Errors | `404` |
@@ -454,13 +454,13 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 | Endpoint | `/catalog/products` |
 | HTTPMethod | `GET` |
 | Authorization | Anonymous |
-| Request | Query `pageNumber?: int, pageSize?: int, searchTerm?: string (name/slug, case-insensitive), status?: Draft\|Active\|Inactive\|Archived (name or number), visibility?: Visible\|Hidden (name or number), categoryId?: Guid` |
-| Response | `200 ApiResponse<PagedResult<ProductResponse>>` (unchanged shape) |
+| Request | Query `pageNumber?: int, pageSize?: int, searchTerm?: string (name/slug, case-insensitive), status?: Draft\|Active\|Inactive\|Archived (name or number), visibility?: Visible\|Hidden (name or number), categoryId?: Guid, sortBy?: Name\|CreatedAtUtc (name or number), sortDirection?: Ascending\|Descending (name or number)` |
+| Response | `200 ApiResponse<PagedResult<ProductResponse>>` — each item carries `primaryImage?: CatalogImageSummary { id, imageUrl, altText, displayOrder, isPrimary } \| null` (no extra round trips; `null` when the product has no images) |
 | Status Codes | `200, 400` |
 | Validation | `pageNumber>=1, 1<=pageSize<=100`; omitted filters = no filter (fully backward compatible) |
 | Errors | `400 Validation` |
 | Pagination | Yes (`PagedResult`) |
-| Sorting | No (`sortBy/sortDirection` stay `GET /catalog`-only) |
+| Sorting | Yes (`sortBy: Name\|CreatedAtUtc`, `sortDirection: Ascending\|Descending`; omitted = `Name` ascending — same values/default as `GET /catalog`) |
 | Filtering | Yes (`searchTerm`, `status`, `visibility`, `categoryId`) + implicit non-deleted only |
 
 #### GET /catalog (storefront search)
@@ -778,7 +778,7 @@ unauthorized); `catalog` ← `catalog.manage`; `users`+`recentUsers` ← `users.
 ## Appendix B — Frontend workflows (recommended call order)
 
 1. **Auth:** `POST /auth/register → POST /auth/verify-email (token from email link FrontendBaseUrl) → POST /auth/login (store access 15m in memory, refresh 7d opaque) → GET /auth/me`. Proactive refresh at ~13–14m; on `401` → `POST /auth/refresh` → retry once. `POST /auth/logout` revokes. `forgot → reset` via email token (reset `1h`). `change-password` needs JWT.
-2. **Catalog (storefront):** `GET /catalog?searchTerm&categoryId&status&visibility&sortBy&sortDirection&pageNumber&pageSize` for listing; admin-style lists `GET /catalog/products?searchTerm&status&visibility&categoryId&pageNumber&pageSize` (full `ProductResponse`) and `GET /catalog/categories?searchTerm&status&pageNumber&pageSize` support the same optional filters (no sorting); `GET /catalog/products/{id}`, `GET /catalog/products/{id}/variants`, `GET .../images` (order by `displayOrder`), `GET .../attributes|specifications` for PDP. Admin CRUD mirrors same ids with a JWT carrying `catalog.manage`; lifecycle `activate/deactivate/archive/soft-delete/restore` are `POST …→204`.
+2. **Catalog (storefront):** `GET /catalog?searchTerm&categoryId&status&visibility&sortBy&sortDirection&pageNumber&pageSize` for listing; admin-style lists `GET /catalog/products?searchTerm&status&visibility&categoryId&sortBy&sortDirection&pageNumber&pageSize` (full `ProductResponse` + `primaryImage`) and `GET /catalog/categories?searchTerm&status&pageNumber&pageSize` support the same optional filters; `GET /catalog/products/{id}`, `GET /catalog/products/{id}/variants`, `GET .../images` (order by `displayOrder`), `GET .../attributes|specifications` for PDP. Admin CRUD mirrors same ids with a JWT carrying `catalog.manage`; lifecycle `activate/deactivate/archive/soft-delete/restore` are `POST …→204`.
 3. **Cart:** guest keeps `cartId` in localStorage (`POST /cart/guest → POST .../items → PUT/DELETE .../items/{variantId}`). After login: `POST /cart` (get-or-create auth cart) → `POST /cart/merge { guestCartId }` (atomic Lua, clears guest) → use `/cart*` auth endpoints. On `VersionConflict`/concurrency error: `GET` fresh cart and retry. Note cart `unitPriceAmount/currency` is a snapshot — checkout reprices from Catalog.
 4. **Checkout → Order → Payment:** `POST /orders/checkout { cartId, shipping, billing } + Idempotency-Key: <uuid>` (generate per checkout attempt, reuse same key+body on retry/network failure; new body = new key, else `409`). Returns `Pending` order → poll `GET /orders/{id}` (or list) until `Confirmed|Cancelled`. Payment status via `GET /api/payments/{paymentId}` (paymentId comes from saga/Stripe flow, not checkout response); Stripe.js uses `PublishableKey` + `ClientSecret` from `GET /api/payments/by-order/{orderId}` (§6 `PaymentInitializationResponse` HTTP contract — the backend `PaymentIntentResult` itself stays internal). Webhook is Stripe→API only, never SPA.
 5. **Errors/i18n:** send `Accept-Language` or `?culture=`; render `detail` (localized) + field `errors{}` map on 400; key logic on `status` (`Identity.*`, `Catalog.*`, `Cart.*`, `Order.*`, `Inventory.*`, `Payment.*`, `Dashboard.*` — business errors carry no `extensions.code`, only `detail`). Include `X-Correlation-ID` per flow and echo `X-Correlation-ID/X-Request-ID/traceId` in bug reports. `404` on orders/payments also means “not yours” (IDOR-masked). `403` means missing role/permission (never retry blindly; one refresh is legitimate for fresh grants, then show locked state).

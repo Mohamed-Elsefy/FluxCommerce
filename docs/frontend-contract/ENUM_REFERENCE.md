@@ -40,7 +40,7 @@ Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.r
 
 ## 2. Catalog (all numbers on wire)
 
-### `ProductStatus` — `ProductResponse.status`; `GET /catalog?status=` filter
+### `ProductStatus` — `ProductResponse.status`; `GET /catalog?status=` and `GET /catalog/products?status=` filters
 
 | Value | Number | Meaning |
 |---|---|---|
@@ -53,7 +53,7 @@ Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.r
 enum ProductStatus { Draft = 0, Active = 1, Inactive = 2, Archived = 3 }
 ```
 
-### `ProductVisibility` — `Create/UpdateProductRequest.visibility`, `ProductResponse.visibility`; `GET /catalog?visibility=`
+### `ProductVisibility` — `Create/UpdateProductRequest.visibility`, `ProductResponse.visibility`; `GET /catalog?visibility=` and `GET /catalog/products?visibility=`
 
 | Value | Number | Meaning |
 |---|---|---|
@@ -112,7 +112,7 @@ enum AttributeStatus { Active = 0, Inactive = 1 }
 enum AttributeDataType { Text = 0, Number = 1, Decimal = 2, Boolean = 3, Date = 4, DateTime = 5 }
 ```
 
-### `CatalogProductSortBy` / `CatalogProductSortDirection` — `GET /catalog?sortBy=&sortDirection=` only
+### `CatalogProductSortBy` / `CatalogProductSortDirection` — `GET /catalog?sortBy=&sortDirection=` and `GET /catalog/products?sortBy=&sortDirection=`
 
 | Enum | Values |
 |---|---|

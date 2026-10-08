@@ -179,7 +179,7 @@ interface ReorderProductImagesRequest { orderedImageIds?: string[] | null }
 ### 2.3 Responses
 
 ```csharp
-sealed record ProductResponse(Guid Id, string Name, string Slug, string? Description, SeoResponse? Seo, ProductStatus Status, ProductVisibility Visibility, Guid CategoryId, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
+sealed record ProductResponse(Guid Id, string Name, string Slug, string? Description, SeoResponse? Seo, ProductStatus Status, ProductVisibility Visibility, Guid CategoryId, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc, CatalogImageSummary? PrimaryImage = null); // primaryImage null when the product has no images
 sealed record SeoResponse(string? Title, string? Description, IReadOnlyList<string> Keywords); // non-null list
 sealed record CategoryResponse(Guid Id, string Name, string Slug, string? Description, Guid? ParentId, CategoryStatus Status, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
 sealed record VariantResponse(Guid Id, Guid ProductId, string Sku, string Name, decimal UnitPriceAmount, string Currency, VariantStatus Status, bool IsDeleted, DateTime CreatedAtUtc, DateTime? DeletedAtUtc);
@@ -223,7 +223,7 @@ Not `*.Contracts` but required to build frontend query strings. All `int?` nulla
 ```csharp
 sealed record SearchCatalogProductsQuery(string SearchTerm, CatalogProductFilter? Filter = null, CatalogProductSortBy? SortBy = null, CatalogProductSortDirection? SortDirection = null, int? PageNumber = null, int? PageSize = null);
 sealed record CatalogProductFilter(Guid? CategoryId = null, ProductStatus? Status = null, ProductVisibility? Visibility = null, bool? IsDeleted = null);
-sealed record ListProductsQuery(int? PageNumber = null, int? PageSize = null, string? SearchTerm = null, ProductStatus? Status = null, ProductVisibility? Visibility = null, Guid? CategoryId = null);
+sealed record ListProductsQuery(int? PageNumber = null, int? PageSize = null, string? SearchTerm = null, ProductStatus? Status = null, ProductVisibility? Visibility = null, Guid? CategoryId = null, CatalogProductSortBy? SortBy = null, CatalogProductSortDirection? SortDirection = null);
 sealed record ListCategoriesQuery(int? PageNumber = null, int? PageSize = null, string? SearchTerm = null, CategoryStatus? Status = null);
 sealed record ListProductVariantsQuery(Guid ProductId); // no pagination
 sealed record ListAttributeDefinitionsQuery(); // no params, no pagination
@@ -231,7 +231,7 @@ sealed record ListAttributeDefinitionsQuery(); // no params, no pagination
 
 ```ts
 interface CatalogSearchQuery { searchTerm?: string; categoryId?: string; status?: "Draft" | "Active" | "Inactive" | "Archived"; visibility?: "Visible" | "Hidden"; sortBy?: "Name" | "CreatedAtUtc"; sortDirection?: "Ascending" | "Descending"; pageNumber?: number; pageSize?: number }
-interface ProductListQuery { searchTerm?: string; categoryId?: string; status?: "Draft" | "Active" | "Inactive" | "Archived"; visibility?: "Visible" | "Hidden"; pageNumber?: number; pageSize?: number } // GET /catalog/products — same filters as search, no sortBy/sortDirection
+interface ProductListQuery { searchTerm?: string; categoryId?: string; status?: "Draft" | "Active" | "Inactive" | "Archived"; visibility?: "Visible" | "Hidden"; sortBy?: "Name" | "CreatedAtUtc"; sortDirection?: "Ascending" | "Descending"; pageNumber?: number; pageSize?: number } // GET /catalog/products — same filters/sort as search
 interface CategoryListQuery { searchTerm?: string; status?: "Active" | "Inactive"; pageNumber?: number; pageSize?: number } // GET /catalog/categories
 interface CatalogImageSummary { id: string; imageUrl: string; altText?: string | null; displayOrder: number; isPrimary: boolean }
 interface CatalogProductListItem { id: string; name: string; slug: string; description?: string | null; categoryId: string; primaryImage?: CatalogImageSummary | null }

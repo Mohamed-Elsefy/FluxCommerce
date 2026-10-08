@@ -27,6 +27,7 @@ public sealed class ProductRepository : IProductRepository
 
     public Task<Product?> GetByIdForReadAsync(Guid id, CancellationToken cancellationToken = default) =>
         Products.AsNoTracking()
+            .Include(product => product.Images.Where(image => image.IsPrimary))
             .FirstOrDefaultAsync(product => product.Id == id, cancellationToken);
 
     public async Task<IReadOnlyCollection<Product>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
@@ -51,6 +52,8 @@ public sealed class ProductRepository : IProductRepository
     {
         IQueryable<Product> query = Products.AsNoTracking()
             .Where(product => !product.IsDeleted);
+
+        query = query.Include(product => product.Images.Where(image => image.IsPrimary));
 
         var totalCount = await query.CountAsync(cancellationToken);
 
