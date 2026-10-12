@@ -13,7 +13,6 @@
   <ItemGroup>
     <Folder Include="ProblemDetails\" />
     <Folder Include="Middleware\" />
-    <Folder Include="Extensions\" />
     <Folder Include="Responses\" />
     <Folder Include="Controllers\" />
   </ItemGroup>
