@@ -30,14 +30,14 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
     private static readonly ActivitySource ActivitySource = new("FluxCommerce");
 
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IStripePaymentGateway _stripeGateway;
+    private readonly IPaymentGateway _stripeGateway;
     private readonly PaymentsDbContext _dbContext;
     private readonly IntegrationEventOutboxMessageFactory _outboxFactory;
     private readonly ILogger<CreatePaymentRequestedConsumer> _logger;
 
     public CreatePaymentRequestedConsumer(
         IPaymentRepository paymentRepository,
-        IStripePaymentGateway stripeGateway,
+        IPaymentGateway stripeGateway,
         PaymentsDbContext dbContext,
         IntegrationEventOutboxMessageFactory outboxFactory,
         ILogger<CreatePaymentRequestedConsumer> logger)

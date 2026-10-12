@@ -11,14 +11,14 @@ namespace FluxCommerce.UnitTests.Payments;
 public sealed class StripeWebhookEndpointHandlerTests
 {
     private static StripeWebhookEndpointHandler CreateHandler(
-        IStripeWebhookService svc,
+        IWebhookVerifier svc,
         IWebhookEventProcessor proc) =>
         new(svc, proc, NullLogger<StripeWebhookEndpointHandler>.Instance);
 
     [Fact]
     public async Task MissingSignature_ReturnsMissingSignature_WithoutVerifying()
     {
-        var svcMock = new Mock<IStripeWebhookService>();
+        var svcMock = new Mock<IWebhookVerifier>();
         var procMock = new Mock<IWebhookEventProcessor>();
         var handler = CreateHandler(svcMock.Object, procMock.Object);
 
@@ -31,7 +31,7 @@ public sealed class StripeWebhookEndpointHandlerTests
     [Fact]
     public async Task EmptyPayload_ReturnsEmptyPayload()
     {
-        var svcMock = new Mock<IStripeWebhookService>();
+        var svcMock = new Mock<IWebhookVerifier>();
         var procMock = new Mock<IWebhookEventProcessor>();
         var handler = CreateHandler(svcMock.Object, procMock.Object);
 
@@ -45,7 +45,7 @@ public sealed class StripeWebhookEndpointHandlerTests
     public async Task InvalidSignature_ReturnsInvalidSignature()
     {
         var payload = """{"id":"evt_1"}""";
-        var svcMock = new Mock<IStripeWebhookService>();
+        var svcMock = new Mock<IWebhookVerifier>();
         svcMock.Setup(x => x.VerifyAndParse(payload, "t=1,v1=bad"))
             .Returns(new StripeWebhookVerificationResult(false, null, null, null, "Invalid signature"));
         var procMock = new Mock<IWebhookEventProcessor>();
@@ -61,7 +61,7 @@ public sealed class StripeWebhookEndpointHandlerTests
     public async Task ValidNewEvent_ReturnsProcessed()
     {
         var payload = """{"id":"evt_2","type":"payment_intent.succeeded"}""";
-        var svcMock = new Mock<IStripeWebhookService>();
+        var svcMock = new Mock<IWebhookVerifier>();
         svcMock.Setup(x => x.VerifyAndParse(payload, "t=1,v1=valid"))
             .Returns(new StripeWebhookVerificationResult(true, "evt_2", "payment_intent.succeeded", "pi_2", null));
         var procMock = new Mock<IWebhookEventProcessor>();
@@ -78,7 +78,7 @@ public sealed class StripeWebhookEndpointHandlerTests
     public async Task DuplicateEvent_ReturnsAlreadyProcessed()
     {
         var payload = """{"id":"evt_dup","type":"payment_intent.succeeded"}""";
-        var svcMock = new Mock<IStripeWebhookService>();
+        var svcMock = new Mock<IWebhookVerifier>();
         svcMock.Setup(x => x.VerifyAndParse(payload, "t=1,v1=valid"))
             .Returns(new StripeWebhookVerificationResult(true, "evt_dup", "payment_intent.succeeded", "pi_dup", null));
         var procMock = new Mock<IWebhookEventProcessor>();

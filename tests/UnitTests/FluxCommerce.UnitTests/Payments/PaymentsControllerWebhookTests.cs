@@ -1,4 +1,4 @@
-﻿using FluxCommerce.Api.Controllers.Payments;
+using FluxCommerce.Api.Controllers.Payments;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
@@ -26,7 +26,7 @@ public sealed class PaymentsControllerWebhookTests
         var errorLocalizerMock = new Mock<IErrorCodeLocalizer>();
         errorLocalizerMock.Setup(x => x.Localize(It.IsAny<string>(), It.IsAny<string>())).Returns((string c, string f) => f);
 
-        var endpointMock = new Mock<IStripeWebhookEndpointHandler>();
+        var endpointMock = new Mock<IWebhookEndpointHandler>();
         endpointMock.Setup(x => x.HandleAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(outcome);
 

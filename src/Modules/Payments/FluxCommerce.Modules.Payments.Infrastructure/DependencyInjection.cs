@@ -69,12 +69,12 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetPaymentDailyPointsQuery, Result<IReadOnlyList<PaymentDailyPointReadModel>>>, GetPaymentDailyPointsQueryHandler>();
         services.AddScoped<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetMyPaymentsQueryHandler>();
         services.AddScoped<IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>>, GetPaymentQueryHandler>();
-        services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
+        services.AddScoped<IPaymentGateway, StripePaymentGateway>();
         services.AddScoped<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>, GetPaymentInitializationQueryHandler>();
         services.AddSingleton<IPaymentWebhookInterpreter, PaymentWebhookInterpreter>();
-        services.AddScoped<IStripeWebhookService, StripeWebhookService>();
+        services.AddScoped<IWebhookVerifier, StripeWebhookService>();
         services.AddScoped<IWebhookEventProcessor, WebhookEventProcessor>();
-        services.AddScoped<IStripeWebhookEndpointHandler, StripeWebhookEndpointHandler>();
+        services.AddScoped<IWebhookEndpointHandler, StripeWebhookEndpointHandler>();
 
         return services;
     }

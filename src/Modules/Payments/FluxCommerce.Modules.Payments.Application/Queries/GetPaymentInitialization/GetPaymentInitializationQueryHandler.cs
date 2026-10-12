@@ -20,12 +20,12 @@ public sealed class GetPaymentInitializationQueryHandler
     private static readonly ActivitySource ActivitySource = new("FluxCommerce");
 
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IStripePaymentGateway _stripePaymentGateway;
+    private readonly IPaymentGateway _stripePaymentGateway;
     private readonly ICurrentUser _currentUser;
 
     public GetPaymentInitializationQueryHandler(
         IPaymentRepository paymentRepository,
-        IStripePaymentGateway stripePaymentGateway,
+        IPaymentGateway stripePaymentGateway,
         ICurrentUser currentUser)
     {
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
@@ -50,7 +50,7 @@ public sealed class GetPaymentInitializationQueryHandler
 
         var payment = await _paymentRepository.GetByOrderIdAsync(query.OrderId, cancellationToken).ConfigureAwait(false);
 
-        // Ownership enforcement mirrors PaymentsController.GetPayment: strangers (and missing payments)
+        // Ownership enforcement mirrors GetPaymentQueryHandler: strangers (and missing payments)
         // get the same masked 404 so order/payment existence is never leaked.
         if (payment is null)
             return Result.Failure<PaymentInitializationResponse>(

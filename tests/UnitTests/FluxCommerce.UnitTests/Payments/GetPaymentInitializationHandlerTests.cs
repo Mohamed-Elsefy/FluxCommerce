@@ -12,7 +12,7 @@ namespace FluxCommerce.UnitTests.Payments;
 public sealed class GetPaymentInitializationHandlerTests
 {
     private readonly Mock<IPaymentRepository> _repository = new();
-    private readonly Mock<IStripePaymentGateway> _gateway = new();
+    private readonly Mock<IPaymentGateway> _gateway = new();
     private readonly Mock<ICurrentUser> _currentUser = new();
 
     private GetPaymentInitializationQueryHandler CreateHandler() =>

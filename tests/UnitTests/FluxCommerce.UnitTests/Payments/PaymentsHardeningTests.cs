@@ -1,4 +1,4 @@
-﻿using FluxCommerce.Api.Controllers.Payments;
+using FluxCommerce.Api.Controllers.Payments;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Messaging.Consuming;
@@ -51,10 +51,10 @@ public sealed class PaymentsHardeningTests : IDisposable
 
     // 5: Invalid webhook signature -> 400
     [Fact]
-    public void StripeOptions_Secrets_AreExternalizedViaIOptions()
+    public void PaymentGatewayOptions_Secrets_AreExternalizedViaIOptions()
     {
         // 9.12 security: secrets must be bound via IOptions, not hardcoded
-        var opts = Microsoft.Extensions.Options.Options.Create(new FluxCommerce.Modules.Payments.Domain.Options.StripeOptions
+        var opts = Microsoft.Extensions.Options.Options.Create(new FluxCommerce.Modules.Payments.Infrastructure.Options.PaymentGatewayOptions
         {
             SecretKey = "sk_test_externalized",
             WebhookSecret = "whsec_externalized",
@@ -62,7 +62,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         });
         var svc = new StripeWebhookService(opts);
         Assert.NotNull(svc);
-        // No hardcoded secret in code â€“ verified via Options pattern
+        // No hardcoded secret in code – verified via Options pattern
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class PaymentsHardeningTests : IDisposable
 
     private static CreatePaymentRequestedConsumer CreatePaymentConsumer(
         FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository repo,
-        IStripePaymentGateway gateway,
+        IPaymentGateway gateway,
         PaymentsDbContext ctx) =>
         new(repo, gateway, ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
@@ -152,7 +152,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var gateway = new Mock<IStripePaymentGateway>();
+        var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_test"));
 
@@ -185,7 +185,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var gateway = new Mock<IStripePaymentGateway>();
+        var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Processing, "cs_test"));
 
@@ -212,7 +212,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
         var callCount = 0;
-        var gateway = new Mock<IStripePaymentGateway>();
+        var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync(() => { callCount++; return new PaymentIntentResult("pi_dup_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_dup"); });
 
@@ -243,7 +243,7 @@ public sealed class PaymentsHardeningTests : IDisposable
         var ctx2 = CreatePaymentsContext();
         var userId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var gateway = Mock.Of<IStripePaymentGateway>(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()) == Task.FromResult(new PaymentIntentResult("pi_conc_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_conc")));
+        var gateway = Mock.Of<IPaymentGateway>(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()) == Task.FromResult(new PaymentIntentResult("pi_conc_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_conc")));
 
         var repo1 = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx1);
         var repo2 = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx2);

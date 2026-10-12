@@ -39,7 +39,7 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
 {
     // ------------------------------------------------ Helper: Flaky Stripe gateway
 
-    private sealed class FlakyStripeGateway : IStripePaymentGateway
+    private sealed class FlakyStripeGateway : IPaymentGateway
     {
         private readonly int _failFirstN;
         private readonly string _failureMessage;
@@ -412,7 +412,7 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
 
     // ------------------------------------------------ helpers
 
-    private CreatePaymentRequestedConsumer CreateConsumer(IStripePaymentGateway gateway)
+    private CreatePaymentRequestedConsumer CreateConsumer(IPaymentGateway gateway)
     {
         var repo = new PaymentRepository(PaymentsContext);
         return new CreatePaymentRequestedConsumer(

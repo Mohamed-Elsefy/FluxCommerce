@@ -11,14 +11,14 @@ namespace FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 /// verification, idempotent application, and delivery logging so the API
 /// controller stays a thin raw-body adapter.
 /// </summary>
-public sealed class StripeWebhookEndpointHandler : IStripeWebhookEndpointHandler
+public sealed class StripeWebhookEndpointHandler : IWebhookEndpointHandler
 {
-    private readonly IStripeWebhookService _webhookService;
+    private readonly IWebhookVerifier _webhookService;
     private readonly IWebhookEventProcessor _webhookProcessor;
     private readonly ILogger<StripeWebhookEndpointHandler> _logger;
 
     public StripeWebhookEndpointHandler(
-        IStripeWebhookService webhookService,
+        IWebhookVerifier webhookService,
         IWebhookEventProcessor webhookProcessor,
         ILogger<StripeWebhookEndpointHandler> logger)
     {

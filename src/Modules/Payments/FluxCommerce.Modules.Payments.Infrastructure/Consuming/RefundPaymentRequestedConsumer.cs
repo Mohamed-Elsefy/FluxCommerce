@@ -21,14 +21,14 @@ public sealed class RefundPaymentRequestedConsumer : IIntegrationEventHandler<Re
     public const string StableHandlerName = "Payments.RefundPayment";
 
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IStripePaymentGateway _stripeGateway;
+    private readonly IPaymentGateway _stripeGateway;
     private readonly PaymentsDbContext _dbContext;
     private readonly IntegrationEventOutboxMessageFactory _outboxFactory;
     private readonly ILogger<RefundPaymentRequestedConsumer> _logger;
 
     public RefundPaymentRequestedConsumer(
         IPaymentRepository paymentRepository,
-        IStripePaymentGateway stripeGateway,
+        IPaymentGateway stripeGateway,
         PaymentsDbContext dbContext,
         IntegrationEventOutboxMessageFactory outboxFactory,
         ILogger<RefundPaymentRequestedConsumer> logger)

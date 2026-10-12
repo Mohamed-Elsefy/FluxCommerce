@@ -1,4 +1,4 @@
-using FluxCommerce.Modules.Payments.Domain.Options;
+using FluxCommerce.Modules.Payments.Infrastructure.Options;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
@@ -11,8 +11,8 @@ public sealed class StripeWebhookServiceTests
 {
     private const string WebhookSecret = "whsec_test_1234567890_TestSecretForUnitTests_Only";
 
-    private static IOptions<StripeOptions> Options(string secret = WebhookSecret)
-        => Microsoft.Extensions.Options.Options.Create(new StripeOptions { SecretKey = "sk_test_dummy", WebhookSecret = secret, PublishableKey = "pk_test_dummy" });
+    private static IOptions<PaymentGatewayOptions> Options(string secret = WebhookSecret)
+        => Microsoft.Extensions.Options.Options.Create(new PaymentGatewayOptions { SecretKey = "sk_test_dummy", WebhookSecret = secret, PublishableKey = "pk_test_dummy" });
 
     private static string GenerateStripeSignature(string payload, string secret, long? timestamp = null)
     {

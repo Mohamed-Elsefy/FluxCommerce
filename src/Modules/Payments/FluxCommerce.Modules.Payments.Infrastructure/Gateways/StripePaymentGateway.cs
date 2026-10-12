@@ -2,7 +2,7 @@
 using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Application.Services;
 using FluxCommerce.Modules.Payments.Domain.Enums;
-using FluxCommerce.Modules.Payments.Domain.Options;
+using FluxCommerce.Modules.Payments.Infrastructure.Options;
 using FluxCommerce.Modules.Payments.Infrastructure.Observability;
 using Microsoft.Extensions.Options;
 using Stripe;
@@ -10,11 +10,11 @@ using System.Diagnostics;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 
-public sealed class StripePaymentGateway : IStripePaymentGateway
+public sealed class StripePaymentGateway : IPaymentGateway
 {
     private readonly string _secretKey;
 
-    public StripePaymentGateway(IOptions<StripeOptions> options)
+    public StripePaymentGateway(IOptions<PaymentGatewayOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
 

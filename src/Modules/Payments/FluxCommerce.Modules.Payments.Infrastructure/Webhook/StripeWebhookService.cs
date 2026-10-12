@@ -1,17 +1,17 @@
 ﻿using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
-using FluxCommerce.Modules.Payments.Domain.Options;
+using FluxCommerce.Modules.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 using Stripe;
 using System.Text.Json;
 
 namespace FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 
-public sealed class StripeWebhookService : IStripeWebhookService
+public sealed class StripeWebhookService : IWebhookVerifier
 {
     private readonly string _webhookSecret;
 
-    public StripeWebhookService(IOptions<StripeOptions> stripeOptions)
+    public StripeWebhookService(IOptions<PaymentGatewayOptions> stripeOptions)
     {
         _webhookSecret = stripeOptions.Value.WebhookSecret ?? throw new InvalidOperationException("Stripe Webhook Secret is not configured.");
     }

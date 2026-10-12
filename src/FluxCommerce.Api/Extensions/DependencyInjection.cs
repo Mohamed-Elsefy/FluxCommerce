@@ -69,10 +69,12 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Single Stripe source of truth: the Domain options bound once. The former
-        // Api.Options.StripeOptions duplicate was removed to prevent silent drift.
-        services.AddOptions<FluxCommerce.Modules.Payments.Domain.Options.StripeOptions>()
-            .Bind(configuration.GetSection(FluxCommerce.Modules.Payments.Domain.Options.StripeOptions.SectionName))
+        // Single payment-gateway source of truth: the Infrastructure options bound once.
+        // The former Api.Options duplicate was removed to prevent silent drift, and the
+        // Domain-owned StripeOptions was moved to Infrastructure (it configures the
+        // provider adapter, not payment business rules). Section name stays "Stripe".
+        services.AddOptions<FluxCommerce.Modules.Payments.Infrastructure.Options.PaymentGatewayOptions>()
+            .Bind(configuration.GetSection(FluxCommerce.Modules.Payments.Infrastructure.Options.PaymentGatewayOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

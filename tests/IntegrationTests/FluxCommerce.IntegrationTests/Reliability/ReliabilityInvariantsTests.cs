@@ -112,7 +112,7 @@ public sealed class ReliabilityInvariantsTests : ReliabilityTestBase
             DateTimeOffset.UtcNow);
     }
 
-    private sealed class FlakyStripeGateway : IStripePaymentGateway
+    private sealed class FlakyStripeGateway : IPaymentGateway
     {
         private readonly int _failFirstN;
         private int _callCount;

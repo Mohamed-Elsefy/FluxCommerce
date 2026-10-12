@@ -24,7 +24,7 @@ namespace FluxCommerce.Api.Controllers.Payments;
 [Tags(EndpointTags.Payments)]
 public sealed class PaymentsController : ApiControllerBase
 {
-    private readonly IStripeWebhookEndpointHandler _webhookEndpointHandler;
+    private readonly IWebhookEndpointHandler _webhookEndpointHandler;
     private readonly IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>> _getPaymentHandler;
     private readonly IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> _initializationHandler;
     private readonly IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>> _myPaymentsHandler;
@@ -32,7 +32,7 @@ public sealed class PaymentsController : ApiControllerBase
     public PaymentsController(
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer,
-        IStripeWebhookEndpointHandler webhookEndpointHandler,
+        IWebhookEndpointHandler webhookEndpointHandler,
         IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>> getPaymentHandler,
         IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> initializationHandler,
         IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>> myPaymentsHandler
