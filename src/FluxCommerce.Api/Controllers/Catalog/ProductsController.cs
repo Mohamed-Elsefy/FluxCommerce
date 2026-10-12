@@ -28,7 +28,9 @@ using DomainCatalogProductSortDirection = FluxCommerce.Modules.Catalog.Domain.En
 using DomainProductStatus = FluxCommerce.Modules.Catalog.Domain.Enums.ProductStatus;
 using DomainProductVisibility = FluxCommerce.Modules.Catalog.Domain.Enums.ProductVisibility;
 
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -233,51 +235,20 @@ public sealed class ProductsController : ApiControllerBase
     }
 
     private static DomainProductVisibility ToDomainVisibility(ContractsProductVisibility visibility) =>
-        visibility switch
-        {
-            ContractsProductVisibility.Visible => DomainProductVisibility.Visible,
-            ContractsProductVisibility.Hidden => DomainProductVisibility.Hidden,
-            _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null)
-        };
+        ContractEnumMappers.ToDomainVisibility(visibility);
 
     private static DomainProductVisibility? ToDomainVisibility(ContractsProductVisibility? visibility) =>
-        visibility switch
-        {
-            null => null,
-            ContractsProductVisibility.Visible => DomainProductVisibility.Visible,
-            ContractsProductVisibility.Hidden => DomainProductVisibility.Hidden,
-            _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null)
-        };
+        ContractEnumMappers.ToDomainVisibility(visibility);
 
     private static DomainProductStatus? ToDomainStatus(ContractsProductStatus? status) =>
-        status switch
-        {
-            null => null,
-            ContractsProductStatus.Draft => DomainProductStatus.Draft,
-            ContractsProductStatus.Active => DomainProductStatus.Active,
-            ContractsProductStatus.Inactive => DomainProductStatus.Inactive,
-            ContractsProductStatus.Archived => DomainProductStatus.Archived,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
-        };
+        ContractEnumMappers.ToDomainProductStatus(status);
 
     private static DomainCatalogProductSortBy? ToDomainSortBy(ContractsCatalogProductSortBy? sortBy) =>
-        sortBy switch
-        {
-            null => null,
-            ContractsCatalogProductSortBy.Name => DomainCatalogProductSortBy.Name,
-            ContractsCatalogProductSortBy.CreatedAtUtc => DomainCatalogProductSortBy.CreatedAtUtc,
-            _ => throw new ArgumentOutOfRangeException(nameof(sortBy), sortBy, null)
-        };
+        ContractEnumMappers.ToDomainSortBy(sortBy);
 
     private static DomainCatalogProductSortDirection? ToDomainSortDirection(
         ContractsCatalogProductSortDirection? sortDirection) =>
-        sortDirection switch
-        {
-            null => null,
-            ContractsCatalogProductSortDirection.Ascending => DomainCatalogProductSortDirection.Ascending,
-            ContractsCatalogProductSortDirection.Descending => DomainCatalogProductSortDirection.Descending,
-            _ => throw new ArgumentOutOfRangeException(nameof(sortDirection), sortDirection, null)
-        };
+        ContractEnumMappers.ToDomainSortDirection(sortDirection);
 
     private static SeoMetadataCommand? ToSeoCommand(SeoRequest? seo) =>
         seo is null ? null : new SeoMetadataCommand(seo.Title, seo.Description, seo.Keywords);

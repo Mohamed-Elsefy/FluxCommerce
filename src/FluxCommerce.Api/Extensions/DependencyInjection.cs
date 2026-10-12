@@ -2,6 +2,7 @@ using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Json;
 using FluxCommerce.Api.Options;
 using FluxCommerce.Api.Localization;
+using FluxCommerce.Api.Services;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
@@ -118,6 +119,8 @@ public static class DependencyInjection
             options.JsonSerializerOptions.Converters.Add(new NullableGuidJsonConverter());
         });
 
+        services.AddScoped<IDashboardComposer, DashboardComposer>();
+
         return services;
     }
 
@@ -128,16 +131,7 @@ public static class DependencyInjection
 
         services.AddPersistence(configuration);
 
-        services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
-        services.AddCartInfrastructure(configuration);
-        services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
-        services.AddInventoryInfrastructure(
-            GetConnectionString(configuration, "Inventory"),
-            expirationOptions => configuration
-                .GetSection(ReservationExpirationOptions.SectionName)
-                .Bind(expirationOptions));
-        services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
-        services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
+        AddModuleInfrastructure(services, configuration);
 
         // Web-backed correlation provider overrides the modules' fallback (last registration wins),
         // so Outbox records written inside HTTP requests carry the request's X-Correlation-ID.
@@ -148,6 +142,28 @@ public static class DependencyInjection
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));
         services.AddRabbitMQPublisher(GetRabbitMQExchangeName(configuration));
 
+        AddSagaConsumers(services, configuration);
+        AddHealthChecks(services);
+
+        return services;
+    }
+
+    private static void AddModuleInfrastructure(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
+        services.AddCartInfrastructure(configuration);
+        services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
+        services.AddInventoryInfrastructure(
+            GetConnectionString(configuration, "Inventory"),
+            expirationOptions => configuration
+                .GetSection(ReservationExpirationOptions.SectionName)
+                .Bind(expirationOptions));
+        services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
+        services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
+    }
+
+    private static void AddSagaConsumers(IServiceCollection services, IConfiguration configuration)
+    {
         // Phase 7.9: the first real integration event consumer. The Order Summary projection consumer
         // consumes orders.order_created from the same Phase 6 topic exchange through the dedicated
         // module queue, inside the Orders idempotent-processing boundary (Business State + ProcessedMessage
@@ -248,14 +264,15 @@ public static class DependencyInjection
         // delivered in sub-phases 11.5/11.6. The orchestrator stub returns Ignored (a safe no-op) until then.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.inventory.expired");
         services.AddIntegrationEventConsumer<InventoryReservationExpiredIntegrationEvent, InventoryReservationExpiredConsumer, OrdersIdempotentProcessor>();
+    }
 
+    private static void AddHealthChecks(IServiceCollection services)
+    {
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])
                 .AddCheck<RedisHealthCheck>("redis", tags: ["cache", "infrastructure"])
                 .AddCheck<RabbitMQHealthCheck>("rabbitmq", tags: ["messaging", "infrastructure"]);
-
-        return services;
     }
 
     private static string GetRedisConnectionString(IConfiguration configuration)

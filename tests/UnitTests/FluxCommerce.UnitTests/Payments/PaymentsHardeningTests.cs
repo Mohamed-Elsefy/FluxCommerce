@@ -89,22 +89,16 @@ public sealed class PaymentsHardeningTests : IDisposable
         await ctx.SaveChangesAsync();
 
         var currentUser = new FakeCurrentUser { UserId = caller, IsAuthenticated = true };
-        var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
+        var store = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Stores.PaymentAdminStore(ctx);
+        var handler = new FluxCommerce.Modules.Payments.Application.Queries.GetPayment.GetPaymentQueryHandler(currentUser, store);
 
-        var localizer = Mock.Of<FluxCommerce.BuildingBlocks.Localization.Abstractions.ILocalizer>(l => l[It.IsAny<string>()] == "x");
-        var errLoc = Mock.Of<FluxCommerce.BuildingBlocks.Web.Localization.IErrorCodeLocalizer>();
-        var ctrl = new PaymentsController(localizer, errLoc, NullLogger<PaymentsController>.Instance,
-            Mock.Of<IStripeWebhookService>(), Mock.Of<IWebhookEventProcessor>(p => p.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult(WebhookProcessResult.Processed)),
-            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), Mock.Of<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>>(), currentUser);
-        ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() };
+        var result = await handler.HandleAsync(
+            new FluxCommerce.Modules.Payments.Application.Queries.GetPayment.GetPaymentQuery(payment.Id),
+            CancellationToken.None);
 
-        var result = await ctrl.GetPayment(payment.Id, CancellationToken.None);
-
-        // Should be 404 (NotFound) to avoid leaking existence, via ApiControllerBase mapping
-        Assert.NotNull(result);
-        // Result should be ObjectResult with 404
-        var obj = Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(result);
-        Assert.Equal(404, obj.StatusCode);
+        // Should be NotFound (masked) to avoid leaking existence; the controller maps it to 404.
+        Assert.True(result.IsFailure);
+        Assert.Equal("Payment.NotFound", result.Error.Code);
     }
 
     [Fact]
@@ -119,19 +113,15 @@ public sealed class PaymentsHardeningTests : IDisposable
         await ctx.SaveChangesAsync();
 
         var currentUser = new FakeCurrentUser { UserId = caller, IsAuthenticated = true };
-        var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
+        var store = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Stores.PaymentAdminStore(ctx);
+        var handler = new FluxCommerce.Modules.Payments.Application.Queries.GetPayment.GetPaymentQueryHandler(currentUser, store);
 
-        var localizer = Mock.Of<FluxCommerce.BuildingBlocks.Localization.Abstractions.ILocalizer>(l => l[It.IsAny<string>()] == "x");
-        var errLoc = Mock.Of<FluxCommerce.BuildingBlocks.Web.Localization.IErrorCodeLocalizer>();
-        var ctrl = new PaymentsController(localizer, errLoc, NullLogger<PaymentsController>.Instance,
-            Mock.Of<IStripeWebhookService>(), Mock.Of<IWebhookEventProcessor>(p => p.TryProcessAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult(WebhookProcessResult.Processed)),
-            repo, Mock.Of<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>>(), Mock.Of<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>>(), currentUser);
-        ctrl.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() };
+        var result = await handler.HandleAsync(
+            new FluxCommerce.Modules.Payments.Application.Queries.GetPayment.GetPaymentQuery(payment.Id),
+            CancellationToken.None);
 
-        var result = await ctrl.GetPayment(payment.Id, CancellationToken.None);
-
-        var obj = Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(result);
-        Assert.Equal(404, obj.StatusCode);
+        Assert.True(result.IsFailure);
+        Assert.Equal("Payment.NotFound", result.Error.Code);
     }
 
     // Creates intent through the saga consumer (the production path) instead of

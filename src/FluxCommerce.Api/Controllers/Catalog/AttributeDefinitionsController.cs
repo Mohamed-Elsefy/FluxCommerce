@@ -16,7 +16,9 @@ using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using ContractsAttributeDataType = FluxCommerce.Modules.Catalog.Contracts.Enums.AttributeDataType;
 using DomainAttributeDataType = FluxCommerce.Modules.Catalog.Domain.Enums.AttributeDataType;
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -156,15 +158,6 @@ public sealed class AttributeDefinitionsController : ApiControllerBase
     }
 
     private static DomainAttributeDataType ToDomainDataType(ContractsAttributeDataType dataType) =>
-        dataType switch
-        {
-            ContractsAttributeDataType.Text => DomainAttributeDataType.Text,
-            ContractsAttributeDataType.Number => DomainAttributeDataType.Number,
-            ContractsAttributeDataType.Decimal => DomainAttributeDataType.Decimal,
-            ContractsAttributeDataType.Boolean => DomainAttributeDataType.Boolean,
-            ContractsAttributeDataType.Date => DomainAttributeDataType.Date,
-            ContractsAttributeDataType.DateTime => DomainAttributeDataType.DateTime,
-            _ => throw new ArgumentOutOfRangeException(nameof(dataType), dataType, null)
-        };
+        ContractEnumMappers.ToDomainAttributeDataType(dataType);
 }
 

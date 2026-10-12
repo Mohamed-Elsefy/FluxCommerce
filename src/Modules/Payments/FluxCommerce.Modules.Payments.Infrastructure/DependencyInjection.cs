@@ -11,6 +11,7 @@ using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayment;
 using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayments;
 using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPaymentStats;
 using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPayment;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentDailyPoints;
 using FluxCommerce.Modules.Payments.Application.ReadModels;
 using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
@@ -67,11 +68,13 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetAdminPaymentStatsQuery, Result<PaymentAdminStatsResponse>>, GetAdminPaymentStatsQueryHandler>();
         services.AddScoped<IQueryHandler<GetPaymentDailyPointsQuery, Result<IReadOnlyList<PaymentDailyPointReadModel>>>, GetPaymentDailyPointsQueryHandler>();
         services.AddScoped<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetMyPaymentsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>>, GetPaymentQueryHandler>();
         services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
         services.AddScoped<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>, GetPaymentInitializationQueryHandler>();
         services.AddSingleton<IPaymentWebhookInterpreter, PaymentWebhookInterpreter>();
         services.AddScoped<IStripeWebhookService, StripeWebhookService>();
         services.AddScoped<IWebhookEventProcessor, WebhookEventProcessor>();
+        services.AddScoped<IStripeWebhookEndpointHandler, StripeWebhookEndpointHandler>();
 
         return services;
     }

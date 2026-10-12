@@ -19,6 +19,7 @@ using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Contracts.Requests;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
 
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
 
 using Microsoft.AspNetCore.Authorization;

@@ -16,7 +16,9 @@ using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using ContractsVariantStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.VariantStatus;
 using DomainVariantStatus = FluxCommerce.Modules.Catalog.Domain.Enums.VariantStatus;
 
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -127,11 +129,5 @@ public sealed class ProductVariantsController : ApiControllerBase
     }
 
     private static DomainVariantStatus? ToDomainStatus(ContractsVariantStatus? status) =>
-        status switch
-        {
-            null => null,
-            ContractsVariantStatus.Active => DomainVariantStatus.Active,
-            ContractsVariantStatus.Inactive => DomainVariantStatus.Inactive,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
-        };
+        ContractEnumMappers.ToDomainVariantStatus(status);
 }

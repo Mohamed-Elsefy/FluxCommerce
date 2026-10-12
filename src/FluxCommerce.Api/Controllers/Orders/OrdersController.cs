@@ -1,3 +1,4 @@
+using FluxCommerce.Api.Constants;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
@@ -6,6 +7,7 @@ using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.Responses;
 using FluxCommerce.Modules.Orders.Application.Commands.CancelOrder;
 using FluxCommerce.Modules.Orders.Application.Commands.Checkout;
+using FluxCommerce.Modules.Orders.Application.Mapping;
 using FluxCommerce.Modules.Orders.Application.Queries.GetMyOrders;
 using FluxCommerce.Modules.Orders.Application.Queries.GetOrder;
 using FluxCommerce.Modules.Orders.Contracts.Requests;
@@ -138,18 +140,6 @@ public sealed class OrdersController : ApiControllerBase
             address.PostalCode,
             address.CountryCode);
 
-    private static Result<CheckoutResponse> MapToResponse(Result<Order> result)
-    {
-        if (result.IsFailure)
-            return Result<CheckoutResponse>.Failure(result.Error);
-
-        var order = result.Value!;
-        var response = new CheckoutResponse(
-            order.Id.Value,
-            order.OrderNumber.Value,
-            order.Status.ToString(),
-            order.CreatedAtUtc);
-
-        return Result<CheckoutResponse>.Success(response);
-    }
+    private static Result<CheckoutResponse> MapToResponse(Result<Order> result) =>
+        OrderResponseMapper.ToCheckout(result);
 }

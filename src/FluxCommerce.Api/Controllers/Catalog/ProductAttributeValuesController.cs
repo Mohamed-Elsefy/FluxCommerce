@@ -12,6 +12,7 @@ using FluxCommerce.Modules.Catalog.Application.Queries.ListProductAttributeValue
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
 
 using Microsoft.AspNetCore.Authorization;

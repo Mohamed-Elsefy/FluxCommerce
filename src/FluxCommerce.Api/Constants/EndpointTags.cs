@@ -1,5 +1,9 @@
-namespace FluxCommerce.BuildingBlocks.Web.Responses;
+namespace FluxCommerce.Api.Constants;
 
+/// <summary>
+/// Swagger tag names for the API surface. Owned by the host (not a generic web
+/// primitive) because the values enumerate this API's module areas.
+/// </summary>
 public static class EndpointTags
 {
     public const string Catalog = "Catalog";

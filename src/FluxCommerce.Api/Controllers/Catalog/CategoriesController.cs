@@ -18,7 +18,9 @@ using FluxCommerce.Modules.Catalog.Contracts.Responses;
 using ContractsCategoryStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.CategoryStatus;
 using DomainCategoryStatus = FluxCommerce.Modules.Catalog.Domain.Enums.CategoryStatus;
 
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -145,11 +147,5 @@ public sealed class CategoriesController : ApiControllerBase
     }
 
     private static DomainCategoryStatus? ToDomainStatus(ContractsCategoryStatus? status) =>
-        status switch
-        {
-            null => null,
-            ContractsCategoryStatus.Active => DomainCategoryStatus.Active,
-            ContractsCategoryStatus.Inactive => DomainCategoryStatus.Inactive,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
-        };
+        ContractEnumMappers.ToDomainCategoryStatus(status);
 }

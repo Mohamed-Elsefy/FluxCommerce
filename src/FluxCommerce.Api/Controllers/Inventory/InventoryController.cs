@@ -1,4 +1,6 @@
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
@@ -21,7 +23,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using DomainInventoryReservationStatus = FluxCommerce.Modules.Inventory.Domain.Enums.InventoryReservationStatus;
-
 namespace FluxCommerce.Api.Controllers.Inventory;
 
 /// <summary>
@@ -187,15 +188,7 @@ public sealed class InventoryController : ApiControllerBase
             return Success(Result<InventoryCountsResponse>.Failure(result.Error));
 
         var counts = result.Value!;
-        return Success(Result.Success(new InventoryCountsResponse(
-            counts.TotalItems,
-            counts.TotalOnHand,
-            counts.TotalReserved,
-            counts.LowStockItems,
-            counts.PendingReservations,
-            counts.CommittedReservations,
-            counts.ReleasedReservations,
-            counts.ExpiredReservations)));
+        return Success(Result.Success(InventoryResponseMapper.ToCountsResponse(counts)));
     }
 
     /// <summary>
@@ -287,12 +280,5 @@ public sealed class InventoryController : ApiControllerBase
             reservation.UpdatedAtUtc);
 
     private static InventoryReservationStatus ToContractStatus(DomainInventoryReservationStatus status) =>
-        status switch
-        {
-            DomainInventoryReservationStatus.Pending => InventoryReservationStatus.Pending,
-            DomainInventoryReservationStatus.Committed => InventoryReservationStatus.Committed,
-            DomainInventoryReservationStatus.Released => InventoryReservationStatus.Released,
-            DomainInventoryReservationStatus.Expired => InventoryReservationStatus.Expired,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
-        };
+        ContractEnumMappers.ToContractReservationStatus(status);
 }
