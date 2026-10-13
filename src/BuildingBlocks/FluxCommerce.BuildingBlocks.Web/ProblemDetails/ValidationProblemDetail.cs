@@ -1,5 +1,10 @@
-namespace FluxCommerce.BuildingBlocks.Web.Responses;
+namespace FluxCommerce.BuildingBlocks.Web.ProblemDetails;
 
+/// <summary>
+/// Validation failure shape (HTTP 400): a <see cref="ProblemDetail"/> plus the
+/// per-field <see cref="Errors"/> map. Co-located with <see cref="ProblemDetail"/>
+/// so both envelopes evolve together; the wire shape is unchanged.
+/// </summary>
 public sealed class ValidationProblemDetail
 {
     public string Type { get; set; } = "https://tools.ietf.org/html/rfc7231#section-6.5.1";

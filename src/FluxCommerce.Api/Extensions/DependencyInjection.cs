@@ -11,6 +11,7 @@ using FluxCommerce.BuildingBlocks.Observability;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
+using FluxCommerce.BuildingBlocks.Web.Services;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;

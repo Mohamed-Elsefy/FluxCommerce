@@ -6,6 +6,7 @@ using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Observability;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -27,7 +28,7 @@ public sealed class CreatePaymentRequestedConsumer : IIntegrationEventHandler<Cr
 {
     public const string StableHandlerName = "Payments.CreatePaymentFromSaga";
 
-    private static readonly ActivitySource ActivitySource = new("FluxCommerce");
+    private static readonly ActivitySource ActivitySource = PaymentsActivitySource.Source;
 
     private readonly IPaymentRepository _paymentRepository;
     private readonly IPaymentGateway _stripeGateway;

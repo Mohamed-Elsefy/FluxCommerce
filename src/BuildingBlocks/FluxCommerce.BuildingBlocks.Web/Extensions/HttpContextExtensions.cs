@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Http;
 
-namespace FluxCommerce.BuildingBlocks.Web.Middleware;
+namespace FluxCommerce.BuildingBlocks.Web.Extensions;
 
 public static class HttpContextExtensions
 {
     public static string? TryGetCorrelationId(this HttpContext context)
     {
-        return context.Items.TryGetValue("CorrelationId", out var id)
+        return context.Items.TryGetValue(HttpContextItems.CorrelationId, out var id)
             ? id?.ToString()
             : null;
     }
@@ -18,7 +18,7 @@ public static class HttpContextExtensions
 
     public static string? TryGetRequestId(this HttpContext context)
     {
-        return context.Items.TryGetValue("RequestId", out var id)
+        return context.Items.TryGetValue(HttpContextItems.RequestId, out var id)
             ? id?.ToString()
             : null;
     }

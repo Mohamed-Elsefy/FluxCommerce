@@ -1,25 +1,28 @@
 using System.Diagnostics;
+using FluxCommerce.BuildingBlocks.Observability.Tracing;
 
 namespace FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
 
 /// <summary>
-/// Phase 8.9 distributed-trace helpers shared by the producer and consumer pipelines. The
-/// <see cref="ActivitySource"/> name ("FluxCommerce") matches the source registered with the OpenTelemetry
-/// exporter (see <c>BuildingBlocks.Observability</c>), so activities started here are exported without any
-/// configuration change. W3C Trace Context is propagated across every async boundary of the Order/Inventory
-/// saga workflow: the producing activity's <c>traceparent</c>/<c>tracestate</c> is staged into the outbox
-/// when the message is created, restored by the outbox dispatcher as the parent of the publishing activity,
-/// injected into the RabbitMQ transport headers, and extracted by the consumer processor to seed the
-/// consuming activity — so a single trace spans Checkout → Order Saga → RabbitMQ → Inventory Consumer →
-/// RabbitMQ → Order Saga.
+/// Distributed-trace helpers shared by the producer and consumer pipelines. The
+/// <see cref="ActivitySource"/> name (<see cref="ActivitySources.FluxCommerce"/>, the single source
+/// of truth in <c>BuildingBlocks.Observability</c>) matches the source registered with the
+/// OpenTelemetry exporter, so activities started here are exported without any configuration change.
+/// W3C Trace Context is propagated across every async boundary: the producing activity's
+/// <c>traceparent</c>/<c>tracestate</c> is staged into the outbox when the message is created,
+/// restored by the outbox dispatcher as the parent of the publishing activity, injected into the
+/// broker transport headers, and extracted by the consumer processor to seed the consuming
+/// activity — so a single trace spans the whole producer → outbox → broker → consumer workflow
+/// (e.g. Checkout → Order Saga → RabbitMQ → Inventory Consumer → RabbitMQ → Order Saga).
 /// </summary>
 public static class TraceContext
 {
     /// <summary>
     /// The ActivitySource name registered with the OpenTelemetry exporter. Activities must be created from
-    /// a source with exactly this name to be sampled and exported.
+    /// a source with exactly this name to be sampled and exported. Aliases
+    /// <see cref="ActivitySources.FluxCommerce"/> so a rename can never silently drop spans.
     /// </summary>
-    public const string ActivitySourceName = "FluxCommerce";
+    public const string ActivitySourceName = ActivitySources.FluxCommerce;
 
     /// <summary>W3C Trace Context transport header carrying the parent span id (the W3C <c>traceparent</c>).</summary>
     public const string TraceParentHeader = "traceparent";
