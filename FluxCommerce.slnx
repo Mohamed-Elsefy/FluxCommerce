@@ -3,6 +3,7 @@
   <!-- Docs -->
   <Folder Name="/docs/">
     <File Path="docs/ARCHITECTURE.md" />
+    <File Path="docs/IMPLEMENTATION_PLAN.md" />
     <File Path="docs/PROJECT_CONTEXT.md" />
   </Folder>
   <Folder Name="/docs/adr/">
