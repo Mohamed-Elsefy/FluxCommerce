@@ -141,38 +141,6 @@ public sealed class PaymentAdminStore : IPaymentAdminStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var pending = 0;
-        var processing = 0;
-        var succeeded = 0;
-        var failed = 0;
-        var cancelled = 0;
-        var refunded = 0;
-
-        foreach (var group in groups)
-        {
-            switch (group.Status)
-            {
-                case PaymentStatus.Pending:
-                    pending = group.Count;
-                    break;
-                case PaymentStatus.Processing:
-                    processing = group.Count;
-                    break;
-                case PaymentStatus.Succeeded:
-                    succeeded = group.Count;
-                    break;
-                case PaymentStatus.Failed:
-                    failed = group.Count;
-                    break;
-                case PaymentStatus.Cancelled:
-                    cancelled = group.Count;
-                    break;
-                case PaymentStatus.Refunded:
-                    refunded = group.Count;
-                    break;
-            }
-        }
-
         var totalsByCurrency = await _context.Payments
             .AsNoTracking()
             .Where(payment => payment.Status == PaymentStatus.Succeeded)
@@ -195,14 +163,8 @@ public sealed class PaymentAdminStore : IPaymentAdminStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return new PaymentAdminStatsReadModel(
-            pending + processing + succeeded + failed + cancelled + refunded,
-            pending,
-            processing,
-            succeeded,
-            failed,
-            cancelled,
-            refunded,
+        return PaymentAdminStatsReadModel.FromParts(
+            groups.Select(group => (group.Status, group.Count)),
             totalsByCurrency,
             refundedTotalsByCurrency);
     }

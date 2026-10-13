@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
+using FluxCommerce.Modules.Orders.Domain.Enums;
 
 namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 

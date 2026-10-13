@@ -1,3 +1,4 @@
+using FluxCommerce.Modules.Orders.Domain.Enums;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -376,14 +377,14 @@ public sealed class ObservabilityDiagnosticsTests : ReliabilityTestBase
             ctx,
             new FluxCommerce.Modules.Orders.Infrastructure.Sagas.SagaOutboxMessageFactory(new IntegrationEventOutboxMessageFactory()),
             new FluxCommerce.BuildingBlocks.Infrastructure.Services.DateTimeProvider(),
-            Microsoft.Extensions.Options.Options.Create(new FluxCommerce.Modules.Orders.Infrastructure.Sagas.ReservationRequestOptions { ReservationLifetime = TimeSpan.FromMinutes(15) }),
+            Microsoft.Extensions.Options.Options.Create(new FluxCommerce.Modules.Orders.Infrastructure.Options.ReservationRequestOptions { ReservationLifetime = TimeSpan.FromMinutes(15) }),
             orchLogger);
 
         ctx.OrderSagas.Add(saga);
         await ctx.SaveChangesAsync();
         var result = await orch.ApplyPaymentFailedAsync(new FluxCommerce.Modules.Orders.Domain.ValueObjects.OrderId(orderId), Guid.NewGuid(), "pi_test", "card_declined", correlationId, Guid.NewGuid(), DateTimeOffset.UtcNow);
         // This should be Invalid (Started cannot FailPayment), but orchestrator logs warning with trace context
-        Assert.Equal(FluxCommerce.Modules.Orders.Infrastructure.Sagas.OrderSagaTransitionOutcome.Invalid, result.Outcome);
+        Assert.Equal(FluxCommerce.Modules.Orders.Domain.Enums.OrderSagaTransitionOutcome.Invalid, result.Outcome);
         // Verify log contains TraceId (W3C trace) — CorrelationId is in Activity tag, not log template, but TraceId proves observability
         var warningLog = orchLogger.Entries.FirstOrDefault(e => e.Level == LogLevel.Warning);
         Assert.NotNull(warningLog);

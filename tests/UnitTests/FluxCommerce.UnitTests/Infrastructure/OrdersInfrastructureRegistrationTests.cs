@@ -5,6 +5,7 @@ using FluxCommerce.Modules.Orders.Infrastructure;
 using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;

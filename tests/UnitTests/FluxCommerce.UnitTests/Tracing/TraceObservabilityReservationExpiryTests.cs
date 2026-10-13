@@ -9,7 +9,7 @@ using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using OrderSagaTransitionOutcome = FluxCommerce.Modules.Orders.Infrastructure.Sagas.OrderSagaTransitionOutcome;
+using OrderSagaTransitionOutcome = FluxCommerce.Modules.Orders.Domain.Enums.OrderSagaTransitionOutcome;
 
 namespace FluxCommerce.UnitTests.Tracing;
 

@@ -1,6 +1,7 @@
 using FluxCommerce.Modules.Orders.Application.Enums;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
 using FluxCommerce.Modules.Orders.Application.Models;
+using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 
@@ -16,12 +17,12 @@ namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
 public sealed class OrderRefundService : IOrderRefundService
 {
     private readonly IOrderSagaStore _sagaStore;
-    private readonly IOrderStore _orderStore;
+    private readonly IOrderAggregateStore _orderStore;
     private readonly OrderSagaOrchestrator _orchestrator;
 
     public OrderRefundService(
         IOrderSagaStore sagaStore,
-        IOrderStore orderStore,
+        IOrderAggregateStore orderStore,
         OrderSagaOrchestrator orchestrator)
     {
         _sagaStore = sagaStore ?? throw new ArgumentNullException(nameof(sagaStore));

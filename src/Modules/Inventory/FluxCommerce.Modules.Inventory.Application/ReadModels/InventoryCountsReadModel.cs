@@ -1,3 +1,5 @@
+using FluxCommerce.Modules.Inventory.Domain.Enums;
+
 namespace FluxCommerce.Modules.Inventory.Application.ReadModels;
 
 /// <summary>
@@ -13,4 +15,54 @@ public sealed record InventoryCountsReadModel(
     int PendingReservations,
     int CommittedReservations,
     int ReleasedReservations,
-    int ExpiredReservations);
+    int ExpiredReservations)
+{
+    /// <summary>
+    /// Builds the overview from raw database parts. The store runs the totals and
+    /// grouping queries; the reservation-status breakdown lives here in Application
+    /// so the store stays a thin persistence adapter.
+    /// </summary>
+    public static InventoryCountsReadModel FromParts(
+        int totalItems,
+        int totalOnHand,
+        int totalReserved,
+        int lowStockItems,
+        IEnumerable<(InventoryReservationStatus Status, int Count)> reservationGroups)
+    {
+        ArgumentNullException.ThrowIfNull(reservationGroups);
+
+        var pending = 0;
+        var committed = 0;
+        var released = 0;
+        var expired = 0;
+
+        foreach (var group in reservationGroups)
+        {
+            switch (group.Status)
+            {
+                case InventoryReservationStatus.Pending:
+                    pending = group.Count;
+                    break;
+                case InventoryReservationStatus.Committed:
+                    committed = group.Count;
+                    break;
+                case InventoryReservationStatus.Released:
+                    released = group.Count;
+                    break;
+                case InventoryReservationStatus.Expired:
+                    expired = group.Count;
+                    break;
+            }
+        }
+
+        return new InventoryCountsReadModel(
+            totalItems,
+            totalOnHand,
+            totalReserved,
+            lowStockItems,
+            pending,
+            committed,
+            released,
+            expired);
+    }
+}

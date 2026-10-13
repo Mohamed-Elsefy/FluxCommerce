@@ -218,31 +218,8 @@ public sealed class OrderStore : IOrderStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var pending = 0;
-        var confirmed = 0;
-        var cancelled = 0;
-
-        foreach (var group in groups)
-        {
-            switch (group.Status)
-            {
-                case OrderStatus.Pending:
-                    pending = group.Count;
-                    break;
-                case OrderStatus.Confirmed:
-                    confirmed = group.Count;
-                    break;
-                case OrderStatus.Cancelled:
-                    cancelled = group.Count;
-                    break;
-            }
-        }
-
-        return new AdminOrderCountsReadModel(
-            pending + confirmed + cancelled,
-            pending,
-            confirmed,
-            cancelled);
+        return AdminOrderCountsReadModel.FromStatusGroups(
+            groups.Select(group => (group.Status, group.Count)));
     }
 
     public async Task<IReadOnlyList<OrderDailyPointReadModel>> GetCreatedPointsAsync(

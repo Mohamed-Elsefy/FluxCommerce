@@ -25,6 +25,7 @@ using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Infrastructure.Background;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Idempotency;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
@@ -63,6 +64,8 @@ public static class DependencyInjection
         services.AddScoped<ICheckoutOrderSnapshotBuilder, CheckoutOrderSnapshotBuilder>();
         services.AddScoped<ICheckoutStore, CheckoutStore>();
         services.AddScoped<IOrderStore, OrderStore>();
+        services.AddScoped<IOrderAggregateStore>(sp => sp.GetRequiredService<IOrderStore>());
+        services.AddScoped<IOrderQueryStore>(sp => sp.GetRequiredService<IOrderStore>());
         services.AddScoped<IOrderSagaStore, OrderSagaStore>();
         services.AddScoped<IOrderSummaryProjectionStore, OrderSummaryProjectionStore>();
         services.AddScoped<IOrderSummaryProjectionService, OrderSummaryProjectionService>();

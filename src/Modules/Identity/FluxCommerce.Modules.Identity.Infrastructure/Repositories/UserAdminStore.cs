@@ -170,34 +170,6 @@ public sealed class UserAdminStore : IUserAdminStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var pending = 0;
-        var active = 0;
-        var suspended = 0;
-        var locked = 0;
-        var deleted = 0;
-
-        foreach (var group in groups)
-        {
-            switch (group.Status)
-            {
-                case UserStatus.Pending:
-                    pending = group.Count;
-                    break;
-                case UserStatus.Active:
-                    active = group.Count;
-                    break;
-                case UserStatus.Suspended:
-                    suspended = group.Count;
-                    break;
-                case UserStatus.Locked:
-                    locked = group.Count;
-                    break;
-                case UserStatus.Deleted:
-                    deleted = group.Count;
-                    break;
-            }
-        }
-
         var unverified = await _dbContext.Users
             .AsNoTracking()
             .CountAsync(user => !user.IsEmailVerified, cancellationToken)
@@ -216,18 +188,11 @@ public sealed class UserAdminStore : IUserAdminStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return new UserAdminCountsReadModel(
-            pending + active + suspended + locked + deleted,
-            pending,
-            active,
-            suspended,
-            locked,
-            deleted,
-            roleSets.Count(roles => roles.Contains(Roles.Customer, StringComparer.Ordinal)),
-            roleSets.Count(roles => roles.Contains(Roles.Admin, StringComparer.Ordinal)),
-            roleSets.Count(roles => roles.Contains(Roles.SuperAdmin, StringComparer.Ordinal)),
+        return UserAdminCountsReadModel.FromParts(
+            groups.Select(group => (group.Status, group.Count)),
             unverified,
-            lockedOut);
+            lockedOut,
+            roleSets);
     }
 
     private static IQueryable<User> ApplyFilters(

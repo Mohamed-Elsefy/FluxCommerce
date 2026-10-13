@@ -4,6 +4,7 @@ using FluxCommerce.Modules.Inventory.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.Modules.Inventory.Domain.ValueObjects;
 using FluxCommerce.Modules.Inventory.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;

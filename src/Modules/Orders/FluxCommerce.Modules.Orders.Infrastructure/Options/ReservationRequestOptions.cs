@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+namespace FluxCommerce.Modules.Orders.Infrastructure.Options;
 
 /// <summary>
 /// Phase 8.3 operational settings for the reservation requests issued by the Order/Inventory Saga

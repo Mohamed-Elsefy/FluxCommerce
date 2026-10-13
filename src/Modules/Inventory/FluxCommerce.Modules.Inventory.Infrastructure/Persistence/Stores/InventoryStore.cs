@@ -417,39 +417,12 @@ public sealed class InventoryStore : IInventoryStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var pending = 0;
-        var committed = 0;
-        var released = 0;
-        var expired = 0;
-
-        foreach (var group in groups)
-        {
-            switch (group.Status)
-            {
-                case InventoryReservationStatus.Pending:
-                    pending = group.Count;
-                    break;
-                case InventoryReservationStatus.Committed:
-                    committed = group.Count;
-                    break;
-                case InventoryReservationStatus.Released:
-                    released = group.Count;
-                    break;
-                case InventoryReservationStatus.Expired:
-                    expired = group.Count;
-                    break;
-            }
-        }
-
-        return new InventoryCountsReadModel(
+        return InventoryCountsReadModel.FromParts(
             totalItems,
             totalOnHand,
             totalReserved,
             lowStockItems,
-            pending,
-            committed,
-            released,
-            expired);
+            groups.Select(group => (group.Status, group.Count)));
     }
 
     private static readonly Comparer<ReservationSortKey> ReservationNewestFirstComparer =
