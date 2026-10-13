@@ -11,7 +11,7 @@ the publish side (Outbox + RabbitMQ publisher, `BuildingBlocks.Outbox` and
 `BuildingBlocks.Infrastructure` messaging) is complete and must remain unchanged, while no production
 consumer exists and the idempotency contracts (`ProcessedMessage`, `IdempotencyResult`,
 `IIdempotencyStore`, `IDuplicateDetector`) are dormant — they have no EF mapping, table, or
-implementation. See `docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md` for the phase scope.
+implementation. See `docs/IMPLEMENTATION_PLAN.md#phase-7--idempotent-consumers-` for the phase scope.
 
 Three gaps drive this decision:
 

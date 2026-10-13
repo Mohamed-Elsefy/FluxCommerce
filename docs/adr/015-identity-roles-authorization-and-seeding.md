@@ -74,4 +74,4 @@ Negative / Trade-offs:
 *   `ARCHITECTURE.md:21` Secrets, §74 `ICurrentUser` isolation
 *   `PHASE_1_COMPLETION_REPORT.md:220` Remaining Work & TD-2
 *   `PHASE_1_IDENTITY_ACCESS.md:549` Out-of-scope (MFA, permissions)
-*   This plan: `docs/refactoring/REFACTORING_IDENTITY_ROLES_SEEDING_PLAN.md`
+*   Identity roles plan: `docs/IMPLEMENTATION_PLAN.md#phase-1--identity--access-` (seeding sub-scope)

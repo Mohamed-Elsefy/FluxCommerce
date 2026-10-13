@@ -84,5 +84,5 @@ Negative / Trade-offs:
 
 *   `docs/adr/016-permission-based-authorization-and-superadmin-supremacy.md` (D5 manual-only,
     supremacy, refresh boundary — all stand)
-*   `docs/phases/PHASE_22_ADAPTIVE_DASHBOARD_AND_USER_DELEGATION.md` (§4–§6, §8–§9)
-*   `docs/phases/PHASE_21_PERMISSION_BASED_AUTHORIZATION.md` (§4 catalog, §6.4 surface)
+*   `docs/IMPLEMENTATION_PLAN.md#phase-22--adaptive-dashboard--user-delegation-`
+*   `docs/IMPLEMENTATION_PLAN.md#phase-21--permission-based-authorization-`

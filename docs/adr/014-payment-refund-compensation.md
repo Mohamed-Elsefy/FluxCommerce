@@ -61,4 +61,4 @@ All derive from `IntegrationEvent` (correlation `OrderId`, causation `payment ev
 
 - Phase 9 `IStripePaymentGateway` (`docs/adr/011-stripe-integration-boundary.md`)
 - ADR-009 Saga orchestration, ADR-010 payment ownership boundary
-- `docs/phases/PHASE_10_PAYMENT_SAGA_COMPENSATION.md` §10.8
+- `docs/IMPLEMENTATION_PLAN.md#phase-10--payment-saga--compensation-` (refund sub-scope)

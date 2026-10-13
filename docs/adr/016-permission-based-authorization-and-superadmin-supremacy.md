@@ -47,7 +47,7 @@ Five interlocked decisions (user-confirmed):
 *   New single-source-of-truth constants in the Identity Domain (mirroring `Roles`):
     `orders.read`, `orders.cancel`, `orders.refund`, `payments.read`, `payments.stats`,
     `inventory.read`, `inventory.manage`, `catalog.manage`, `dashboard.read`, `users.read`
-    (full table with endpoint mapping in `docs/phases/PHASE_21_PERMISSION_BASED_AUTHORIZATION.md` §4–§5).
+    (full table with endpoint mapping in `docs/IMPLEMENTATION_PLAN.md#phase-21--permission-based-authorization-`).
 *   One authorization policy per permission (`RequireClaim("permission", ...)`, evaluated through
     the D1 handler so supremacy applies uniformly). Reads and mutations are split wherever the
     operational need exists (`inventory.read` vs `inventory.manage`, `payments.read` vs
@@ -122,6 +122,6 @@ Negative / Trade-offs:
 
 *   `PROJECT_CONTEXT.md:446` §6.1 Identity & Roles; `ARCHITECTURE.md:21` Secrets, §74 `ICurrentUser`
 *   `docs/adr/015-identity-roles-authorization-and-seeding.md` (D1 hierarchy, D5 lookup-table pattern)
-*   `docs/phases/PHASE_21_PERMISSION_BASED_AUTHORIZATION.md` (catalog, endpoint mapping, sub-phases A–D)
+*   `docs/IMPLEMENTATION_PLAN.md#phase-21--permission-based-authorization-` (catalog, endpoint mapping, sub-phases A–D)
 *   `src/FluxCommerce.Api/Extensions/AuthenticationConfiguration.cs` (current exact policies)
 *   `src/FluxCommerce.Api/Controllers/**` (~40 `AdminPolicy` actions audited 2026-10-01)

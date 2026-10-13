@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 Phase 8 introduces the first reliable cross-module business workflow: the Order / Inventory Saga. The
-Phase 8.1 baseline audit (`docs/completed/PHASE_8_1_SAGA_BASELINE_AUDIT.md`) re-audited the Orders and
+Phase 8 baseline audit (`docs/IMPLEMENTATION_PLAN.md#phase-8--orderinventory-saga-`) re-audited the Orders and
 Inventory modules after Phase 7 and confirmed the plan's architectural position (plan §2, §5):
 
 - Orders owns Order state, the Order lifecycle, and Saga/orchestration state (plan §5.1).
@@ -107,7 +107,7 @@ Negative:
 
 ## Implementation & Verification
 
-Phase 8 is implemented and verified (`docs/completed/PHASE_8_COMPLETION_REPORT.md`). The baseline audit
+Phase 8 is implemented and verified (`docs/IMPLEMENTATION_PLAN.md#phase-8--orderinventory-saga-`). The baseline audit
 referenced above is recorded in the Phase 8 completion report (its standalone audit report file was not
 carried forward separately). Confirmed outcomes: the Saga and its state table live in Orders, the wire
 contracts live in `Inventory.Contracts`, the architecture tests encode the narrow
