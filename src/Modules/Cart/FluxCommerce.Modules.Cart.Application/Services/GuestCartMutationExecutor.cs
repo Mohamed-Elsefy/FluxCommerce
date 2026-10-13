@@ -1,47 +1,48 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
 using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
-using FluxCommerce.Modules.Cart.Application.Ownership;
 using FluxCommerce.Modules.Cart.Domain.Errors;
 using FluxCommerce.Modules.Cart.Domain.Results;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using CartAggregate = FluxCommerce.Modules.Cart.Domain.Aggregates.Cart;
 
-namespace FluxCommerce.Modules.Cart.Application.Commands;
+namespace FluxCommerce.Modules.Cart.Application.Services;
 
 /// <summary>
-/// Shared orchestration for authenticated Cart item mutations:
+/// Shared orchestration for Guest Cart item mutations:
 ///
-///     ICurrentUser â”€â”€â–¶ resolve authenticated owner â”€â”€â–¶ resolve the user's Cart
-///     â”€â”€â–¶ validate persisted ownership â”€â”€â–¶ hydrate the aggregate
-///     â”€â”€â–¶ invoke the Domain behavior â”€â”€â–¶ persist through ICartStore with optimistic concurrency
+///     validate identifier -> resolve cart -> validate Guest ownership -> hydrate the aggregate
+///     -> invoke the Domain behavior -> persist through ICartStore with optimistic concurrency
 ///
-/// Ownership is validated BEFORE any Domain mutation, from the persisted Cart state, never from a
-/// request identifier or a client-supplied UserId. An authenticated operation never resolves a Guest
-/// Cart, never mutates another user's Cart, never creates a Cart implicitly, and never persists a
-/// failed mutation.
+/// Ownership is validated BEFORE any Domain mutation: the stored cart ownership is checked,
+/// not assumed from the caller-supplied identifier. A Guest operation never touches an
+/// authenticated Cart, never creates a Cart implicitly, and never persists a failed mutation.
 /// </summary>
-internal static class AuthenticatedCartMutationExecutor
+internal static class GuestCartMutationExecutor
 {
     public static async Task<Result<CartState>> ExecuteAsync(
         ICartStore cartStore,
         IDateTimeProvider dateTimeProvider,
-        ICurrentUser currentUser,
+        Guid cartId,
         Func<CartAggregate, DateTimeOffset, DomainResult> mutate,
         CancellationToken cancellationToken = default)
     {
-        var owner = AuthenticatedCartOwnership.ResolveAuthenticatedOwner(currentUser);
-
-        if (owner.IsFailure)
+        CartId id;
+        try
         {
-            return Result.Failure<CartState>(owner.Error);
+            id = new CartId(cartId);
+        }
+        catch (ArgumentException)
+        {
+            return Result.Failure<CartState>(
+                Error.Validation(CartErrors.InvalidCartId.Code, CartErrors.InvalidCartId.Description));
         }
 
-        var state = await cartStore.GetByUserIdAsync(owner.Value.UserId!.Value, cancellationToken).ConfigureAwait(false);
+        var state = await cartStore.GetAsync(id, cancellationToken).ConfigureAwait(false);
 
         if (state is null)
         {
@@ -49,13 +50,13 @@ internal static class AuthenticatedCartMutationExecutor
                 Error.NotFound(CartErrors.CartNotFound.Code, CartErrors.CartNotFound.Description));
         }
 
-        // The user index resolves the Cart, but the persisted ownership is validated anyway: an
-        // authenticated path must never resolve a Guest Cart or another user's Cart.
-        var ownership = AuthenticatedCartOwnership.ValidateOwnership(state, currentUser);
-
-        if (ownership.IsFailure)
+        // The identifier alone is not proof of Guest ownership: ownership is persisted in the
+        // cart state. An authenticated cart resolved through a Guest identifier is rejected
+        // before any Domain mutation or persistence occurs.
+        if (state.UserId is not null)
         {
-            return Result.Failure<CartState>(ownership.Error);
+            return Result.Failure<CartState>(
+                Error.NotFound(CartErrors.CartAccessDenied.Code, CartErrors.CartAccessDenied.Description));
         }
 
         var cart = CartApplicationMapper.ToAggregate(state);

@@ -1,5 +1,6 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
+using FluxCommerce.Modules.Cart.Contracts.Enums;
 using FluxCommerce.Modules.Cart.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Catalog.Contracts.Enums;
@@ -420,7 +421,7 @@ public class CheckoutCommandHandlerTests
         carts.Seed(cartId, userId, item);
         var lookup = FakeCatalogVariantCheckoutLookup.Available(item);
         var store = new FakeCheckoutStore();
-        var consume = new FakeCartCheckoutConsumption(FluxCommerce.Modules.Cart.Contracts.Abstractions.CartCheckoutConsumptionStatus.Failed);
+        var consume = new FakeCartCheckoutConsumption(FluxCommerce.Modules.Cart.Contracts.Enums.CartCheckoutConsumptionStatus.Failed);
         var handler = CreateHandler(userId, carts, lookup, store, consume);
 
         using var activity = new System.Diagnostics.Activity("checkout.activity.test").Start();

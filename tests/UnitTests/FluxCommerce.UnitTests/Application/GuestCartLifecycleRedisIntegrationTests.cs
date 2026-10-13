@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearGuestCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateGuestCart;
@@ -13,8 +13,8 @@ namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
 /// Exercises the complete Guest Cart lifecycle end to end against real Redis:
-/// create â†’ retrieve â†’ add â†’ verify â†’ update â†’ verify â†’ remove â†’ verify â†’ add again â†’ clear
-/// â†’ verify empty â†’ expire â†’ behaves as missing â†’ explicit re-creation.
+/// create -> retrieve -> add -> verify -> update -> verify -> remove -> verify -> add again -> clear
+/// -> verify empty -> expire -> behaves as missing -> explicit re-creation.
 /// </summary>
 [Collection(RedisCartTestCollection.Name)]
 public class GuestCartLifecycleRedisIntegrationTests

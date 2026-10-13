@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
@@ -15,9 +15,9 @@ namespace FluxCommerce.Modules.Cart.Application.Ownership;
 /// Cart's ownership is validated against the current user before any authenticated use case
 /// mutates it.
 ///
-///     ICurrentUser â”€â”€â–¶ ResolveAuthenticatedOwner â”€â”€â–¶ CartOwner (UserId)
-///                                                          â”‚
-///     persisted CartState â—€â”€â”€ ValidateOwnership â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+///     ICurrentUser --> ResolveAuthenticatedOwner --> CartOwner (UserId)
+///                                                          |
+///     persisted CartState &lt;-- ValidateOwnership ------------+
 ///
 /// Ownership is always validated from the persisted state, never assumed from a request
 /// identifier. Guest Carts are never reachable through an authenticated path, and a UserId

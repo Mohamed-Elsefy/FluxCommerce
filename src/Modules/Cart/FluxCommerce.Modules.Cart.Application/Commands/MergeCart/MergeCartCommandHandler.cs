@@ -1,7 +1,8 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Services;
 using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Application.Mappings;
@@ -13,12 +14,12 @@ using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 namespace FluxCommerce.Modules.Cart.Application.Commands.MergeCart;
 
 /// <summary>
-/// Phase 3.6.2: Guest â†’ Authenticated Cart merge with Guest Cart consumption.
+/// Phase 3.6.2: Guest -> Authenticated Cart merge with Guest Cart consumption.
 ///
-///     ICurrentUser â”€â”€â–¶ resolve authenticated owner (the target User)
-///     GuestCartId  â”€â”€â–¶ resolve Guest source Cart â”€â”€â–¶ validate Guest ownership
-///     â”€â”€â–¶ resolve (or atomically create) the user's active target Cart
-///     â”€â”€â–¶ hydrate both aggregates â”€â”€â–¶ Domain Cart.Merge â”€â”€â–¶ atomically persist the target
+///     ICurrentUser --> resolve authenticated owner (the target User)
+///     GuestCartId  --> resolve Guest source Cart --> validate Guest ownership
+///     --> resolve (or atomically create) the user's active target Cart
+///     --> hydrate both aggregates --> Domain Cart.Merge --> atomically persist the target
 ///          and consume the Guest source through ICartStore.MergeAndConsumeAsync
 ///
 /// Ownership is validated from persisted state before any mutation: the source must be Guest-owned
@@ -79,7 +80,7 @@ public sealed class MergeCartCommandHandler : ICommandHandler<MergeCartCommand, 
             return Result.Failure<CartState>(CartErrorMapper.ToApplicationError(CartErrors.CartNotFound));
         }
 
-        // 3. Validate the source is Guest-owned from the persisted state â€” never trust the
+        // 3. Validate the source is Guest-owned from the persisted state - never trust the
         //    identifier alone. An authenticated Cart is never a valid Guest merge source.
         if (sourceState.UserId is not null)
         {

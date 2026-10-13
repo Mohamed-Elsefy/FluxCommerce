@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
@@ -10,20 +10,20 @@ using FluxCommerce.Modules.Cart.Domain.Errors;
 using FluxCommerce.Modules.Cart.Domain.ValueObjects;
 using CartAggregate = FluxCommerce.Modules.Cart.Domain.Aggregates.Cart;
 
-namespace FluxCommerce.Modules.Cart.Application.Commands;
+namespace FluxCommerce.Modules.Cart.Application.Services;
 
 /// <summary>
 /// Shared get-or-create orchestration for the authenticated Cart: resolves the current
 /// authenticated owner, resolves the user's active Cart through the user index (validating
 /// persisted ownership), or creates the Cart atomically when the user has none yet. This is the
 /// single shared implementation of the authenticated Cart creation behavior used by the
-/// authenticated Cart create handler and by the Guest â†’ Authenticated merge when the target Cart
+/// authenticated Cart create handler and by the Guest -> Authenticated merge when the target Cart
 /// does not exist yet.
 ///
-///     ICurrentUser â”€â”€â–¶ resolve authenticated owner â”€â”€â–¶ user index lookup
-///         â”œâ”€ existing â”€â”€â–¶ validate ownership â”€â”€â–¶ return the active Cart
-///         â””â”€ missing â”€â”€â–¶ CreateAuthenticated â”€â”€â–¶ CreateForUserAsync (atomic one-active-Cart)
-///             â””â”€ concurrent winner â”€â”€â–¶ re-read winner through the user index
+///     ICurrentUser --> resolve authenticated owner --> user index lookup
+///         +-- existing --> validate ownership --> return the active Cart
+///         +- missing --> CreateAuthenticated --> CreateForUserAsync (atomic one-active-Cart)
+///             +- concurrent winner --> re-read winner through the user index
 /// </summary>
 internal static class AuthenticatedCartResolver
 {

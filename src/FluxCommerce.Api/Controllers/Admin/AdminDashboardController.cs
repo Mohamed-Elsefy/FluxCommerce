@@ -17,7 +17,7 @@ namespace FluxCommerce.Api.Controllers.Admin;
 
 /// <summary>
 /// Adaptive administrative dashboard snapshot (Phase 22 E1): any authenticated user receives
-/// <c>200 OK</c>, and every section is included only when the caller is entitled to it â€”
+/// <c>200 OK</c>, and every section is included only when the caller is entitled to it -
 /// <c>orders.read</c> for orders, <c>payments.read</c> or <c>payments.stats</c> for payments,
 /// <c>inventory.read</c> for inventory, <c>catalog.manage</c> for catalog, <c>users.read</c> for
 /// users. Recent payments require <c>payments.read</c> specifically (stats-only viewers get the

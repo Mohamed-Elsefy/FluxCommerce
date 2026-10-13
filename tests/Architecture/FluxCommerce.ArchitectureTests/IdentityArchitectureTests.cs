@@ -294,6 +294,20 @@ public class IdentityArchitectureTests
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
+    // ---- Contract mirror drift protection ----
+
+    [Fact]
+    public void UserStatus_ContractsMirror_ShouldMatchDomain()
+    {
+        var domainType = typeof(FluxCommerce.Modules.Identity.Domain.Enums.UserStatus);
+        var contractType = typeof(FluxCommerce.Modules.Identity.Contracts.Enums.UserStatus);
+
+        Assert.Equal(Enum.GetNames(domainType), Enum.GetNames(contractType));
+        Assert.Equal(
+            Enum.GetValues(domainType).Cast<int>().ToArray(),
+            Enum.GetValues(contractType).Cast<int>().ToArray());
+    }
+
     private static void AssertNoDependencies(
         System.Reflection.Assembly assembly,
         string forbiddenNamespace,

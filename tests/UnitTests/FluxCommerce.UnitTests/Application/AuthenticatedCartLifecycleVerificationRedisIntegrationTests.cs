@@ -1,4 +1,4 @@
-﻿using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
+using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.RemoveAuthenticatedCartItem;
@@ -14,8 +14,8 @@ namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
 /// Phase 3.5.3 verification: the complete authenticated Cart lifecycle exercised against real Redis
-/// with a real retrieval after every mutation (create â†’ retrieve â†’ add â†’ retrieve â†’ update â†’
-/// retrieve â†’ remove â†’ retrieve â†’ add again â†’ clear â†’ retrieve empty), plus a concurrent-mutation
+/// with a real retrieval after every mutation (create -> retrieve -> add -> retrieve -> update ->
+/// retrieve -> remove -> retrieve -> add again -> clear -> retrieve empty), plus a concurrent-mutation
 /// test proving the existing optimistic-concurrency mechanism prevents lost updates when two
 /// authenticated writers attempt to persist the same base version.
 /// </summary>

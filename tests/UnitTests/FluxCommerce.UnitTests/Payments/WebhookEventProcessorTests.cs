@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Outbox.Mapping;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Messages;
 using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
@@ -96,7 +96,7 @@ public sealed class WebhookEventProcessorTests : IDisposable
         Assert.Equal(WebhookProcessResult.Processed, r2);
     }
 
-    // 9.10: Stripe Event â†’ Payment State
+    // 9.10: Stripe Event -> Payment State
 
     [Fact]
     public async Task TryProcessAsync_PaymentIntentSucceeded_TransitionsPaymentToSucceeded()
