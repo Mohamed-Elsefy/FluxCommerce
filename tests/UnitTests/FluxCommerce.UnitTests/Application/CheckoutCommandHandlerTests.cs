@@ -1,5 +1,6 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
+using FluxCommerce.Modules.Cart.Contracts.Enums;
 using FluxCommerce.Modules.Cart.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Catalog.Contracts.Enums;
@@ -391,6 +392,46 @@ public class CheckoutCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_CartConsumptionThrow_RecordsActivityEvent()
+    {
+        var userId = Guid.NewGuid();
+        var cartId = Guid.NewGuid();
+        var item = CreateItem();
+        var carts = new FakeCartCheckoutSnapshotProvider();
+        carts.Seed(cartId, userId, item);
+        var lookup = FakeCatalogVariantCheckoutLookup.Available(item);
+        var store = new FakeCheckoutStore();
+        var consume = new FakeCartCheckoutConsumption(throwOnConsume: true);
+        var handler = CreateHandler(userId, carts, lookup, store, consume);
+
+        using var activity = new System.Diagnostics.Activity("checkout.activity.test").Start();
+        var result = await handler.HandleAsync(CreateCommand(cartId), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(activity.Events, e => e.Name == "checkout.cart_consumption_failed");
+    }
+
+    [Fact]
+    public async Task HandleAsync_CartConsumptionFailedStatus_RecordsActivityEvent()
+    {
+        var userId = Guid.NewGuid();
+        var cartId = Guid.NewGuid();
+        var item = CreateItem();
+        var carts = new FakeCartCheckoutSnapshotProvider();
+        carts.Seed(cartId, userId, item);
+        var lookup = FakeCatalogVariantCheckoutLookup.Available(item);
+        var store = new FakeCheckoutStore();
+        var consume = new FakeCartCheckoutConsumption(FluxCommerce.Modules.Cart.Contracts.Enums.CartCheckoutConsumptionStatus.Failed);
+        var handler = CreateHandler(userId, carts, lookup, store, consume);
+
+        using var activity = new System.Diagnostics.Activity("checkout.activity.test").Start();
+        var result = await handler.HandleAsync(CreateCommand(cartId), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(activity.Events, e => e.Name == "checkout.cart_consumption_not_consumed");
+    }
+
+    [Fact]
     public async Task HandleAsync_CartConsumptionThrow_OrderStillSucceeds()
     {
         var userId = Guid.NewGuid();
@@ -434,6 +475,166 @@ public class CheckoutCommandHandlerTests
         Assert.Equal(first.Value!.Id, retry.Value!.Id);
         Assert.Equal(1, store.PersistCalls);
         Assert.Equal(1, consume.Calls);
+    }
+
+    [Fact]
+    public void FingerprintV2_CoversCartLines_OrderInsensitive()
+    {
+        var cartId = Guid.NewGuid();
+        var shipping = new CheckoutAddressData("Ada", "1 Way", null, "London", "London", "SW1A 1AA", "GB");
+        var billing = new CheckoutAddressData("Ada", "1 Way", null, "London", "London", "SW1A 1AA", "GB");
+        var variantA = Guid.NewGuid();
+        var variantB = Guid.NewGuid();
+
+        var first = CheckoutRequestFingerprint.ComputeV2(
+            cartId, shipping, billing,
+            [new CheckoutRequestFingerprint.CartLine(variantA, 1), new CheckoutRequestFingerprint.CartLine(variantB, 2)]);
+        var reordered = CheckoutRequestFingerprint.ComputeV2(
+            cartId, shipping, billing,
+            [new CheckoutRequestFingerprint.CartLine(variantB, 2), new CheckoutRequestFingerprint.CartLine(variantA, 1)]);
+        var mutatedQty = CheckoutRequestFingerprint.ComputeV2(
+            cartId, shipping, billing,
+            [new CheckoutRequestFingerprint.CartLine(variantA, 3), new CheckoutRequestFingerprint.CartLine(variantB, 2)]);
+        var mutatedVariant = CheckoutRequestFingerprint.ComputeV2(
+            cartId, shipping, billing,
+            [new CheckoutRequestFingerprint.CartLine(Guid.NewGuid(), 1), new CheckoutRequestFingerprint.CartLine(variantB, 2)]);
+
+        Assert.StartsWith(CheckoutRequestFingerprint.V2Prefix, first);
+        Assert.Equal(first, reordered);
+        Assert.NotEqual(first, mutatedQty);
+        Assert.NotEqual(first, mutatedVariant);
+        Assert.NotEqual(CheckoutRequestFingerprint.Compute(cartId, shipping, billing), first);
+    }
+
+    [Fact]
+    public void FingerprintMatches_V2RowComparesLineHashOrEmbeddedV1_LegacyRowUsesV1()
+    {
+        var cartId = Guid.NewGuid();
+        var shipping = new CheckoutAddressData("Ada", "1 Way", null, "London", "London", "SW1A 1AA", "GB");
+        var billing = new CheckoutAddressData("Ada", "1 Way", null, "London", "London", "SW1A 1AA", "GB");
+        var variantId = Guid.NewGuid();
+        var lines = new[] { new CheckoutRequestFingerprint.CartLine(variantId, 1) };
+
+        var stored = CheckoutRequestFingerprint.ComputeV2(cartId, shipping, billing, lines);
+        var currentV1 = CheckoutRequestFingerprint.Compute(cartId, shipping, billing);
+        var changedV1 = CheckoutRequestFingerprint.Compute(
+            cartId, shipping, billing with { City = "Manchester" });
+        var changedV2 = CheckoutRequestFingerprint.ComputeV2(
+            cartId, shipping, billing, [new CheckoutRequestFingerprint.CartLine(variantId, 2)]);
+
+        // Cart present: line hash decides.
+        Assert.True(CheckoutRequestFingerprint.Matches(stored, "ignored-v1", stored));
+        Assert.False(CheckoutRequestFingerprint.Matches(stored, currentV1, changedV2));
+        // Cart consumed: embedded v1 half decides.
+        Assert.True(CheckoutRequestFingerprint.Matches(stored, currentV1, null));
+        Assert.False(CheckoutRequestFingerprint.Matches(stored, changedV1, null));
+        // Legacy row: plain v1 comparison.
+        Assert.True(CheckoutRequestFingerprint.Matches(currentV1, currentV1, null));
+        Assert.False(CheckoutRequestFingerprint.Matches(currentV1, changedV1, null));
+    }
+
+    [Fact]
+    public async Task HandleAsync_V2Replay_SameCart_ReturnsOriginalOrder()
+    {
+        var userId = Guid.NewGuid();
+        var cartId = Guid.NewGuid();
+        var variantId = Guid.NewGuid();
+        var command = CreateCommand(cartId);
+        var item = CreateItem(quantity: 1, variantId: variantId);
+
+        var fingerprintV2 = CheckoutRequestFingerprint.ComputeV2(
+            cartId, command.ShippingAddress, command.BillingAddress,
+            [new CheckoutRequestFingerprint.CartLine(variantId, 1)]);
+
+        var original = Order.Place(
+            OrderId.Create(),
+            new CustomerId(userId),
+            OrderNumber.Create(),
+            ShippingAddress(),
+            ShippingAddress(),
+            [CreateOrderLineItem()],
+            UtcNow);
+
+        var store = new FakeCheckoutStore();
+        store.SeedRetry(userId, command.IdempotencyKey, fingerprintV2, original);
+        var carts = new FakeCartCheckoutSnapshotProvider();
+        carts.Seed(cartId, userId, item);
+        var handler = CreateHandler(userId, carts, new FakeCatalogVariantCheckoutLookup([]), store);
+
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(original.Id, result.Value!.Id);
+        Assert.Equal(0, store.PersistCalls);
+        Assert.Equal(1, carts.Calls);
+    }
+
+    [Fact]
+    public async Task HandleAsync_V2Replay_MutatedCart_ReturnsIdempotencyConflict()
+    {
+        var userId = Guid.NewGuid();
+        var cartId = Guid.NewGuid();
+        var variantId = Guid.NewGuid();
+        var command = CreateCommand(cartId);
+
+        var fingerprintV2 = CheckoutRequestFingerprint.ComputeV2(
+            cartId, command.ShippingAddress, command.BillingAddress,
+            [new CheckoutRequestFingerprint.CartLine(variantId, 1)]);
+
+        var original = Order.Place(
+            OrderId.Create(),
+            new CustomerId(userId),
+            OrderNumber.Create(),
+            ShippingAddress(),
+            ShippingAddress(),
+            [CreateOrderLineItem()],
+            UtcNow);
+
+        var store = new FakeCheckoutStore();
+        store.SeedRetry(userId, command.IdempotencyKey, fingerprintV2, original);
+        var carts = new FakeCartCheckoutSnapshotProvider();
+        carts.Seed(cartId, userId, CreateItem(quantity: 2, variantId: variantId));
+        var handler = CreateHandler(userId, carts, new FakeCatalogVariantCheckoutLookup([]), store);
+
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal("Order.IdempotencyConflict", result.Error.Code);
+        Assert.Equal(0, store.PersistCalls);
+    }
+
+    [Fact]
+    public async Task HandleAsync_V2Replay_ConsumedCart_FallsBackToV1Comparison()
+    {
+        var userId = Guid.NewGuid();
+        var cartId = Guid.NewGuid();
+        var variantId = Guid.NewGuid();
+        var command = CreateCommand(cartId);
+
+        var fingerprintV2 = CheckoutRequestFingerprint.ComputeV2(
+            cartId, command.ShippingAddress, command.BillingAddress,
+            [new CheckoutRequestFingerprint.CartLine(variantId, 1)]);
+
+        var original = Order.Place(
+            OrderId.Create(),
+            new CustomerId(userId),
+            OrderNumber.Create(),
+            ShippingAddress(),
+            ShippingAddress(),
+            [CreateOrderLineItem()],
+            UtcNow);
+
+        var store = new FakeCheckoutStore();
+        store.SeedRetry(userId, command.IdempotencyKey, fingerprintV2, original);
+        // Cart already consumed: no snapshot available, v1 fallback applies.
+        var handler = CreateHandler(userId, new FakeCartCheckoutSnapshotProvider(), new FakeCatalogVariantCheckoutLookup([]), store);
+
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(original.Id, result.Value!.Id);
+        Assert.Equal(0, store.PersistCalls);
     }
 
     private static CheckoutCommandHandler CreateHandler(

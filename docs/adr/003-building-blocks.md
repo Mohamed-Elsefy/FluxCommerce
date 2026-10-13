@@ -27,7 +27,7 @@ FluxCommerce centralizes cross-cutting technical primitives in dedicated Buildin
 - `BuildingBlocks.Messaging` — integration event contracts, metadata, event versioning.
 - `BuildingBlocks.Outbox` / `BuildingBlocks.Idempotency` / `BuildingBlocks.Resilience` — standalone contracts for the reliability foundation.
 - `BuildingBlocks.Observability` / `BuildingBlocks.Web` — cross-cutting platform capabilities.
-- `BuildingBlocks.Localization` — framework-independent localization abstractions (`ILocalizer`, `ICurrentCulture`) and the shared resource repository. The ASP.NET Core localization implementation (`IStringLocalizer<SharedResources>`) lives only inside this block; modules depend on the abstractions only. Added in Phase 1.6 (see `docs/completed/PHASE_1_COMPLETION_REPORT.md` §14 and `ARCHITECTURE.md` §26).
+- `BuildingBlocks.Localization` — framework-independent localization abstractions (`ILocalizer`, `ICurrentCulture`) and the shared resource repository. The ASP.NET Core localization implementation (`IStringLocalizer<SharedResources>`) lives only inside this block; modules depend on the abstractions only. Added in Phase 1.6 (see `docs/IMPLEMENTATION_PLAN.md#phase-16--internationalization-foundation-` and `ARCHITECTURE.md` §26).
 
 Additional rules:
 

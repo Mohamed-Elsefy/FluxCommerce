@@ -64,11 +64,6 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(2048)")
                         .HasColumnName("AvatarUrl");
 
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(201)
-                        .HasColumnType("nvarchar(201)")
-                        .HasColumnName("DisplayName");
-
                     b.Property<DateTime?>("EmailVerifiedAtUtc")
                         .HasColumnType("datetime2")
                         .HasColumnName("EmailVerifiedAtUtc");
@@ -127,6 +122,11 @@ namespace FluxCommerce.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)")
                         .HasColumnName("TimeZone");
+
+                    b.PrimitiveCollection<string>("_permissions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Permissions");
 
                     b.PrimitiveCollection<string>("_roles")
                         .IsRequired()

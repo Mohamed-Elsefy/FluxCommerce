@@ -1,3 +1,5 @@
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Idempotency.Detection;
 using FluxCommerce.BuildingBlocks.Idempotency.Processing;
 using FluxCommerce.BuildingBlocks.Idempotency.Stores;
@@ -5,7 +7,16 @@ using FluxCommerce.BuildingBlocks.Outbox.Configuration;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.BuildingBlocks.Outbox.Stores;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayment;
+using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPayments;
+using FluxCommerce.Modules.Payments.Application.Queries.GetAdminPaymentStats;
+using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPayment;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentDailyPoints;
+using FluxCommerce.Modules.Payments.Application.ReadModels;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
 using FluxCommerce.Modules.Payments.Application.Services;
+using FluxCommerce.Modules.Payments.Contracts.Responses;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.Background;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
@@ -13,6 +24,7 @@ using FluxCommerce.Modules.Payments.Infrastructure.Gateways;
 using FluxCommerce.Modules.Payments.Infrastructure.Idempotency;
 using FluxCommerce.Modules.Payments.Infrastructure.Outbox;
 using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories;
+using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,10 +62,19 @@ public static class DependencyInjection
         services.AddScoped<IIdempotentProcessor>(sp => sp.GetRequiredService<PaymentsIdempotentProcessor>());
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
-        services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
+        services.AddScoped<IPaymentAdminStore, PaymentAdminStore>();
+        services.AddScoped<IQueryHandler<GetAdminPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetAdminPaymentsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminPaymentQuery, Result<PaymentAdminResponse>>, GetAdminPaymentQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminPaymentStatsQuery, Result<PaymentAdminStatsResponse>>, GetAdminPaymentStatsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetPaymentDailyPointsQuery, Result<IReadOnlyList<PaymentDailyPointReadModel>>>, GetPaymentDailyPointsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>>, GetMyPaymentsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>>, GetPaymentQueryHandler>();
+        services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+        services.AddScoped<IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>>, GetPaymentInitializationQueryHandler>();
         services.AddSingleton<IPaymentWebhookInterpreter, PaymentWebhookInterpreter>();
-        services.AddScoped<IStripeWebhookService, StripeWebhookService>();
+        services.AddScoped<IWebhookVerifier, StripeWebhookService>();
         services.AddScoped<IWebhookEventProcessor, WebhookEventProcessor>();
+        services.AddScoped<IWebhookEndpointHandler, StripeWebhookEndpointHandler>();
 
         return services;
     }

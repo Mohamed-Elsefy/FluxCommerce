@@ -23,4 +23,8 @@ public static class InventoryApplicationErrors
     public static readonly Error DuplicateSku = Error.Conflict(
         "Inventory.DuplicateSku",
         "An inventory item with this SKU already exists.");
+
+    public static readonly Error ValidationFailed = Error.Validation(
+        "Inventory.ValidationFailed",
+        "The inventory query parameters are invalid.");
 }

@@ -1,18 +1,20 @@
+using FluxCommerce.Api.Constants;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
-using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.BuildingBlocks.Web.Controllers;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Infrastructure.Tracing;
-using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Enums;
-using FluxCommerce.Modules.Payments.Domain.Repositories;
+using FluxCommerce.Modules.Payments.Application.Interfaces;
+using FluxCommerce.Modules.Payments.Application.Queries.GetMyPayments;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPayment;
+using FluxCommerce.Modules.Payments.Application.Queries.GetPaymentInitialization;
+using FluxCommerce.Modules.Payments.Contracts.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text;
-using FluxCommerce.BuildingBlocks.Web.Responses;
 
 namespace FluxCommerce.Api.Controllers.Payments;
 
@@ -22,28 +24,47 @@ namespace FluxCommerce.Api.Controllers.Payments;
 [Tags(EndpointTags.Payments)]
 public sealed class PaymentsController : ApiControllerBase
 {
-    private readonly ILogger<PaymentsController> _logger;
-    private readonly IStripeWebhookService _webhookService;
-    private readonly IWebhookEventProcessor _webhookProcessor;
-    private readonly IPaymentRepository _paymentRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly IWebhookEndpointHandler _webhookEndpointHandler;
+    private readonly IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>> _getPaymentHandler;
+    private readonly IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> _initializationHandler;
+    private readonly IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>> _myPaymentsHandler;
 
     public PaymentsController(
         ILocalizer localizer,
         IErrorCodeLocalizer errorCodeLocalizer,
-        ILogger<PaymentsController> logger,
-        IStripeWebhookService webhookService,
-        IWebhookEventProcessor webhookProcessor,
-        IPaymentRepository paymentRepository,
-        ICurrentUser currentUser
+        IWebhookEndpointHandler webhookEndpointHandler,
+        IQueryHandler<GetPaymentQuery, Result<PaymentAdminResponse>> getPaymentHandler,
+        IQueryHandler<GetPaymentInitializationQuery, Result<PaymentInitializationResponse>> initializationHandler,
+        IQueryHandler<GetMyPaymentsQuery, Result<PagedResult<PaymentAdminResponse>>> myPaymentsHandler
     )
         : base(localizer, errorCodeLocalizer)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _webhookService = webhookService ?? throw new ArgumentNullException(nameof(webhookService));
-        _webhookProcessor = webhookProcessor ?? throw new ArgumentNullException(nameof(webhookProcessor));
-        _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
-        _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _webhookEndpointHandler = webhookEndpointHandler ?? throw new ArgumentNullException(nameof(webhookEndpointHandler));
+        _getPaymentHandler = getPaymentHandler ?? throw new ArgumentNullException(nameof(getPaymentHandler));
+        _initializationHandler = initializationHandler ?? throw new ArgumentNullException(nameof(initializationHandler));
+        _myPaymentsHandler = myPaymentsHandler ?? throw new ArgumentNullException(nameof(myPaymentsHandler));
+    }
+
+    /// <summary>
+    /// Lists the authenticated customer's own payments, newest first, with an optional status
+    /// filter. Pagination falls back to page 1 with a page size of 20 (maximum 100).
+    /// </summary>
+    [HttpGet("mine")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMyPayments(
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _myPaymentsHandler.HandleAsync(
+            new GetMyPaymentsQuery(pageNumber, pageSize, status),
+            cancellationToken);
+
+        return Success(result);
     }
 
     /// <summary>
@@ -59,34 +80,46 @@ public sealed class PaymentsController : ApiControllerBase
         using var activity = TraceContext.Source.StartActivity("Payments.GetPayment", ActivityKind.Server);
         activity?.SetTag("payment.id", paymentId);
 
-        var payment = await _paymentRepository.GetByIdAsync(paymentId, cancellationToken);
-        if (payment is null)
-            return ErrorResult(Error.NotFound("Payment.NotFound", "Payment not found."));
+        var result = await _getPaymentHandler.HandleAsync(new GetPaymentQuery(paymentId), cancellationToken);
 
-        // Ownership enforcement: 404 if another customer's payment (do not leak existence)
-        if (payment.CustomerId != Guid.Empty && _currentUser.UserId != payment.CustomerId)
+        if (result.IsSuccess)
         {
-            _logger.LogWarning("Payment ownership violation. PaymentId={PaymentId}, Owner={Owner}, Caller={Caller}", paymentId, payment.CustomerId, _currentUser.UserId);
-            return ErrorResult(Error.NotFound("Payment.NotFound", "Payment not found."));
+            activity?.SetTag("payment.order_id", result.Value!.OrderId);
+            activity?.SetTag("payment.status", result.Value!.Status);
         }
 
-        activity?.SetTag("payment.order_id", payment.OrderId);
-        activity?.SetTag("payment.status", payment.Status.ToString());
+        return Success(result);
+    }
 
-        return Success(Result.Success(new
-        {
-            payment.Id,
-            payment.OrderId,
-            payment.CustomerId,
-            payment.Amount,
-            payment.Currency,
-            Status = payment.Status.ToString(),
-            payment.ProviderPaymentIntentId,
-            payment.Provider,
-            payment.CreatedAtUtc,
-            payment.UpdatedAtUtc,
-            payment.Version
-        }));
+    /// <summary>
+    /// Resolves the Stripe client secret for the owner of an order.
+    /// Customer ownership is enforced with a masked 404. Returns 409 when the
+    /// payment is not ready yet (saga still creating the intent — retry shortly)
+    /// or can no longer be initialized (terminal state).
+    /// </summary>
+    /// <remarks>
+    /// Read-only: never creates a Stripe intent (the saga owns creation). The live
+    /// secret is re-fetched from the provider on every call, so retries reuse the
+    /// single intent per order. The secret is runtime-only and must not be stored.
+    /// </remarks>
+    [HttpGet("by-order/{orderId:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GetInitializationByOrder(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        using var activity = TraceContext.Source.StartActivity("Payments.GetInitializationByOrder", ActivityKind.Server);
+        activity?.SetTag("order.id", orderId);
+
+        var result = await _initializationHandler.HandleAsync(new GetPaymentInitializationQuery(orderId), cancellationToken);
+
+        if (result.IsSuccess)
+            activity?.SetTag("payment.id", result.Value!.PaymentId);
+
+        return Success(result);
     }
 
     /// <summary>
@@ -101,11 +134,11 @@ public sealed class PaymentsController : ApiControllerBase
     /// </remarks>
     [HttpPost("webhook")]
     [AllowAnonymous]
+    [RequestSizeLimit(1_000_000)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Webhook(CancellationToken cancellationToken = default)
     {
-        using var activity = TraceContext.Source.StartActivity("Payments.Webhook", ActivityKind.Server);
         Request.EnableBuffering();
 
         string payload;
@@ -116,59 +149,15 @@ public sealed class PaymentsController : ApiControllerBase
         }
 
         var signatureHeader = Request.Headers["Stripe-Signature"].FirstOrDefault();
-        activity?.SetTag("stripe.signature_present", !string.IsNullOrEmpty(signatureHeader));
-
-        if (string.IsNullOrEmpty(signatureHeader))
-        {
-            _logger.LogWarning("Stripe webhook missing Stripe-Signature header.");
-            return BadRequest();
-        }
-
-        if (string.IsNullOrEmpty(payload))
-        {
-            _logger.LogWarning("Stripe webhook received with empty payload.");
-            return BadRequest();
-        }
-
-        var result = _webhookService.VerifyAndParse(payload, signatureHeader);
-        activity?.SetTag("stripe.event_id", result.EventId);
-        activity?.SetTag("stripe.event_type", result.EventType);
-        activity?.SetTag("stripe.payment_intent_id", result.PaymentIntentId);
-        activity?.SetTag("stripe.verified", result.IsValid);
-
-        if (!result.IsValid)
-        {
-            _logger.LogWarning("Stripe webhook signature verification failed: {ErrorMessage}", result.ErrorMessage);
-            return BadRequest();
-        }
 
         // 9.9-9.11: atomic idempotent processing + state mapping + Outbox. No Phase 10 saga.
-        var processResult = await _webhookProcessor.TryProcessAsync(result.EventId!, result.EventType, result.PaymentIntentId, cancellationToken);
-        activity?.SetTag("webhook.result", processResult.ToString());
+        var outcome = await _webhookEndpointHandler.HandleAsync(payload, signatureHeader, cancellationToken);
 
-        if (processResult == WebhookProcessResult.AlreadyProcessed)
+        return outcome switch
         {
-            _logger.LogInformation(
-                "Stripe webhook duplicate detected, benign success. StripeEventId={StripeEventId}, EventType={EventType}, StripePaymentIntentId={StripePaymentIntentId}",
-                result.EventId, result.EventType, result.PaymentIntentId);
-            return Ok();
-        }
-
-        _logger.LogInformation(
-            "Stripe webhook event processed. StripeEventId={StripeEventId}, EventType={EventType}, StripePaymentIntentId={StripePaymentIntentId}",
-            result.EventId, result.EventType, result.PaymentIntentId);
-
-        return Ok();
-    }
-
-    private IActionResult ErrorResult(Error error)
-    {
-        // Reuse ApiControllerBase mapping via reflection: call private MapError via base.Success path
-        // For hardening we directly return ProblemDetails via base's error mapping.
-        // Use a dummy Result to leverage existing mapping.
-        var dummy = Result.Failure<object>(error);
-        // Call Success with failure to trigger ErrorResult path (via dynamic)
-        return Success(dummy);
+            WebhookEndpointResult.Processed or WebhookEndpointResult.AlreadyProcessed => Ok(),
+            _ => BadRequest()
+        };
     }
 }
 

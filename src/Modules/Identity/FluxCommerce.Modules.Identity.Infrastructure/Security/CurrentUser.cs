@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using Microsoft.AspNetCore.Http;
 
 namespace FluxCommerce.Modules.Identity.Infrastructure.Security;
@@ -25,6 +26,12 @@ public sealed class CurrentUser : ICurrentUser
             .Where(claim => claim.Type == ClaimTypes.Role)
             .Select(claim => claim.Value)
             .ToArray() ?? [];
+
+    public IReadOnlyCollection<string> Permissions =>
+        _httpContextAccessor.HttpContext?.User.Claims
+            .Where(claim => claim.Type == PermissionCatalog.ClaimType)
+            .Select(claim => claim.Value)
+            .ToList() ?? [];
 
     public bool IsAuthenticated =>
         _httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated ?? false;

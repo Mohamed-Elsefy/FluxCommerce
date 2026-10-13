@@ -1,4 +1,4 @@
-using FluxCommerce.Modules.Payments.Domain.Options;
+using FluxCommerce.Modules.Payments.Infrastructure.Options;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
@@ -11,8 +11,8 @@ public sealed class StripeWebhookServiceTests
 {
     private const string WebhookSecret = "whsec_test_1234567890_TestSecretForUnitTests_Only";
 
-    private static IOptions<StripeOptions> Options(string secret = WebhookSecret)
-        => Microsoft.Extensions.Options.Options.Create(new StripeOptions { SecretKey = "sk_test_dummy", WebhookSecret = secret, PublishableKey = "pk_test_dummy" });
+    private static IOptions<PaymentGatewayOptions> Options(string secret = WebhookSecret)
+        => Microsoft.Extensions.Options.Options.Create(new PaymentGatewayOptions { SecretKey = "sk_test_dummy", WebhookSecret = secret, PublishableKey = "pk_test_dummy" });
 
     private static string GenerateStripeSignature(string payload, string secret, long? timestamp = null)
     {
@@ -130,5 +130,46 @@ public sealed class StripeWebhookServiceTests
         var result = svc.VerifyAndParse(payload, header);
 
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void VerifyAndParse_ValidSignature_ExtractsAmountAndCurrency()
+    {
+        var payload = SamplePayload();
+        var header = GenerateStripeSignature(payload, WebhookSecret);
+        var svc = new StripeWebhookService(Options());
+
+        var result = svc.VerifyAndParse(payload, header);
+
+        Assert.True(result.IsValid, result.ErrorMessage);
+        Assert.Equal(1999, result.AmountMinor);
+        Assert.Equal("usd", result.Currency);
+    }
+
+    [Fact]
+    public void VerifyAndParse_PrefersAmountReceivedOverAmount()
+    {
+        var payload = SamplePayload().Replace("\"amount\":1999", "\"amount\":1999,\"amount_received\":1500");
+        var header = GenerateStripeSignature(payload, WebhookSecret);
+        var svc = new StripeWebhookService(Options());
+
+        var result = svc.VerifyAndParse(payload, header);
+
+        Assert.True(result.IsValid, result.ErrorMessage);
+        Assert.Equal(1500, result.AmountMinor);
+    }
+
+    [Fact]
+    public void VerifyAndParse_ExtractsDeclineReason()
+    {
+        var payload = SamplePayload()
+            .Replace("\"status\":\"succeeded\"", "\"status\":\"requires_payment_method\",\"last_payment_error\":{\"code\":\"card_declined\",\"decline_code\":\"insufficient_funds\",\"message\":\"Your card has insufficient funds.\"}");
+        var header = GenerateStripeSignature(payload, WebhookSecret);
+        var svc = new StripeWebhookService(Options());
+
+        var result = svc.VerifyAndParse(payload, header);
+
+        Assert.True(result.IsValid, result.ErrorMessage);
+        Assert.Equal("insufficient_funds", result.FailureReason);
     }
 }

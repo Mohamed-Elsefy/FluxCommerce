@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.ClearAuthenticatedCart;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
@@ -17,7 +17,7 @@ namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
 /// Exercises the complete authenticated Cart lifecycle end to end against real Redis:
-/// create â†’ retrieve â†’ add â†’ update â†’ remove â†’ add again â†’ clear, plus Clear TTL semantics,
+/// create -> retrieve -> add -> update -> remove -> add again -> clear, plus Clear TTL semantics,
 /// expiration, and a stale-version concurrency conflict through the existing CAS mechanism.
 /// </summary>
 [Collection(RedisCartTestCollection.Name)]

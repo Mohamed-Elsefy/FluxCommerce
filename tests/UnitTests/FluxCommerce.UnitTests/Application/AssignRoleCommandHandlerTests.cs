@@ -132,4 +132,19 @@ public class AssignRoleCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Contains(Roles.Admin, user.Roles);
     }
+
+    [Fact]
+    public async Task HandleAsync_AdminRole_GrantsNoPermissions()
+    {
+        var user = TestUsers.CreateVerified(roles: [Roles.Customer]);
+        await _users.AddAsync(user);
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new AssignRoleCommand(user.Id, Roles.Admin));
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(user.Permissions);
+        Assert.Empty(result.Value.Permissions);
+    }
+
 }

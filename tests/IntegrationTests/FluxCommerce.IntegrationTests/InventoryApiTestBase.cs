@@ -1,6 +1,10 @@
 using System.Net.Http.Headers;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
+using FluxCommerce.Modules.Identity.Infrastructure.DbContexts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FluxCommerce.IntegrationTests;
 
@@ -46,7 +50,17 @@ public abstract class InventoryApiTestBase
 
         if (role == "admin")
         {
-            await Factory.RegisterAdminAsync(email, Password, "Inventory", "Admin");
+            var userId = await Factory.RegisterAdminAsync(email, Password, "Inventory", "Admin");
+
+            // Fresh admins start permission-less (ADR-016 D5): seed the full bundle directly through
+            // the domain (test setup has no request identity for the guarded command path),
+            // mirroring what SuperAdmin grants in production after creating the account.
+            using var scope = Factory.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var user = dbContext.Set<User>().Single(u => u.Id == userId);
+            foreach (var permission in PermissionCatalog.AdminBundle)
+                user.GrantPermission(permission);
+            await dbContext.SaveChangesAsync();
         }
         else
         {

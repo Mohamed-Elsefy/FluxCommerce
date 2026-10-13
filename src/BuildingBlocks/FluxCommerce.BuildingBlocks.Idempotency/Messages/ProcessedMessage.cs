@@ -8,17 +8,17 @@ public sealed record ProcessedMessage
 
     public DateTime ProcessedAtUtc { get; init; }
 
-    public static ProcessedMessage Create(Guid messageId, string? handler = null) => new()
+    public static ProcessedMessage Create(Guid messageId, string? handler = null, DateTime? processedAtUtc = null) => new()
     {
         Key = messageId.ToString(),
         Handler = handler,
-        ProcessedAtUtc = DateTime.UtcNow
+        ProcessedAtUtc = processedAtUtc ?? DateTime.UtcNow
     };
 
-    public static ProcessedMessage Create(string key, string? handler = null) => new()
+    public static ProcessedMessage Create(string key, string? handler = null, DateTime? processedAtUtc = null) => new()
     {
         Key = key,
         Handler = handler,
-        ProcessedAtUtc = DateTime.UtcNow
+        ProcessedAtUtc = processedAtUtc ?? DateTime.UtcNow
     };
 }

@@ -7,6 +7,8 @@ public sealed record VariantResponse(
     Guid ProductId,
     string Sku,
     string Name,
+    decimal UnitPriceAmount,
+    string Currency,
     VariantStatus Status,
     bool IsDeleted,
     DateTime CreatedAtUtc,

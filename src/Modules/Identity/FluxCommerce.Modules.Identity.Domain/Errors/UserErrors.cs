@@ -25,4 +25,8 @@ public static class UserErrors
     public static readonly DomainError RoleAlreadyAssigned = DomainError.Create(
         "Identity.RoleAlreadyAssigned",
         "The role is already assigned to this user.");
+
+    public static readonly DomainError PermissionAlreadyGranted = DomainError.Create(
+        "Identity.PermissionAlreadyGranted",
+        "The permission is already granted to this user.");
 }

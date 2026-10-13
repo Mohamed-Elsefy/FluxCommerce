@@ -1,4 +1,5 @@
-﻿using FluxCommerce.BuildingBlocks.Messaging.Consuming;
+using FluxCommerce.BuildingBlocks.Messaging.Consuming;
+using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
@@ -40,13 +41,15 @@ public sealed class CreatePaymentRequestedConsumerTests : IDisposable
     public async Task HandleAsync_CreatesPayment_AndCallsStripeOnce()
     {
         await using var ctx = CreateContext();
-        var gateway = new Mock<IStripePaymentGateway>();
+        var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((CreatePaymentIntentRequest r, CancellationToken _) => new PaymentIntentResult($"pi_{r.OrderId.ToString()[..8]}", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_test"));
 
         var consumer = new CreatePaymentRequestedConsumer(
             new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx),
             gateway.Object,
+            ctx,
+            new IntegrationEventOutboxMessageFactory(),
             NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
         var orderId = Guid.NewGuid();
@@ -66,6 +69,11 @@ public sealed class CreatePaymentRequestedConsumerTests : IDisposable
         Assert.Equal(@event.Currency, payment.Currency);
         Assert.NotNull(payment.ProviderPaymentIntentId);
         gateway.Verify(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+
+        // payment_initiated staged atomically with the payment row
+        var initiated = await ctx.OutboxMessages.SingleAsync(m => m.Type == PaymentInitiatedIntegrationEvent.EventType);
+        Assert.Contains(payment.Id.ToString(), initiated.Payload);
+        Assert.Contains(payment.ProviderPaymentIntentId!, initiated.Payload);
     }
 
     [Fact]
@@ -73,12 +81,12 @@ public sealed class CreatePaymentRequestedConsumerTests : IDisposable
     {
         await using var ctx = CreateContext();
         var callCount = 0;
-        var gateway = new Mock<IStripePaymentGateway>();
+        var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.CreatePaymentIntentAsync(It.IsAny<CreatePaymentIntentRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => { callCount++; return new PaymentIntentResult("pi_dup_123", FluxCommerce.Modules.Payments.Domain.Enums.PaymentStatus.Succeeded, "cs_dup"); });
 
         var repo = new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx);
-        var consumer = new CreatePaymentRequestedConsumer(repo, gateway.Object, NullLogger<CreatePaymentRequestedConsumer>.Instance);
+        var consumer = new CreatePaymentRequestedConsumer(repo, gateway.Object, ctx, new IntegrationEventOutboxMessageFactory(), NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
         var orderId = Guid.NewGuid();
         var @event = new CreatePaymentRequestedIntegrationEvent(orderId, Guid.NewGuid(), 10m, "USD")
@@ -111,10 +119,12 @@ public sealed class CreatePaymentRequestedConsumerTests : IDisposable
     public async Task HandleAsync_InvalidEvent_Throws(string? currency)
     {
         await using var ctx = CreateContext();
-        var gateway = Mock.Of<IStripePaymentGateway>();
+        var gateway = Mock.Of<IPaymentGateway>();
         var consumer = new CreatePaymentRequestedConsumer(
             new FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories.PaymentRepository(ctx),
             gateway,
+            ctx,
+            new IntegrationEventOutboxMessageFactory(),
             NullLogger<CreatePaymentRequestedConsumer>.Instance);
 
         var @event = new CreatePaymentRequestedIntegrationEvent(Guid.NewGuid(), Guid.NewGuid(), 10m, currency ?? string.Empty);

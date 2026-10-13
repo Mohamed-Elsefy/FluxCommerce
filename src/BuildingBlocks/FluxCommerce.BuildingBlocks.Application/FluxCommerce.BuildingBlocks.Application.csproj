@@ -8,8 +8,6 @@
     <Folder Include="Abstractions\" />
     <Folder Include="Results\" />
     <Folder Include="Errors\" />
-    <Folder Include="Behaviors\" />
-    <Folder Include="Interfaces\" />
   </ItemGroup>
 
 </Project>

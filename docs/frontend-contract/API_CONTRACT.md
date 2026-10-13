@@ -53,9 +53,27 @@ Pagination query (where supported): `?pageNumber=int>=1 &pageSize=int 1..100`. D
 
 ### 0.4 Auth / headers / localization (verified)
 
-- JWT: `Issuer/Audience/SigningKey` required, `HmacSha256`, `ValidateIssuer/Audience/Lifetime/SigningKey=true`, `AccessTokenLifetimeMinutes=15`, `ClockSkewMinutes=5`. Claims: `ClaimTypes.NameIdentifier=userId (Guid)`, `ClaimTypes.Email`, `ClaimTypes.Role[]`. Lifetimes: refresh `7d` (rotating, reuse invalid), email-verify `24h`, password-reset `1h`. Policies: `Customer→RequireRole(Customer)`, `Admin→RequireRole(Admin)`, `SuperAdmin→RequireRole(SuperAdmin)`. Dev `Issuer/Audience=https://localhost:7119`.
+- JWT: `Issuer/Audience/SigningKey` required, `HmacSha256`, `ValidateIssuer/Audience/Lifetime/SigningKey=true`, `AccessTokenLifetimeMinutes=15`, `ClockSkewMinutes=5`. Claims: `ClaimTypes.NameIdentifier=userId (Guid)`, `ClaimTypes.Email`, `ClaimTypes.Role[]`, `permission[]` (one claim per granted action-level permission, Phase 21). Lifetimes: refresh `7d` (rotating, reuse invalid), email-verify `24h`, password-reset `1h`. Policies: `Customer`/`Admin` = role-or-SuperAdmin (SuperAdmin passes everything, Phase A); `SuperAdmin` = exact role; one permission policy per catalog value (§0.5). Grants apply on next login/refresh. Dev `Issuer/Audience=https://localhost:7119`.
 - Headers: `Authorization: Bearer <accessToken>`; `Accept-Language: en|fr|de|es|ar` optional on every op (Swagger `AcceptLanguageFilter`); `X-Correlation-ID` optional inbound (reused else generated `Guid:N`), always echoed in response; `X-Request-ID` always generated `Guid:N` and echoed (`RequestLoggingMiddleware`, Serilog scope `{CorrelationId,RequestId,TraceId,SpanId}`).
 - Localization: default `en`, supported `[en,fr,de,es,ar]`, `ApplyCurrentCultureToResponseHeaders=true`, providers after clear: `QueryString (?culture=) > Cookie > Accept-Language`. Display `detail`, not raw `code` (`ErrorCodeLocalizer` maps ~90 `Identity|Catalog|Cart|Order|Inventory.*` codes, fallback raw description).
+
+### 0.5 Permission catalog (Phase 21, ADR-016)
+
+Action-level permissions granted per admin by SuperAdmin (`area.action` strings, also returned as `permissions: string[]` on `UserResponse`/`UserAdminResponse` for menu rendering):
+
+| Permission | Grants |
+|---|---|
+| `orders.read` | `GET /admin/orders`, `GET /admin/orders/{id}`, `GET /admin/orders/counts` |
+| `orders.cancel` | `POST /admin/orders/{id}/cancel` |
+| `orders.refund` | `POST /admin/orders/{id}/refund` |
+| `payments.read` | `GET /admin/payments`, `GET /admin/payments/{id}` |
+| `payments.stats` | `GET /admin/payments/stats` |
+| `inventory.read` | All `GET /inventory/**` (item, reservation, lists, counts) |
+| `inventory.manage` | `POST /inventory`, `PATCH /inventory/{sku}` |
+| `catalog.manage` | All Catalog writes (reads stay anonymous) |
+| `users.read` | `GET /admin/users`, `/counts`, `/{id}`, `/{id}/permissions` |
+
+Assigning the `Admin` role grants nothing by itself — every permission is granted manually afterwards (amended 2026-10-04); only the permission catalog document (`GET /admin/users/permissions`) stays `SuperAdmin`-only. `SuperAdmin` passes every gate without holding permissions. Enforcement failure → `403` (no `extensions.code`, match `status` + endpoint context).
 
 ---
 
@@ -73,7 +91,7 @@ Pagination query (where supported): `?pageNumber=int>=1 &pageSize=int 1..100`. D
 | HTTPMethod | `POST` |
 | Authorization | `AllowAnonymous` |
 | Request | Body `RegisterCustomerRequest { email: string, password: string, firstName: string, lastName: string }` |
-| Response | `200 ApiResponse<UserResponse>` — `UserResponse { id: Guid, email: string, roles: string[], isEmailVerified: bool, registeredAtUtc: DateTime, firstName, lastName, displayName?: string, phoneNumber?: string, isPhoneVerified: bool, avatarUrl?: string, preferredLanguage: string, timeZone: string, status: UserStatus }` where `UserStatus = Pending\|Active\|Suspended\|Locked\|Deleted` |
+| Response | `200 ApiResponse<UserResponse>` — `UserResponse { id: Guid, email: string, roles: string[], isEmailVerified: bool, registeredAtUtc: DateTime, firstName, lastName, displayName?: string, phoneNumber?: string, isPhoneVerified: bool, avatarUrl?: string, preferredLanguage: string, timeZone: string, status: UserStatus, permissions: string[] }` where `UserStatus = Pending\|Active\|Suspended\|Locked\|Deleted` |
 | Status Codes | `200, 400, 409` |
 | Validation | email required+format (max 254, trimmed+lowercased); password policy 8..128 + upper+lower+digit+special `!@#$%^&*()-_=+[]{};:'",.<>/?\|`+"`"+`~`; firstName/lastName required, trimmed, max 100/201 displayName |
 | Errors | `400 ValidationProblemDetail`, `409 Identity.DuplicateEmail (Conflict)` |
@@ -247,11 +265,127 @@ Pagination query (where supported): `?pageNumber=int>=1 &pageSize=int 1..100`. D
 | Errors | `404 UserNotFound` |
 | Pagination/Sorting/Filtering | — |
 
+### 1.14 POST /admin/users/{id}/permissions
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}/permissions` |
+| HTTPMethod | `POST` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Body `GrantPermissionRequest { permission: string }` — one catalog value from §0.5 |
+| Response | `200 ApiResponse<UserResponse>` (with updated `permissions`) |
+| Status Codes | `200, 400, 401, 403, 404, 409` |
+| Validation | guid non-empty; permission non-empty and in catalog |
+| Errors | `400 InvalidPermission`, `404 UserNotFound`, `409 PermissionAlreadyGranted` |
+| Pagination/Sorting/Filtering | — |
+
+### 1.15 DELETE /admin/users/{id}/permissions/{permission}
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}/permissions/{permission}` |
+| HTTPMethod | `DELETE` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | Route `id: Guid` + `permission: string` |
+| Response | `200 ApiResponse<UserResponse>` (idempotent — absent permission still succeeds) |
+| Status Codes | `200, 400, 401, 403, 404` |
+| Validation | guid non-empty; permission non-empty and in catalog |
+| Errors | `400 InvalidPermission`, `404 UserNotFound` |
+| Pagination/Sorting/Filtering | — |
+
+### 1.16 GET /admin/users/{id}/permissions
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}/permissions` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(users.read)` |
+| Request | Route `id: Guid` |
+| Response | `200 ApiResponse<string[]>` (granted permission values) |
+| Status Codes | `200, 401, 403, 404` |
+| Validation | guid non-empty |
+| Errors | `404 UserNotFound` |
+| Pagination/Sorting/Filtering | — |
+
+### 1.17 GET /admin/users/permissions
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/permissions` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(SuperAdminPolicy)` |
+| Request | None |
+| Response | `200 ApiResponse<string[]>` (full catalog, §0.5) |
+| Status Codes | `200, 401, 403` |
+| Validation | — |
+| Errors | — |
+| Pagination/Sorting/Filtering | — |
+
+### 1.18 PUT /auth/profile
+
+| Field | Value |
+|---|---|
+| Endpoint | `/auth/profile` |
+| HTTPMethod | `PUT` |
+| Authorization | `Authorize` (any authenticated JWT) |
+| Request | Body `UpdateProfileRequest { firstName?: string\|null, lastName?: string\|null, phoneNumber?: string\|null, avatarUrl?: string\|null, preferredLanguage?: string\|null, timeZone?: string\|null }` — all nullable; `null` keeps current value, empty clears optional fields (phone/avatar) |
+| Response | `200 ApiResponse<UserResponse>` (same shape as 1.1, plus `permissions: string[]`) |
+| Status Codes | `200, 400, 401, 404` |
+| Validation | names non-empty/max lengths when supplied; phone ≤30; avatar ≤2048; language ≤10; timezone ≤64 |
+| Errors | `400 Validation`, `401`, `404 UserNotFound` (account deleted between login and call) |
+| Pagination/Sorting/Filtering | — |
+
+### 1.19 GET /admin/users
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(users.read)` |
+| Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Active\|Suspended\|Locked\|Deleted, role?: Customer\|Admin\|SuperAdmin, search?: string (email/first/last substring)` |
+| Response | `200 ApiResponse<PagedResult<UserAdminResponse>>` newest-first (`UserAdminResponse` = `UserResponse` + `failedAccessAttemptCount: int, lockoutEndUtc?: DateTime\|null, isLocked: bool`) |
+| Status Codes | `200, 400, 401, 403` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100`; status/role names case-insensitive, unknown → `400` |
+| Errors | `400 ValidationFailed/InvalidRole` |
+| Pagination | Yes (defaults `1/20`, max `100`) |
+| Sorting | Fixed newest-first (no param) |
+| Filtering | Yes (`status`, `role`, `search`) |
+
+### 1.20 GET /admin/users/counts
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/counts` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(users.read)` |
+| Request | None |
+| Response | `200 ApiResponse<UserAdminCountsResponse { total, pending, active, suspended, locked, deleted, customers, admins, superAdmins, unverified, lockedOut: int }>` |
+| Status Codes | `200, 401, 403` |
+| Validation | — |
+| Errors | — |
+| Pagination/Sorting/Filtering | — |
+
+### 1.21 GET /admin/users/{id}
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/users/{id:guid}` |
+| HTTPMethod | `GET` |
+| Authorization | `Authorize(users.read)` |
+| Request | Route `id: Guid` |
+| Response | `200 ApiResponse<UserAdminResponse>` (same as 1.19 items) |
+| Status Codes | `200, 401, 403, 404` |
+| Validation | guid non-empty |
+| Errors | `404 UserNotFound` |
+| Pagination/Sorting/Filtering | — |
+
+> Assigning the `Admin` role (`1.12`) grants nothing by itself — permissions are granted explicitly via `1.14` (amended 2026-10-04). Grants apply to the access token on the user's next login/refresh.
+
 ---
 
 ## 2. Catalog — Tag `Catalog`
 
-Controller default `[Authorize]`; all `GET` are `[AllowAnonymous]`; all writes `[Authorize(AdminPolicy)]`.
+Controller default `[Authorize]`; all `GET` are `[AllowAnonymous]`; all writes `[Authorize(catalog.manage)]` (Phase 21 — was `AdminPolicy`).
 Writes: `POST create → 201 CreatedAtAction(Get)+ApiResponse<Guid|Guid[]>` else error; `PUT / POST lifecycle / assign / reorder → 204` on success.
 Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
@@ -267,7 +401,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 |---|---|
 | Endpoint | `/catalog/products` |
 | HTTPMethod | `POST` |
-| Authorization | `Admin` |
+| Authorization | `catalog.manage` |
 | Request | Body `CreateProductRequest { name?: string|null, slug?: string|null, description?: string|null, categoryId: Guid, visibility: Visible\|Hidden, seo?: SeoRequest { title?: string|null, description?: string\|null, keywords?: string[]\|null } \| null }` — C# all `string?` / `SeoRequest?`; `Keywords` request shape is `string[]?` nullable array (elements non-null when present). |
 | Response | `201 ApiResponse<Guid(productId)>` + `Location: /catalog/products/{id}` |
 | Status Codes | `201, 400, 401, 403, 404 (category), 409 (slug conflict)` |
@@ -280,7 +414,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 |---|---|
 | Endpoint | `/catalog/products/{id:guid}` |
 | HTTPMethod | `PUT` |
-| Authorization | `Admin` |
+| Authorization | `catalog.manage` |
 | Request | Route `id` + Body `UpdateProductRequest` (same nullable shape as create: `string?` fields + `SeoRequest?`) |
 | Response | `204` |
 | Status Codes | `204, 400, 401, 403, 404, 409` |
@@ -293,7 +427,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 |---|---|
 | Endpoint | `/catalog/products/{id:guid}/activate` (×5: `activate\|deactivate\|archive\|soft-delete\|restore`) |
 | HTTPMethod | `POST` |
-| Authorization | `Admin` |
+| Authorization | `catalog.manage` |
 | Request | Route `id` only |
 | Response | `204` |
 | Status Codes | `204, 400, 401, 403, 404, 409 (illegal state transition)` |
@@ -308,7 +442,7 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 | HTTPMethod | `GET` |
 | Authorization | Anonymous |
 | Request | Route `id` |
-| Response | `200 ApiResponse<ProductResponse { id, name: string, slug: string, description?: string\|null, seo?: SeoResponse { title?: string\|null, description?: string\|null, keywords: string[] (IReadOnlyList<string> non-null, never null) }\|null, status: Draft\|Active\|Inactive\|Archived, visibility: Visible\|Hidden, categoryId: Guid, isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` |
+| Response | `200 ApiResponse<ProductResponse { id, name: string, slug: string, description?: string\|null, seo?: SeoResponse { title?: string\|null, description?: string\|null, keywords: string[] (IReadOnlyList<string> non-null, never null) }\|null, status: Draft\|Active\|Inactive\|Archived, visibility: Visible\|Hidden, categoryId: Guid, isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null, primaryImage?: CatalogImageSummary { id, imageUrl: string, altText?: string\|null, displayOrder: int, isPrimary: bool }\|null }>` |
 | Status Codes | `200, 400, 404` |
 | Validation | id guid |
 | Errors | `404` |
@@ -320,14 +454,14 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 | Endpoint | `/catalog/products` |
 | HTTPMethod | `GET` |
 | Authorization | Anonymous |
-| Request | Query `pageNumber?: int, pageSize?: int` |
-| Response | `200 ApiResponse<PagedResult<ProductResponse>>` |
+| Request | Query `pageNumber?: int, pageSize?: int, searchTerm?: string (name/slug, case-insensitive), status?: Draft\|Active\|Inactive\|Archived (name or number), visibility?: Visible\|Hidden (name or number), categoryId?: Guid, sortBy?: Name\|CreatedAtUtc (name or number), sortDirection?: Ascending\|Descending (name or number)` |
+| Response | `200 ApiResponse<PagedResult<ProductResponse>>` — each item carries `primaryImage?: CatalogImageSummary { id, imageUrl, altText, displayOrder, isPrimary } \| null` (no extra round trips; `null` when the product has no images) |
 | Status Codes | `200, 400` |
-| Validation | `pageNumber>=1, 1<=pageSize<=100` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100`; omitted filters = no filter (fully backward compatible) |
 | Errors | `400 Validation` |
 | Pagination | Yes (`PagedResult`) |
-| Sorting | No |
-| Filtering | Implicit non-deleted only |
+| Sorting | Yes (`sortBy: Name\|CreatedAtUtc`, `sortDirection: Ascending\|Descending`; omitted = `Name` ascending — same values/default as `GET /catalog`) |
+| Filtering | Yes (`searchTerm`, `status`, `visibility`, `categoryId`) + implicit non-deleted only |
 
 #### GET /catalog (storefront search)
 | Field | Value |
@@ -348,36 +482,36 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/categories` | `POST` | Admin | Body `CreateCategoryRequest { name?: string\|null, slug?: string\|null, description?: string\|null, parentId?: Guid\|null }` — C# `Guid? ParentId` only place `ParentId` exists | `201 ApiResponse<Guid>` + Location | `201,400,401,403,404(parent),409(slug)` | Fluent/domain only, no DataAnnotations | — |
-| `/catalog/categories/{id:guid}` | `PUT` | Admin | Route id + Body `UpdateCategoryRequest` (same nullable shape) | `204` | `204,400,401,403,404,409` | same | — |
-| `/catalog/categories/{id:guid}/activate` | `POST` | Admin | Route id | `204` | `204,400,401,403,404,409` | id guid | — |
-| `/catalog/categories/{id:guid}/deactivate` | `POST` | Admin | Route id | `204` | same | same | — |
-| `/catalog/categories/{id:guid}/soft-delete` | `POST` | Admin | Route id | `204` | same | same | — |
-| `/catalog/categories/{id:guid}/restore` | `POST` | Admin | Route id | `204` | same | same | — |
+| `/catalog/categories` | `POST` | catalog.manage | Body `CreateCategoryRequest { name?: string\|null, slug?: string\|null, description?: string\|null, parentId?: Guid\|null }` — C# `Guid? ParentId` only place `ParentId` exists | `201 ApiResponse<Guid>` + Location | `201,400,401,403,404(parent),409(slug)` | Fluent/domain only, no DataAnnotations | — |
+| `/catalog/categories/{id:guid}` | `PUT` | catalog.manage | Route id + Body `UpdateCategoryRequest` (same nullable shape) | `204` | `204,400,401,403,404,409` | same | — |
+| `/catalog/categories/{id:guid}/activate` | `POST` | catalog.manage | Route id | `204` | `204,400,401,403,404,409` | id guid | — |
+| `/catalog/categories/{id:guid}/deactivate` | `POST` | catalog.manage | Route id | `204` | same | same | — |
+| `/catalog/categories/{id:guid}/soft-delete` | `POST` | catalog.manage | Route id | `204` | same | same | — |
+| `/catalog/categories/{id:guid}/restore` | `POST` | catalog.manage | Route id | `204` | same | same | — |
 | `/catalog/categories/{id:guid}` | `GET` | Anonymous | Route id | `200 ApiResponse<CategoryResponse { id, name: string, slug: string, description?: string\|null, parentId?: Guid\|null, status: Active\|Inactive (no Draft/Archived), isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` | `200,400,404` | — | — |
-| `/catalog/categories` | `GET` | Anonymous | Query `pageNumber?, pageSize?` | `200 ApiResponse<PagedResult<CategoryResponse>>` | `200,400` | pagination rules | Pagination yes; Sorting/Filtering no |
+| `/catalog/categories` | `GET` | Anonymous | Query `pageNumber?, pageSize?, searchTerm?: string (name/slug, case-insensitive), status?: Active\|Inactive (name or number)` — omitted filters = no filter | `200 ApiResponse<PagedResult<CategoryResponse>>` | `200,400` | pagination rules | Pagination yes; Sorting no; Filtering yes (`searchTerm`, `status`) |
 
 ### 2.3 Product Variants — `[Route catalog/products/{productId}/variants]`
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/variants` | `POST` | Admin | Route `productId` + Body `CreateProductVariantRequest { sku?: string\|null, name?: string\|null, unitPriceAmount: number (decimal non-null), currency: string (non-null) }` | `201 ApiResponse<Guid>` + Location `.../variants/{variantId}` | `201,400,401,403,404(product),409(sku)` | Fluent/domain only | — |
-| `/catalog/products/{productId}/variants/batch` | `POST` | Admin | Route `productId` + Body `CreateProductVariantsRequest { variants?: CreateProductVariantRequest[]\|null }` — C# `IReadOnlyCollection<CreateProductVariantRequest>?` nullable wrapper | `201 ApiResponse<Guid[]>` + Location list | same | same per-item | — |
-| `/catalog/products/{productId}/variants/{variantId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductVariantRequest { sku?: string\|null, name?: string\|null }` — **only these 2 fields; no price/currency/status** | `204` | `204,400,401,403,404,409` | Fluent/domain | — |
-| `/catalog/products/{productId}/variants/{variantId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
-| `/catalog/products/{productId}/variants/{variantId:guid}` | `GET` | Anonymous | Route ids (`productId` scoping, lookup by `variantId`) | `200 ApiResponse<VariantResponse { id, productId, sku: string, name: string, status: Active\|Inactive (no Draft/Archived), isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` — **no price/currency fields** | `200,400,404` | — | — |
+| `/catalog/products/{productId}/variants` | `POST` | catalog.manage | Route `productId` + Body `CreateProductVariantRequest { sku?: string\|null, name?: string\|null, unitPriceAmount: number (decimal non-null), currency: string (non-null) }` | `201 ApiResponse<Guid>` + Location `.../variants/{variantId}` | `201,400,401,403,404(product),409(sku)` | Fluent/domain only | — |
+| `/catalog/products/{productId}/variants/batch` | `POST` | catalog.manage | Route `productId` + Body `CreateProductVariantsRequest { variants?: CreateProductVariantRequest[]\|null }` — C# `IReadOnlyCollection<CreateProductVariantRequest>?` nullable wrapper | `201 ApiResponse<Guid[]>` + Location list | same | same per-item | — |
+| `/catalog/products/{productId}/variants/{variantId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductVariantRequest { sku?: string\|null, name?: string\|null, unitPriceAmount?: number\|null, currency?: string\|null, status?: Active(0)\|Inactive(1)\|null }` — price needs amount+currency together; status toggles sellability | `204` | `204,400,401,403,404,409` | Fluent/domain | — |
+| `/catalog/products/{productId}/variants/{variantId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/variants/{variantId:guid}` | `GET` | Anonymous | Route ids (`productId` scoping, lookup by `variantId`) | `200 ApiResponse<VariantResponse { id, productId, sku: string, name: string, unitPriceAmount: number (decimal), currency: string (ISO-4217), status: Active\|Inactive (no Draft/Archived), isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` | `200,400,404` | — | — |
 | `/catalog/products/{productId}/variants` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<VariantResponse[]>` | `200,400,404` | — | No pagination; no sorting/filtering |
 
 ### 2.4 Attribute Definitions — `[Route catalog/attribute-definitions]`
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/attribute-definitions` | `POST` | Admin | Body `CreateAttributeDefinitionRequest { name?: string\|null, slug?: string\|null, description?: string\|null, dataType: Text\|Number\|Decimal\|Boolean\|Date\|DateTime, isRequired: bool, isFilterable: bool, isSearchable: bool, sortOrder: int, categoryId?: Guid\|null }` — `SortOrder`/`CategoryId(Guid?)` only here | `201 ApiResponse<Guid>` | `201,400,401,403,409` | Fluent/domain only | — |
-| `/catalog/attribute-definitions/{id:guid}` | `PUT` | Admin | Route id + Body `UpdateAttributeDefinitionRequest` (same 9-field shape) | `204` | `204,400,401,403,404,409` | same | — |
-| `/catalog/attribute-definitions/{id:guid}/activate` | `POST` | Admin | Route id | `204` | same | — | — |
-| `/catalog/attribute-definitions/{id:guid}/deactivate` | `POST` | Admin | Route id | `204` | same | — | — |
-| `/catalog/attribute-definitions/{id:guid}/soft-delete` | `POST` | Admin | Route id | `204` | same | — | — |
-| `/catalog/attribute-definitions/{id:guid}/restore` | `POST` | Admin | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions` | `POST` | catalog.manage | Body `CreateAttributeDefinitionRequest { name?: string\|null, slug?: string\|null, description?: string\|null, dataType: Text\|Number\|Decimal\|Boolean\|Date\|DateTime, isRequired: bool, isFilterable: bool, isSearchable: bool, sortOrder: int, categoryId?: Guid\|null }` — `SortOrder`/`CategoryId(Guid?)` only here | `201 ApiResponse<Guid>` | `201,400,401,403,409` | Fluent/domain only | — |
+| `/catalog/attribute-definitions/{id:guid}` | `PUT` | catalog.manage | Route id + Body `UpdateAttributeDefinitionRequest` (same 9-field shape) | `204` | `204,400,401,403,404,409` | same | — |
+| `/catalog/attribute-definitions/{id:guid}/activate` | `POST` | catalog.manage | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions/{id:guid}/deactivate` | `POST` | catalog.manage | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions/{id:guid}/soft-delete` | `POST` | catalog.manage | Route id | `204` | same | — | — |
+| `/catalog/attribute-definitions/{id:guid}/restore` | `POST` | catalog.manage | Route id | `204` | same | — | — |
 | `/catalog/attribute-definitions/{id:guid}` | `GET` | Anonymous | Route id | `200 ApiResponse<AttributeDefinitionResponse { id, name: string, slug: string, description?: string\|null, dataType, isRequired: bool, isFilterable: bool, isSearchable: bool, sortOrder: int, categoryId?: Guid\|null, status: Active\|Inactive, isDeleted: bool, createdAtUtc: DateTime, deletedAtUtc?: DateTime\|null }>` | `200,400,404` | — | — |
 | `/catalog/attribute-definitions` | `GET` | Anonymous | None | `200 ApiResponse<AttributeDefinitionResponse[]>` | `200` | — | No pagination/sorting/filtering |
 
@@ -385,9 +519,9 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/attributes` | `POST` | Admin | Route `productId` + Body `AssignProductAttributeValueRequest { attributeDefinitionId: Guid, value?: string\|null }` — C# `string? Value` | `204` | `204,400,401,403,404,409(already assigned)` | definition must exist; value must match DataType | — |
-| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductAttributeValueRequest { value?: string\|null }` — **single field only; no attributeDefinitionId in body** | `204` | same | same | — |
-| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/attributes` | `POST` | catalog.manage | Route `productId` + Body `AssignProductAttributeValueRequest { attributeDefinitionId: Guid, value?: string\|null }` — C# `string? Value` | `204` | `204,400,401,403,404,409(already assigned)` | definition must exist; value must match DataType | — |
+| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductAttributeValueRequest { value?: string\|null }` — **single field only; no attributeDefinitionId in body** | `204` | same | same | — |
+| `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
 | `/catalog/products/{productId}/attributes/{attributeDefinitionId:guid}` | `GET` | Anonymous | Route ids | `200 ApiResponse<ProductAttributeValueResponse { id, productId, attributeDefinitionId, attributeName: string (denormalized), attributeSlug: string (denormalized), dataType, value: string (non-null) }>` | `200,404` | — | — |
 | `/catalog/products/{productId}/attributes` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<ProductAttributeValueResponse[]>` | `200,404` | — | No pagination/sorting/filtering |
 
@@ -395,11 +529,11 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/images` | `POST` | Admin | Route `productId` + Body `AddProductImageRequest { imageUrl?: string\|null, altText?: string\|null, isPrimary: bool, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — metadata is exactly nullable string→string dict, not object | `204` | `204,400,401,403,404` | Fluent/domain only | — |
-| `/catalog/products/{productId}/images/{imageId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductImageRequest { imageUrl?: string\|null, altText?: string\|null, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — **no isPrimary here** | `204` | same | same | — |
-| `/catalog/products/{productId}/images/{imageId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
-| `/catalog/products/{productId}/images/{imageId:guid}/set-primary` | `POST` | Admin | Route ids | `204` | same | — | — |
-| `/catalog/products/{productId}/images/reorder` | `PUT` | Admin | Route `productId` + Body `ReorderProductImagesRequest { orderedImageIds?: Guid[]\|null }` — C# `IReadOnlyCollection<Guid>?` | `204` | `204,400,401,403,404` | ids must match existing set | — |
+| `/catalog/products/{productId}/images` | `POST` | catalog.manage | Route `productId` + Body `AddProductImageRequest { imageUrl?: string\|null, altText?: string\|null, isPrimary: bool, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — metadata is exactly nullable string→string dict, not object | `204` | `204,400,401,403,404` | Fluent/domain only | — |
+| `/catalog/products/{productId}/images/{imageId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductImageRequest { imageUrl?: string\|null, altText?: string\|null, displayOrder: int, metadata?: Dictionary<string,string>\|null }` — **no isPrimary here** | `204` | same | same | — |
+| `/catalog/products/{productId}/images/{imageId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/images/{imageId:guid}/set-primary` | `POST` | catalog.manage | Route ids | `204` | same | — | — |
+| `/catalog/products/{productId}/images/reorder` | `PUT` | catalog.manage | Route `productId` + Body `ReorderProductImagesRequest { orderedImageIds?: Guid[]\|null }` — C# `IReadOnlyCollection<Guid>?` | `204` | `204,400,401,403,404` | ids must match existing set | — |
 | `/catalog/products/{productId}/images/{imageId:guid}` | `GET` | Anonymous | Route ids | `200 ApiResponse<ProductImageResponse { id, productId, imageUrl: string, altText?: string\|null, displayOrder: int, isPrimary: bool, metadata?: Dictionary<string,string>\|null, createdAtUtc: DateTime }>` — no UpdatedAt/DeletedAt | `200,404` | — | — |
 | `/catalog/products/{productId}/images` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<ProductImageResponse[]>` | `200,404` | — | No pagination; order by `displayOrder` server-side |
 
@@ -407,9 +541,9 @@ Reads: `200 ApiResponse<T|PagedResult<T>|IReadOnlyCollection<T>>`.
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/catalog/products/{productId}/specifications` | `POST` | Admin | Route `productId` + Body `CreateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | `204,400,401,403,404` | Fluent/domain only | — |
-| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `PUT` | Admin | Route ids + Body `UpdateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | same | same | — |
-| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `DELETE` | Admin | Route ids | `204` | `204,401,403,404` | — | — |
+| `/catalog/products/{productId}/specifications` | `POST` | catalog.manage | Route `productId` + Body `CreateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | `204,400,401,403,404` | Fluent/domain only | — |
+| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `PUT` | catalog.manage | Route ids + Body `UpdateProductSpecificationRequest { name?: string\|null, value?: string\|null }` | `204` | same | same | — |
+| `/catalog/products/{productId}/specifications/{specificationId:guid}` | `DELETE` | catalog.manage | Route ids | `204` | `204,401,403,404` | — | — |
 | `/catalog/products/{productId}/specifications/{specificationId:guid}` | `GET` | Anonymous | Route ids | `200 ApiResponse<ProductSpecificationResponse { id, productId, name: string, value: string }>` — both non-null | `200,404` | — | — |
 | `/catalog/products/{productId}/specifications` | `GET` | Anonymous | Route `productId` | `200 ApiResponse<ProductSpecificationResponse[]>` | `200,404` | — | No pagination/sorting/filtering |
 
@@ -467,14 +601,14 @@ Requests use `DataAnnotations`: `Add*` = `[Required]VariantId + [Required][Range
 | Endpoint | `/orders` |
 | HTTPMethod | `GET` |
 | Authorization | Authenticated |
-| Request | Query `pageNumber?: int, pageSize?: int` |
+| Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Cancelled\|Confirmed (case-insensitive, Phase P2)` |
 | Response | `200 ApiResponse<PagedResult<OrderSummaryResponse { orderId: Guid, orderNumber: string, status: string, grandTotal: OrderMoneyResponse { amount: number, currency: string }, itemCount: int, createdAtUtc: DateTimeOffset }>>` newest-first |
 | Status Codes | `200, 400, 401` |
-| Validation | `pageNumber>=1, 1<=pageSize<=100` else `400 ValidationFailed` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100` else `400 ValidationFailed`; unknown status → `400` |
 | Errors | `400 Validation`, `401` |
 | Pagination | Yes (defaults `1/20`, max `100`) |
 | Sorting | Fixed newest-first (no param) |
-| Filtering | No (only caller-owned) |
+| Filtering | Yes (`status`; only caller-owned) |
 
 ### GET /orders/{orderId}
 | Field | Value |
@@ -502,18 +636,31 @@ Requests use `DataAnnotations`: `Add*` = `[Required]VariantId + [Required][Range
 | Errors | `404`, `409 CancelConflict` |
 | Pagination/Sorting/Filtering | — |
 
----
-
-## 5. Inventory — Tag `Inventory`, `[Route inventory][Authorize(AdminPolicy)]`
-
-All Admin-only (prevents customer IDOR on reservations). Inventory is the only module with `DataAnnotations` on requests: `CreateInventoryItemRequest(Sku: [Required(AllowEmptyStrings=false)][StringLength(64)], OnHandQuantity: [Range(0,max)])`, `AdjustStockRequest(Quantity: [Range(1,max)])`. SKU normalized trimmed+uppercased. Dates are `DateTimeOffset`. `InventoryReservationResponse.reservationId` is named `ReservationId` (not `Id`). Status `Pending=0,Committed=1,Released=2,Expired=3`.
+### 4.5 Admin orders — `[Route admin/orders]` (permission-gated, §0.5)
 
 | Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
 |---|---|---|---|---|---|---|---|
-| `/inventory` | `POST` | Admin | Body `CreateInventoryItemRequest { sku: string (required, non-empty, ≤64, trimmed+uppercased, ^[A-Z0-9-_.]+$), onHandQuantity: int (0..max) }` | `201 ApiResponse<InventoryItemResponse { sku, onHandQuantity: int, reservedQuantity: int, availableQuantity (=onHand-reserved, computed), updatedAtUtc }>` + `Location: /inventory/{sku}` | `201,400,401,403,409` | `400 InvalidSku/InvalidQuantity`; `409 DuplicateSku` | — |
-| `/inventory/{sku}` | `GET` | Admin | Route `sku: string` (not guid) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | `400 InvalidSku`; `404 SkuNotFound` | — |
-| `/inventory/{sku}` | `PATCH` | Admin | Route `sku` + Body `AdjustStockRequest { quantity: int (1..max) }` additive-only (no manual decrement; consumption via reservation commit) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | same | — |
-| `/inventory/reservations/{id:guid}` | `GET` | Admin | Route `id: Guid` | `200 ApiResponse<InventoryReservationResponse { reservationId: Guid, orderId: Guid, sku: string, quantity: int, status: Pending\|Committed\|Released\|Expired, expiresAt: DateTimeOffset, createdAtUtc, updatedAtUtc }>` | `200,400,401,403,404` | `400 InvalidReservationId`; `404` | — (ids never enumerable) |
+| `/admin/orders` | `GET` | `orders.read` | Query `pageNumber?, pageSize?, status? (Pending\|Cancelled\|Confirmed), customerId?: Guid, search?: string (order-number substring), from?: DateTimeOffset, to?: DateTimeOffset` | `200 ApiResponse<PagedResult<OrderSummaryResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / `from>to` → `400 ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
+| `/admin/orders/counts` | `GET` | `orders.read` | None | `200 ApiResponse<AdminOrderCountsResponse { total, pending, confirmed, cancelled: int }>` | `200,401,403` | — | — |
+| `/admin/orders/{orderId:guid}` | `GET` | `orders.read` | Route `orderId` (no ownership scoping) | `200 ApiResponse<OrderDetailsResponse>` | `200,401,403,404` | `404 Order.NotFound` | — |
+| `/admin/orders/{orderId:guid}/cancel` | `POST` | `orders.cancel` | Route `orderId`, no body (force-cancel any `Pending` order; compensation flows via `order_cancelled` as for customer cancel) | `200 ApiResponse<OrderDetailsResponse>` | `200,401,403,404,409` | must be `Pending`; `404 Order.NotFound`, `409 Order.CancelConflict` (use refund for `Confirmed`) | — |
+| `/admin/orders/{orderId:guid}/refund` | `POST` | `orders.refund` | Route `orderId` + Body `RefundOrderRequest { reason: string ([Required][StringLength(500,Min 1)]) }` | `200 ApiResponse<OrderDetailsResponse>` (current order; refund completes async via saga → Stripe → `PaymentRefunded`) | `200,400,401,403,404,409` | reason required 1..500; only paid (`Completed` saga) eligible; `404 Order.NotFound`, `409 Order.RefundConflict` (incl. in-flight duplicate → still `200` idempotent) | — |
+
+---
+
+## 5. Inventory — Tag `Inventory`, `[Route inventory][Authorize]`
+
+Reads require `inventory.read`, writes (`POST /`, `PATCH /{sku}`) require `inventory.manage` (Phase 21 — was a single `AdminPolicy`). SuperAdmin passes both. Inventory is the only module with `DataAnnotations` on requests: `CreateInventoryItemRequest(Sku: [Required(AllowEmptyStrings=false)][StringLength(64)], OnHandQuantity: [Range(0,max)])`, `AdjustStockRequest(Quantity: [Range(1,max)])`. SKU normalized trimmed+uppercased. Dates are `DateTimeOffset`. `InventoryReservationResponse.reservationId` is named `ReservationId` (not `Id`). Status `Pending=0,Committed=1,Released=2,Expired=3`.
+
+| Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
+|---|---|---|---|---|---|---|---|
+| `/inventory` | `POST` | `inventory.manage` | Body `CreateInventoryItemRequest { sku: string (required, non-empty, ≤64, trimmed+uppercased, ^[A-Z0-9-_.]+$), onHandQuantity: int (0..max) }` | `201 ApiResponse<InventoryItemResponse { sku, onHandQuantity: int, reservedQuantity: int, availableQuantity (=onHand-reserved, computed), updatedAtUtc }>` + `Location: /inventory/{sku}` | `201,400,401,403,409` | `400 InvalidSku/InvalidQuantity`; `409 DuplicateSku` | — |
+| `/inventory/{sku}` | `GET` | `inventory.read` | Route `sku: string` (not guid) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | `400 InvalidSku`; `404 SkuNotFound` | — |
+| `/inventory/{sku}` | `PATCH` | `inventory.manage` | Route `sku` + Body `AdjustStockRequest { quantity: int (1..max) }` additive-only (no manual decrement; consumption via reservation commit) | `200 ApiResponse<InventoryItemResponse>` | `200,400,401,403,404` | same | — |
+| `/inventory/reservations/{id:guid}` | `GET` | `inventory.read` | Route `id: Guid` | `200 ApiResponse<InventoryReservationResponse { reservationId: Guid, orderId: Guid, sku: string, quantity: int, status: Pending\|Committed\|Released\|Expired, expiresAt: DateTimeOffset, createdAtUtc, updatedAtUtc }>` | `200,400,401,403,404` | `400 InvalidReservationId`; `404` | — (ids never enumerable) |
+| `/inventory` | `GET` | `inventory.read` | Query `pageNumber?, pageSize?, search?: string (SKU substring, case-insensitive), maxAvailable?: int (available-quantity ceiling)` | `200 ApiResponse<PagedResult<InventoryItemResponse>>` ordered by SKU | `200,400,401,403` | pagination rules; negative `maxAvailable` → `400 ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed by SKU; Filtering yes |
+| `/inventory/counts` | `GET` | `inventory.read` | Query `lowStockThreshold?: int (default 5, inclusive available ceiling)` | `200 ApiResponse<InventoryCountsResponse { totalItems, totalOnHand, totalReserved, lowStockItems, pendingReservations, committedReservations, releasedReservations, expiredReservations: int }>` | `200,400,401,403` | negative threshold → `400 ValidationFailed` | — |
+| `/inventory/reservations` | `GET` | `inventory.read` | Query `pageNumber?, pageSize?, status?: Pending\|Committed\|Released\|Expired, sku?: string (exact, normalized), orderId?: Guid` | `200 ApiResponse<PagedResult<InventoryReservationResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / bad SKU / empty orderId → `400` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
 
 ---
 
@@ -534,6 +681,20 @@ Note inconsistent `api/` prefix (other modules have none).
 | Errors | `404 Payment.NotFound (also on ownership mismatch)` |
 | Pagination/Sorting/Filtering | — |
 
+### GET /api/payments/by-order/{orderId}
+| Field | Value |
+|---|---|
+| Endpoint | `/api/payments/by-order/{orderId:guid}` |
+| HTTPMethod | `GET` |
+| Authorization | Authenticated any role + ownership (`payment.CustomerId != caller → 404 masked`, same as above) |
+| Request | Route `orderId: Guid` |
+| Response | `200 ApiResponse<PaymentInitializationResponse { paymentId: Guid (for GET /api/payments/{id} polling), orderId: Guid, clientSecret: string (runtime-only, never store), paymentReference?: string\|null (pi_* for support), status: string ("Pending") }>` |
+| Status Codes | `200, 400, 401, 404, 409` |
+| Validation | empty guid → `400 Payment.OrderIdRequired` |
+| Errors | `404 Payment.NotFound` (missing payment OR stranger — masked); `409 Payment.NotReady` (intent not created yet by saga — poll/retry shortly); `409 Payment.NotPayable` (terminal payment: Succeeded/Failed/Cancelled/Refunded); `400 Payment.ProviderUnavailable` (`Failure` default branch — Stripe unreachable, retry) |
+| Pagination/Sorting/Filtering | — |
+| Frontend note | Read-only: never creates a Stripe intent (saga owns creation). Live secret re-fetched per call — retries reuse the single intent per order. Flow: `checkout (Pending) → GET by-order (until 200) → stripe.confirmCardPayment(clientSecret) → poll GET /orders/{id} until Confirmed/Cancelled`. |
+
 ### POST /api/payments/webhook
 | Field | Value |
 |---|---|
@@ -548,6 +709,29 @@ Note inconsistent `api/` prefix (other modules have none).
 | Pagination/Sorting/Filtering | — |
 | Frontend note | Not called by SPA. SPA uses `Stripe.PublishableKey` + `ClientSecret` (from `PaymentIntentResult`, backend-only) via Stripe.js; poll `GET /api/payments/{id}` / `GET /orders/{id}` for `Succeeded→Order Confirmed`, `Failed→compensate`, `Refunded→post-pay compensation`. |
 
+### GET /api/payments/mine
+| Field | Value |
+|---|---|
+| Endpoint | `/api/payments/mine` |
+| HTTPMethod | `GET` |
+| Authorization | Authenticated (scoped to caller — never another customer's payments) |
+| Request | Query `pageNumber?: int, pageSize?: int, status?: Pending\|Processing\|Succeeded\|Failed\|Cancelled\|Refunded (case-insensitive)` |
+| Response | `200 ApiResponse<PagedResult<PaymentAdminResponse { id, orderId, customerId, amount: number, currency: string, status: string, providerPaymentIntentId?: string\|null, provider?: string\|null, createdAtUtc: DateTimeOffset, updatedAtUtc?: DateTimeOffset\|null, version: long }>>` newest-first (same shape as admin view) |
+| Status Codes | `200, 400, 401` |
+| Validation | `pageNumber>=1, 1<=pageSize<=100`; unknown status → `400 Payment.ValidationFailed` |
+| Errors | `400 Validation`, `401` |
+| Pagination | Yes (defaults `1/20`, max `100`) |
+| Sorting | Fixed newest-first (no param) |
+| Filtering | Yes (`status`; only caller-owned) |
+
+### 6.5 Admin payments — `[Route admin/payments]` (permission-gated, §0.5; read-only, no Stripe calls)
+
+| Endpoint | HTTPMethod | Authorization | Request | Response | Status Codes | Validation/Errors | Pagination/Sorting/Filtering |
+|---|---|---|---|---|---|---|---|
+| `/admin/payments` | `GET` | `payments.read` | Query `pageNumber?, pageSize?, status?, orderId?: Guid, customerId?: Guid, from?: DateTimeOffset, to?: DateTimeOffset` | `200 ApiResponse<PagedResult<PaymentAdminResponse>>` newest-first | `200,400,401,403` | pagination rules; unknown status / `from>to` → `400 Payment.ValidationFailed` | Pagination yes (`1/20 max 100`); Sorting fixed newest-first; Filtering yes |
+| `/admin/payments/stats` | `GET` | `payments.stats` | None | `200 ApiResponse<PaymentAdminStatsResponse { total, pending, processing, succeeded, failed, cancelled, refunded: int, totalsByCurrency: [{ currency: string, succeededCount: int, succeededTotalAmount: number }], refundedTotalsByCurrency: [{ currency: string, succeededCount: int, succeededTotalAmount: number }] }>` | `200,401,403` | — | — |
+| `/admin/payments/{paymentId:guid}` | `GET` | `payments.read` | Route `paymentId` (no ownership scoping) | `200 ApiResponse<PaymentAdminResponse>` | `200,401,403,404` | `404 Payment.NotFound` | — |
+
 ---
 
 ## 7. Health (no auth, no envelope)
@@ -556,6 +740,30 @@ Note inconsistent `api/` prefix (other modules have none).
 |---|---|---|---|---|---|
 | `/health/live` | `GET` | None (predicate `tag==app`) | None | `{ status: string, duration: number (ms, property is `duration` not `durationMs`), components: [{ name, status, description, duration }] }` | `200` healthy, `503` otherwise |
 | `/health` | `GET` | None (all checks: `app, sql_server[database,infrastructure], redis[cache,infrastructure], rabbitmq[messaging,infrastructure]`) | None | Same shape | `200/503` |
+
+---
+
+## 8. Dashboard — Tag `Dashboard`, `[Route admin/dashboard][Authorize]` (Phase 22: adaptive)
+
+Single read-only snapshot for the post-login landing screen: any authenticated user receives `200`
+(never a bare forbidden screen); every section is included only when entitled, otherwise `null`
+(objects) or `[]` (recent lists). For admin landing cards + recent-widgets; drill down via
+the §4.5/§6.5 lists. Section gates: `orders`+`recentOrders` ← `orders.read`; `payments` ←
+`payments.read` or `payments.stats`; `recentPayments` ← `payments.read` (stats-only viewers get
+the stats but no list); `inventory` ← `inventory.read` (handler skipped when
+unauthorized); `catalog` ← `catalog.manage`; `users`+`recentUsers` ← `users.read`.
+
+| Field | Value |
+|---|---|
+| Endpoint | `/admin/dashboard` |
+| HTTPMethod | `GET` |
+| Authorization | Any authenticated JWT (`401` without token) |
+| Request | Query `lowStockThreshold?: int (default 5, inclusive available ceiling for the inventory section), days?: int (default 30, 1..90 — trailing calendar days for the series)` |
+| Response | `200 ApiResponse<AdminDashboardResponse { orders?: AdminOrderCountsResponse\|null, payments?: PaymentAdminStatsResponse\|null, inventory?: InventoryCountsResponse\|null, catalog?: CatalogCountsResponse\|null, users?: UserAdminCountsResponse\|null, recentOrders: OrderSummaryResponse[5] (newest-first, empty when unauthorized), recentPayments: PaymentAdminResponse[5] (newest-first, empty without payments.read), recentUsers: UserAdminResponse[5] (newest-first, empty without users.read), dailySeries: [{ date: "yyyy-MM-dd" (UTC), orders: int, revenue: [{ currency, amount }] }] (trailing days, oldest-first, zero-filled; empty unless orders.read or payments.read/stats — unauthorized side zeroed, not omitted) }>` |
+| Status Codes | `200, 400, 401` |
+| Validation | negative threshold → `400 ValidationFailed` (rejected regardless of entitlement); `days` outside `1..90` → `400 Dashboard.ValidationFailed` (rejected regardless of entitlement) |
+| Errors | First failing entitled section's error surfaces (`400/404` as mapped) |
+| Pagination/Sorting/Filtering | Fixed (`recentOrders` newest 5; full paging via list endpoints) |
 
 ---
 
@@ -570,12 +778,13 @@ Note inconsistent `api/` prefix (other modules have none).
 ## Appendix B — Frontend workflows (recommended call order)
 
 1. **Auth:** `POST /auth/register → POST /auth/verify-email (token from email link FrontendBaseUrl) → POST /auth/login (store access 15m in memory, refresh 7d opaque) → GET /auth/me`. Proactive refresh at ~13–14m; on `401` → `POST /auth/refresh` → retry once. `POST /auth/logout` revokes. `forgot → reset` via email token (reset `1h`). `change-password` needs JWT.
-2. **Catalog (storefront):** `GET /catalog?searchTerm&categoryId&status&visibility&sortBy&sortDirection&pageNumber&pageSize` for listing; `GET /catalog/products/{id}`, `GET /catalog/products/{id}/variants`, `GET .../images` (order by `displayOrder`), `GET .../attributes|specifications` for PDP. Admin CRUD mirrors same ids with `Admin` JWT; lifecycle `activate/deactivate/archive/soft-delete/restore` are `POST …→204`.
+2. **Catalog (storefront):** `GET /catalog?searchTerm&categoryId&status&visibility&sortBy&sortDirection&pageNumber&pageSize` for listing; admin-style lists `GET /catalog/products?searchTerm&status&visibility&categoryId&sortBy&sortDirection&pageNumber&pageSize` (full `ProductResponse` + `primaryImage`) and `GET /catalog/categories?searchTerm&status&pageNumber&pageSize` support the same optional filters; `GET /catalog/products/{id}`, `GET /catalog/products/{id}/variants`, `GET .../images` (order by `displayOrder`), `GET .../attributes|specifications` for PDP. Admin CRUD mirrors same ids with a JWT carrying `catalog.manage`; lifecycle `activate/deactivate/archive/soft-delete/restore` are `POST …→204`.
 3. **Cart:** guest keeps `cartId` in localStorage (`POST /cart/guest → POST .../items → PUT/DELETE .../items/{variantId}`). After login: `POST /cart` (get-or-create auth cart) → `POST /cart/merge { guestCartId }` (atomic Lua, clears guest) → use `/cart*` auth endpoints. On `VersionConflict`/concurrency error: `GET` fresh cart and retry. Note cart `unitPriceAmount/currency` is a snapshot — checkout reprices from Catalog.
-4. **Checkout → Order → Payment:** `POST /orders/checkout { cartId, shipping, billing } + Idempotency-Key: <uuid>` (generate per checkout attempt, reuse same key+body on retry/network failure; new body = new key, else `409`). Returns `Pending` order → poll `GET /orders/{id}` (or list) until `Confirmed|Cancelled`. Payment status via `GET /api/payments/{paymentId}` (paymentId comes from saga/Stripe flow, not checkout response); Stripe.js uses backend `PublishableKey` + `ClientSecret` (backend-only `PaymentIntentResult`, no HTTP contract). Webhook is Stripe→API only, never SPA.
-5. **Errors/i18n:** send `Accept-Language` or `?culture=`; render `detail` (localized) + field `errors{}` map on 400; key logic on `status` + `extensions.code` (`Identity.*`, `Catalog.*`, `Cart.*`, `Order.*`, `Inventory.*`, `Payment.NotFound`). Include `X-Correlation-ID` per flow and echo `X-Correlation-ID/X-Request-ID/traceId` in bug reports. `404` on orders/payments also means “not yours” (IDOR-masked).
+4. **Checkout → Order → Payment:** `POST /orders/checkout { cartId, shipping, billing } + Idempotency-Key: <uuid>` (generate per checkout attempt, reuse same key+body on retry/network failure; new body = new key, else `409`). Returns `Pending` order → poll `GET /orders/{id}` (or list) until `Confirmed|Cancelled`. Payment status via `GET /api/payments/{paymentId}` (paymentId comes from saga/Stripe flow, not checkout response); Stripe.js uses `PublishableKey` + `ClientSecret` from `GET /api/payments/by-order/{orderId}` (§6 `PaymentInitializationResponse` HTTP contract — the backend `PaymentIntentResult` itself stays internal). Webhook is Stripe→API only, never SPA.
+5. **Errors/i18n:** send `Accept-Language` or `?culture=`; render `detail` (localized) + field `errors{}` map on 400; key logic on `status` (`Identity.*`, `Catalog.*`, `Cart.*`, `Order.*`, `Inventory.*`, `Payment.*`, `Dashboard.*` — business errors carry no `extensions.code`, only `detail`). Include `X-Correlation-ID` per flow and echo `X-Correlation-ID/X-Request-ID/traceId` in bug reports. `404` on orders/payments also means “not yours” (IDOR-masked). `403` means missing role/permission (never retry blindly; one refresh is legitimate for fresh grants, then show locked state).
+6. **Admin dashboard:** `GET /admin/dashboard?lowStockThreshold=&days=` after login (any authenticated user, `200` always) → render cards per non-`null` section + `recentOrders/recentPayments/recentUsers` widgets + `dailySeries` chart (`days` default 30, max 90); net revenue = `payments.totalsByCurrency − payments.refundedTotalsByCurrency` per currency; drill down via admin lists. Re-read `me.permissions` after any grant flow.
 
-## Appendix C — Enum reference (wire as strings for status, ints or strings per serializer for others)
+## Appendix C — Enum reference (numbers in JSON bodies/responses; query strings accept names or numbers — see ENUM_REFERENCE.md)
 
 - `UserStatus`: `Pending|Active|Suspended|Locked|Deleted` (=0..4)
 - `ProductStatus`: `Draft|Active|Inactive|Archived`; `ProductVisibility`: `Visible|Hidden`; `CategoryStatus`: `Active|Inactive`; `VariantStatus`: `Active|Inactive`; `AttributeStatus`: `Active|Inactive`; `AttributeDataType`: `Text|Number|Decimal|Boolean|Date|DateTime`
@@ -586,6 +795,6 @@ Note inconsistent `api/` prefix (other modules have none).
 // Minimal TypeScript starter (adjust codegen from /swagger/v1/swagger.json)
 interface ApiResponse<T> { isSuccess: boolean; message?: string; data?: T }
 interface PagedResult<T> { items: T[]; totalCount: number; pageNumber: number; pageSize: number }
-interface UserResponse { id: string; email: string; roles: string[]; isEmailVerified: boolean; registeredAtUtc: string; firstName: string; lastName: string; displayName?: string|null; phoneNumber?: string|null; isPhoneVerified: boolean; avatarUrl?: string|null; preferredLanguage: string; timeZone: string; status: string }
+interface UserResponse { id: string; email: string; roles: string[]; isEmailVerified: boolean; registeredAtUtc: string; firstName: string; lastName: string; displayName?: string|null; phoneNumber?: string|null; isPhoneVerified: boolean; avatarUrl?: string|null; preferredLanguage: string; timeZone: string; status: string; permissions: string[] }
 interface CartResponse { cartId: string; userId?: string|null; version: number; createdAtUtc: string; updatedAtUtc: string; items: { productId: string; variantId: string; sku: string; productName: string; unitPriceAmount: number; currency: string; quantity: number }[]; isGuest: boolean; isAuthenticated: boolean }
 ```

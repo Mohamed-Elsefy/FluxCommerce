@@ -13,9 +13,10 @@
   <ItemGroup>
     <Folder Include="ProblemDetails\" />
     <Folder Include="Middleware\" />
-    <Folder Include="Extensions\" />
     <Folder Include="Responses\" />
     <Folder Include="Controllers\" />
+    <Folder Include="Services\" />
+    <Folder Include="Extensions\" />
   </ItemGroup>
 
 </Project>

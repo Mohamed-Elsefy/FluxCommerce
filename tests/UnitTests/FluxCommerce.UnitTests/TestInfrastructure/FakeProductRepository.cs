@@ -78,6 +78,8 @@ public sealed class FakeProductRepository : IProductRepository
 
         if (isDeleted is not null)
             query = query.Where(product => product.IsDeleted == isDeleted);
+        else
+            query = query.Where(product => !product.IsDeleted);
 
         query = sortBy switch
         {

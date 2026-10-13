@@ -64,6 +64,9 @@ public sealed class AssignRoleCommandHandler : ICommandHandler<AssignRoleCommand
                 Error.Validation(assignResult.Error.Code, assignResult.Error.Description));
         }
 
+        // No automatic permissions: assigning a role never grants action-level permissions
+        // (ADR-016 D5). SuperAdmin grants them explicitly afterwards.
+
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

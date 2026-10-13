@@ -71,7 +71,7 @@ public sealed class CheckoutStore : ICheckoutStore
             await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return new CheckoutPersistResult(CheckoutPersistStatus.Created, null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (IsIdempotencyKeyConflict(ex))
         {
             var existing = await FindIdempotencyRecordAsync(
                 idempotency.UserId,
@@ -85,6 +85,27 @@ public sealed class CheckoutStore : ICheckoutStore
 
             return new CheckoutPersistResult(CheckoutPersistStatus.Duplicate, existing);
         }
+    }
+
+    /// <summary>
+    /// Accepts only unique violations on the (UserId, IdempotencyKey) index as idempotency
+    /// duplicates. Any other database failure (connection, timeout, a unique collision on
+    /// Orders such as OrderNumber) rethrows instead of being misreported as a replay — the
+    /// caller retries rather than returning another customer's order or a conflict.
+    /// </summary>
+    private static bool IsIdempotencyKeyConflict(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        if (message.Contains("UX_CheckoutIdempotency_UserId_IdempotencyKey", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // SQLite reports table+columns without the index name
+        // ("UNIQUE constraint failed: CheckoutIdempotency.UserId, ...").
+        // The OrderId index on this table is non-unique, so any unique failure naming
+        // CheckoutIdempotency is the (UserId, IdempotencyKey) conflict. A unique collision
+        // on Orders (e.g. OrderNumber) names the Orders table and still rethrows.
+        return message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("CheckoutIdempotency", StringComparison.OrdinalIgnoreCase);
     }
 
     private static CheckoutIdempotencyRecord Map(CheckoutIdempotency entity) =>

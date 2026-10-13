@@ -141,6 +141,19 @@ public class LoginCommandHandlerTests
         Assert.True(result.IsFailure);
         Assert.Equal("Identity.ValidationFailed", result.Error.Code);
     }
+
+    [Fact]
+    public async Task Login_PassesGrantedPermissions_ToAccessToken()
+    {
+        await SeedVerifiedUser();
+        _users.Users.Single().GrantPermission(PermissionCatalog.OrdersRead);
+        var handler = CreateHandler();
+
+        var result = await handler.HandleAsync(new LoginCommand("user@example.com", TestUsers.Password));
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(PermissionCatalog.OrdersRead, _jwt.LastPermissions!);
+    }
 }
 
 

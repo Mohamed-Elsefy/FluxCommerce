@@ -1,4 +1,4 @@
-﻿using FluxCommerce.Modules.Cart.Application.Interfaces;
+using FluxCommerce.Modules.Cart.Application.Interfaces;
 using FluxCommerce.Modules.Cart.Application.Enums;
 using FluxCommerce.Modules.Cart.Application.Models;
 using FluxCommerce.Modules.Cart.Domain.Aggregates;
@@ -10,7 +10,7 @@ namespace FluxCommerce.UnitTests.Infrastructure;
 
 /// <summary>
 /// Verifies Cart version persistence and increment behavior against real Redis: the initial
-/// version, version survival across Save â†’ Get, exactly-once increments, key/version
+/// version, version survival across Save -> Get, exactly-once increments, key/version
 /// independence, and parity between the returned Cart and the persisted Redis state.
 /// </summary>
 [Collection(RedisCartTestCollection.Name)]

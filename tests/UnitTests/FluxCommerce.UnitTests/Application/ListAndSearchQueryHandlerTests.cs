@@ -105,6 +105,131 @@ public class ListAndSearchQueryHandlerTests
     }
 
     [Fact]
+    public async Task ListProducts_FilterBySearchTerm_ReturnsMatching()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Smartphone", slug: "smartphone"));
+        await _products.AddAsync(TestProducts.Create(name: "Laptop", slug: "laptop"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(SearchTerm: "SMART"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Items);
+        Assert.Equal("Smartphone", result.Value.Items.ElementAt(0).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_FilterByStatus_ReturnsFiltered()
+    {
+        var active = TestProducts.Create(name: "Phone", slug: "phone");
+        active.Activate();
+        var draft = TestProducts.Create(name: "Draft", slug: "draft");
+        await _products.AddAsync(active);
+        await _products.AddAsync(draft);
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(Status: ProductStatus.Active));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Items);
+        Assert.Equal("Phone", result.Value.Items.ElementAt(0).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_FilterByVisibility_ReturnsFiltered()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Visible", slug: "visible", visibility: ProductVisibility.Visible));
+        await _products.AddAsync(TestProducts.Create(name: "Hidden", slug: "hidden", visibility: ProductVisibility.Hidden));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(Visibility: ProductVisibility.Hidden));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Items);
+        Assert.Equal("Hidden", result.Value.Items.ElementAt(0).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_FilterByCategoryId_ReturnsFiltered()
+    {
+        var categoryId = Guid.NewGuid();
+        await _products.AddAsync(TestProducts.Create(name: "Phone", slug: "phone", categoryId: categoryId));
+        await _products.AddAsync(TestProducts.Create(name: "Other", slug: "other"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(CategoryId: categoryId));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Items);
+        Assert.Equal("Phone", result.Value.Items.ElementAt(0).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_SortByNameDescending_ReturnsSorted()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Apple", slug: "apple"));
+        await _products.AddAsync(TestProducts.Create(name: "Zebra", slug: "zebra"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(
+            SortBy: CatalogProductSortBy.Name,
+            SortDirection: CatalogProductSortDirection.Descending));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.TotalCount);
+        Assert.Equal("Zebra", result.Value.Items.ElementAt(0).Name);
+        Assert.Equal("Apple", result.Value.Items.ElementAt(1).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_SortByCreatedAtUtcAscending_ReturnsOldestFirst()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Zebra", slug: "zebra"));
+        await _products.AddAsync(TestProducts.Create(name: "Apple", slug: "apple"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery(
+            SortBy: CatalogProductSortBy.CreatedAtUtc,
+            SortDirection: CatalogProductSortDirection.Ascending));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.TotalCount);
+        Assert.Equal("Zebra", result.Value.Items.ElementAt(0).Name);
+        Assert.Equal("Apple", result.Value.Items.ElementAt(1).Name);
+    }
+
+    [Fact]
+    public async Task ListProducts_WithPrimaryImage_ReturnsPrimaryImage()
+    {
+        var product = TestProducts.Create(name: "Phone", slug: "phone");
+        product.AddImage("https://example.com/a.jpg", "Front", true, 0, null, TestProducts.UtcNow);
+        product.AddImage("https://example.com/b.jpg", null, false, 1, null, TestProducts.UtcNow);
+        await _products.AddAsync(product);
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery());
+
+        Assert.True(result.IsSuccess);
+        var item = Assert.Single(result.Value.Items);
+        Assert.NotNull(item.PrimaryImage);
+        Assert.Equal("https://example.com/a.jpg", item.PrimaryImage.ImageUrl);
+        Assert.Equal("Front", item.PrimaryImage.AltText);
+    }
+
+    [Fact]
+    public async Task ListProducts_WithoutImages_ReturnsNullPrimaryImage()
+    {
+        await _products.AddAsync(TestProducts.Create(name: "Phone", slug: "phone"));
+        var handler = new ListProductsQueryHandler(_products, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListProductsQuery());
+
+        Assert.True(result.IsSuccess);
+        var item = Assert.Single(result.Value.Items);
+        Assert.Null(item.PrimaryImage);
+    }
+
+    [Fact]
     public async Task ListCategories_Paginates_ReturnsPageAndTotalCount()
     {
         for (var i = 1; i <= 5; i++)
@@ -141,6 +266,37 @@ public class ListAndSearchQueryHandlerTests
 
         Assert.True(result.IsFailure);
         Assert.Equal("Catalog.ValidationFailed", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ListCategories_FilterBySearchTerm_ReturnsMatching()
+    {
+        await _categories.AddAsync(TestCategories.Create(name: "Electronics", slug: "electronics"));
+        await _categories.AddAsync(TestCategories.Create(name: "Books", slug: "books"));
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListCategoriesQuery(SearchTerm: "BOOK"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Items);
+        Assert.Equal("Books", result.Value.Items.ElementAt(0).Name);
+    }
+
+    [Fact]
+    public async Task ListCategories_FilterByStatus_ReturnsFiltered()
+    {
+        var active = TestCategories.Create(name: "Active", slug: "active");
+        var inactive = TestCategories.Create(name: "Inactive", slug: "inactive");
+        inactive.Deactivate();
+        await _categories.AddAsync(active);
+        await _categories.AddAsync(inactive);
+        var handler = new ListCategoriesQueryHandler(_categories, new FakeLocalizer());
+
+        var result = await handler.HandleAsync(new ListCategoriesQuery(Status: CategoryStatus.Inactive));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Items);
+        Assert.Equal("Inactive", result.Value.Items.ElementAt(0).Name);
     }
 
     // ---- ListAttributeDefinitions ----

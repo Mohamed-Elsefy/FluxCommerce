@@ -20,7 +20,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 using OrderSaga = FluxCommerce.Modules.Orders.Domain.Sagas.OrderSaga;
-using OrderSagaTransitionOutcome = FluxCommerce.Modules.Orders.Infrastructure.Sagas.OrderSagaTransitionOutcome;
+using OrderSagaTransitionOutcome = FluxCommerce.Modules.Orders.Domain.Enums.OrderSagaTransitionOutcome;
 
 namespace FluxCommerce.UnitTests.Tracing;
 

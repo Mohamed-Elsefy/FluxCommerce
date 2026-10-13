@@ -187,6 +187,8 @@ public sealed class SqlServerInventoryTestFixture : IDisposable
 
         public string[] Roles => [];
 
+        public IReadOnlyCollection<string> Permissions => [];
+
         public bool IsAuthenticated => false;
     }
 }

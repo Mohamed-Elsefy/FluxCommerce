@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 Phase 6 requires stable Integration Event contracts that cross module boundaries and are transported
-through the Outbox and RabbitMQ. The Phase 6.1 audit (`docs/phases/PHASE_6_1_MESSAGING_AUDIT.md`)
+through the Outbox and RabbitMQ. The Phase 6 audit (`docs/IMPLEMENTATION_PLAN.md#phase-6--outbox--rabbitmq-`)
 recorded an unresolved structural tension — gap **G12**: the module *Contracts* projects were forbidden
 by architecture tests from referencing `BuildingBlocks.Messaging`
 (`Orders_/Inventory_Contracts_ShouldNot_ReferenceMessagingOrOutbox` and the module-wide

@@ -1,13 +1,11 @@
 using System.Diagnostics;
+using FluxCommerce.BuildingBlocks.Web.Extensions;
 using Microsoft.AspNetCore.Http;
 
 namespace FluxCommerce.BuildingBlocks.Web.Middleware;
 
 public sealed class CorrelationIdMiddleware
 {
-    private const string CorrelationIdHeader = "X-Correlation-ID";
-    private const string CorrelationIdItemKey = "CorrelationId";
-
     private readonly RequestDelegate _next;
 
     public CorrelationIdMiddleware(RequestDelegate next)
@@ -17,12 +15,12 @@ public sealed class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId = context.Request.Headers.TryGetValue(CorrelationIdHeader, out var header)
+        var correlationId = context.Request.Headers.TryGetValue(HttpContextItems.CorrelationIdHeader, out var header)
             ? header.ToString()
             : Guid.NewGuid().ToString("N");
 
-        context.Items[CorrelationIdItemKey] = correlationId;
-        context.Response.Headers[CorrelationIdHeader] = correlationId;
+        context.Items[HttpContextItems.CorrelationId] = correlationId;
+        context.Response.Headers[HttpContextItems.CorrelationIdHeader] = correlationId;
 
         Activity.Current?.SetTag("correlation_id", correlationId);
 

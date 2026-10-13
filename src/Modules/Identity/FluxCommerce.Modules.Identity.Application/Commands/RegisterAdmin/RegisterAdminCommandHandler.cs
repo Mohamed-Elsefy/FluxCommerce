@@ -81,6 +81,9 @@ public sealed class RegisterAdminCommandHandler : ICommandHandler<RegisterAdminC
             verificationToken: verificationToken,
             verificationTokenExpiresAtUtc: verificationTokenExpiresAtUtc);
 
+        // No automatic permissions: a freshly registered Admin starts empty (ADR-016 D5).
+        // SuperAdmin grants action-level permissions explicitly afterwards.
+
         await _userRepository.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

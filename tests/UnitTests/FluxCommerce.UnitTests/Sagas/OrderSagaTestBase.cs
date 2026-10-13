@@ -9,6 +9,7 @@ using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Outbox;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;

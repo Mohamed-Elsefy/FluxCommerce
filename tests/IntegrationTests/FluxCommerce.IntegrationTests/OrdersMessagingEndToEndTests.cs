@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.Messaging;
@@ -31,22 +31,22 @@ namespace FluxCommerce.IntegrationTests;
 /// Phase 6.10: end-to-end verification of the complete messaging path against the real SQL Server
 /// engine and the real RabbitMQ broker:
 ///
-///   Business Operation â†’ Business State + Outbox (atomic commit) â†’ Outbox Dispatcher â†’ RabbitMQ
+///   Business Operation -> Business State + Outbox (atomic commit) -> Outbox Dispatcher -> RabbitMQ
 ///
 /// Unlike the Phase 6.7/6.8/6.9 dispatcher tests (which seed Outbox rows directly), these tests drive
 /// a real Orders business operation (checkout, cancellation) through <c>ICheckoutStore</c>/<c>IOrderStore</c>
 /// so the transaction boundary, the Outbox interceptor, the dispatcher, and the publisher are all
 /// exercised together. Covered scenarios:
 ///
-///  A. Successful publication â€” order + outbox commit atomically, dispatcher publishes, outbox reaches
+///  A. Successful publication - order + outbox commit atomically, dispatcher publishes, outbox reaches
 ///     Published, RabbitMQ receives the event and its metadata.
-///  B. RabbitMQ failure and recovery â€” a broker nack keeps the business state, records a retryable
+///  B. RabbitMQ failure and recovery - a broker nack keeps the business state, records a retryable
 ///     failure (message never lost), and a later cycle republishes after the backoff policy.
-///  C. Transaction rollback â€” a rejected duplicate checkout persists neither the order nor its outbox.
-///  D. Dispatcher recovery â€” a stale InProgress claim (post-crash) is recovered and published.
-///  E. Batch processing â€” multiple messages processed; one failed publish does not block the others and
+///  C. Transaction rollback - a rejected duplicate checkout persists neither the order nor its outbox.
+///  D. Dispatcher recovery - a stale InProgress claim (post-crash) is recovered and published.
+///  E. Batch processing - multiple messages processed; one failed publish does not block the others and
 ///     nothing is silently lost.
-///  F. At-Least-Once boundary â€” a publish that succeeded but was never marked Published is retried,
+///  F. At-Least-Once boundary - a publish that succeeded but was never marked Published is retried,
 ///     proving duplicates are possible and exactly-once is never claimed (consumer idempotency is
 ///     explicitly deferred to Phase 7).
 ///
@@ -205,9 +205,9 @@ public class OrdersMessagingEndToEndTests
             Assert.Equal(CheckoutPersistStatus.Duplicate, second.Status);
             Assert.Equal(firstOrderId.Value, second.Existing!.OrderId);
 
-            // The rejected operation's business state is absent â€¦
+            // The rejected operation's business state is absent ...
             Assert.Null(await context.Orders.AsNoTracking().SingleOrDefaultAsync(o => o.Id == secondOrderId));
-            // â€¦ and its outbox record is absent too: nothing committed independently.
+            // ... and its outbox record is absent too: nothing committed independently.
             Assert.False(await context.OutboxMessages.AnyAsync(m => m.EventId == secondCreated.EventId));
 
             // The winning order and its outbox remain committed and pending.
@@ -290,7 +290,7 @@ public class OrdersMessagingEndToEndTests
         try
         {
             // Exactly one publish in the batch is nacked (whichever message is claimed first); the
-            // rest must still publish â€” one failure must not block the batch.
+            // rest must still publish - one failure must not block the batch.
             var failOnce = new FailOncePublisher(_fixture.Services.GetRequiredService<IRabbitMQPublisher>());
             using var dispatcherProvider = BuildDispatcherProvider(failOnce);
             using var dispatcherScope = dispatcherProvider.CreateScope();
@@ -313,7 +313,7 @@ public class OrdersMessagingEndToEndTests
             var partial = await ReceiveAsync(channel, queueName, 2, attempts: 20);
             Assert.Equal(2, partial.Select(DeserializeCreated).Select(e => e.OrderId).Distinct().Count());
 
-            // Once the failed message's backoff window elapses it is retried â€” nothing is lost.
+            // Once the failed message's backoff window elapses it is retried - nothing is lost.
             await WaitUntilRetryEligibleAsync(_fixture.Services, retryable.Id);
             await dispatcher.DispatchPendingAsync(CancellationToken.None);
 
@@ -387,7 +387,7 @@ public class OrdersMessagingEndToEndTests
         });
         await context.SaveChangesAsync();
 
-        // The "first" publish â€” the one that succeeded just before the crash â€” reached the broker.
+        // The "first" publish - the one that succeeded just before the crash - reached the broker.
         var publisher = _fixture.Services.GetRequiredService<IRabbitMQPublisher>();
         var confirmed = await publisher.PublishAsync(OrderCreatedIntegrationEvent.EventType, @event);
         Assert.True(confirmed);
@@ -713,6 +713,8 @@ public class OrdersMessagingEndToEndTests
         public string? Email => null;
 
         public string[] Roles => [];
+
+        public IReadOnlyCollection<string> Permissions => [];
 
         public bool IsAuthenticated => false;
     }

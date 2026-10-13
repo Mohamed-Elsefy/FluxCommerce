@@ -1,6 +1,7 @@
 using System.Net;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -50,7 +51,7 @@ public class CatalogAdminGatingTests : CatalogApiTestBase
     {
         var client = Factory.CreateClient();
         var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"]);
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"], [PermissionCatalog.CatalogManage]);
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
 
         var response = await client.PostAsJsonAsync(
@@ -65,7 +66,7 @@ public class CatalogAdminGatingTests : CatalogApiTestBase
     {
         var client = Factory.CreateClient();
         var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"]);
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"], [PermissionCatalog.CatalogManage]);
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
 
         // Need a category first (as Admin)
@@ -82,11 +83,42 @@ public class CatalogAdminGatingTests : CatalogApiTestBase
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Admin_WithoutPermission_Cannot_Create_Category_Forbidden()
+    {
+        // Phase D: the Admin role alone no longer opens permission-gated endpoints.
+        var client = Factory.CreateClient();
+        var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"]);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.PostAsJsonAsync(
+            "catalog/categories",
+            new { name = "No Permission Category", slug = $"noperm-{Guid.NewGuid():N}", description = (string?)null, parentId = (Guid?)null });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_WithUnrelatedPermission_Cannot_Create_Category_Forbidden()
+    {
+        var client = Factory.CreateClient();
+        var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin@flux.local", ["Admin"], [PermissionCatalog.OrdersRead]);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.PostAsJsonAsync(
+            "catalog/categories",
+            new { name = "Wrong Permission Category", slug = $"wrongperm-{Guid.NewGuid():N}", description = (string?)null, parentId = (Guid?)null });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private async Task<Guid> CreateCategoryAsAdminAsync()
     {
         var client = Factory.CreateClient();
         var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin2@flux.local", ["Admin"]);
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), "admin2@flux.local", ["Admin"], [PermissionCatalog.CatalogManage]);
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
 
         var response = await client.PostAsJsonAsync(

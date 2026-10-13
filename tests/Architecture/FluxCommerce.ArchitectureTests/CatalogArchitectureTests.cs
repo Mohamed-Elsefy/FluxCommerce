@@ -487,6 +487,25 @@ public class CatalogArchitectureTests
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
+    // ---- Contract mirror drift protection ----
+
+    [Theory]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.AttributeDataType), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.AttributeDataType))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.AttributeStatus), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.AttributeStatus))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortBy), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.CatalogProductSortBy))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.CatalogProductSortDirection), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.CatalogProductSortDirection))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.CategoryStatus), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.CategoryStatus))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.ProductStatus), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.ProductStatus))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.ProductVisibility), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.ProductVisibility))]
+    [InlineData(typeof(FluxCommerce.Modules.Catalog.Domain.Enums.VariantStatus), typeof(FluxCommerce.Modules.Catalog.Contracts.Enums.VariantStatus))]
+    public void CatalogEnums_ContractsMirror_ShouldMatchDomain(Type domainEnum, Type contractEnum)
+    {
+        Assert.Equal(Enum.GetNames(domainEnum), Enum.GetNames(contractEnum));
+        Assert.Equal(
+            Enum.GetValues(domainEnum).Cast<int>().ToArray(),
+            Enum.GetValues(contractEnum).Cast<int>().ToArray());
+    }
+
     // ---- Assembly helpers ----
 
     private static readonly string CatalogRoot = "FluxCommerce.Modules.Catalog";

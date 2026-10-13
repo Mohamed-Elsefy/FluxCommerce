@@ -19,7 +19,12 @@ public static class ProductResponseMapper
             product.CategoryId,
             product.IsDeleted,
             product.CreatedAtUtc,
-            product.DeletedAtUtc);
+            product.DeletedAtUtc,
+            product.Images
+                .Where(image => image.IsPrimary)
+                .OrderBy(image => image.DisplayOrder)
+                .Select(CatalogImageSummaryMapper.ToSummary)
+                .FirstOrDefault());
 
     public static IReadOnlyCollection<ProductResponse> ToResponses(
         IEnumerable<Product> products) =>

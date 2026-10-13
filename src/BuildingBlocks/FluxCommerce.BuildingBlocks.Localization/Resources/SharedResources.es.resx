@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -104,6 +104,15 @@
   </data>
   <data name="Validation.Fields.LastName" xml:space="preserve">
     <value>Apellido</value>
+  </data>
+  <data name="Validation.Fields.Permission" xml:space="preserve">
+    <value>Permiso</value>
+  </data>
+  <data name="Validation.Fields.UserId" xml:space="preserve">
+    <value>ID de usuario</value>
+  </data>
+  <data name="Validation.Permission.Invalid" xml:space="preserve">
+    <value>El permiso Â« {0} Â» no se reconoce.</value>
   </data>
   <data name="Validation.Fields.Token" xml:space="preserve">
     <value>Token</value>

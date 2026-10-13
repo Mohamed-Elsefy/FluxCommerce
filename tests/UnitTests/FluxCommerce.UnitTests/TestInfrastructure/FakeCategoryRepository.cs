@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Catalog.Domain.Aggregates;
+using FluxCommerce.Modules.Catalog.Domain.Enums;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Domain.ValueObjects;
 
@@ -25,6 +26,38 @@ public sealed class FakeCategoryRepository : ICategoryRepository
             .Where(category => !category.IsDeleted)
             .OrderBy(category => category.Name)
             .ToList();
+
+        return Task.FromResult((
+            (IReadOnlyCollection<Category>)all
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList(),
+            all.Count));
+    }
+
+    public Task<(IReadOnlyCollection<Category> Items, int TotalCount)> SearchAsync(
+        string searchTerm,
+        CategoryStatus? status = null,
+        int pageNumber = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        IEnumerable<Category> query = _categories.Values
+            .Where(category => !category.IsDeleted);
+
+        if (status is not null)
+            query = query.Where(category => category.Status == status.Value);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+
+            query = query.Where(category =>
+                category.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                category.Slug.Value.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var all = query.OrderBy(category => category.Name).ToList();
 
         return Task.FromResult((
             (IReadOnlyCollection<Category>)all

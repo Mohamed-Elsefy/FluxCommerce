@@ -215,4 +215,37 @@ public class ProductVariantsTests : CatalogApiTestBase
 
         return (await response.ReadJsonAsync<ApiResponseDto<Guid>>()).Data;
     }
+
+    [Fact]
+    public async Task Update_UpdatesPriceAndStatus()
+    {
+        var productId = await CreateProductForVariantsAsync();
+        var variantId = await PostVariantAsync(productId, "SKU-PRICE", "Priced");
+
+        var response = await Client.PutAsJsonAsync(
+            $"catalog/products/{productId}/variants/{variantId}",
+            new { sku = "SKU-PRICE", name = "Priced", unitPriceAmount = 49.99m, currency = "EUR", status = 1 });
+        response.EnsureSuccessStatusCode();
+
+        var get = await Client.GetAsync($"catalog/products/{productId}/variants/{variantId}");
+        get.EnsureSuccessStatusCode();
+
+        var data = (await get.ReadJsonAsync<ApiResponseDto<VariantResponse>>()).Data!;
+        Assert.Equal(49.99m, data.UnitPriceAmount);
+        Assert.Equal("EUR", data.Currency);
+        Assert.Equal(FluxCommerce.Modules.Catalog.Contracts.Enums.VariantStatus.Inactive, data.Status);
+    }
+
+    [Fact]
+    public async Task Update_PriceWithoutCurrency_ReturnsBadRequest()
+    {
+        var productId = await CreateProductForVariantsAsync();
+        var variantId = await PostVariantAsync(productId, "SKU-PARTIAL", "Partial");
+
+        var response = await Client.PutAsJsonAsync(
+            $"catalog/products/{productId}/variants/{variantId}",
+            new { sku = "SKU-PARTIAL", name = "Partial", unitPriceAmount = 49.99m });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }

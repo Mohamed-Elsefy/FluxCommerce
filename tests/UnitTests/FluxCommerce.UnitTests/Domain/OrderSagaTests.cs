@@ -276,6 +276,25 @@ public class OrderSagaTests
                 UtcNow.AddMinutes(-1)));
     }
 
+    [Fact]
+    public void Hydrate_RestoresReservationIds()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+
+        var saga = OrderSaga.Hydrate(
+            Guid.NewGuid(),
+            OrderId.Create(),
+            Guid.NewGuid(),
+            OrderSagaState.WaitingForPayment,
+            OrderSaga.InitialVersion,
+            UtcNow,
+            UtcNow,
+            reservationIds: [first, second, first]);
+
+        Assert.Equal([first, second], saga.ReservationIds.ToList());
+    }
+
     // ---- Phase 11.5 ApplyReservationExpired ----
 
     [Fact]

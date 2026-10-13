@@ -25,9 +25,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("LastName")
             .HasMaxLength(User.LastNameMaxLength);
 
-        builder.Property(user => user.DisplayName)
-            .HasColumnName("DisplayName")
-            .HasMaxLength(User.DisplayNameMaxLength);
+        builder.Ignore(user => user.DisplayName);
 
         builder.Property(user => user.PhoneNumber)
             .HasColumnName("PhoneNumber")
@@ -84,6 +82,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(typeof(List<string>), "_roles")
             .HasColumnName("Roles");
+
+        builder.Property(typeof(List<string>), "_permissions")
+            .HasColumnName("Permissions");
 
         builder.OwnsMany(user => user.RefreshTokens, tokens =>
         {

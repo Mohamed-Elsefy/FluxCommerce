@@ -170,6 +170,7 @@ public class IdentitySeederTests
         public Guid? UserId => null;
         public string? Email => null;
         public string[] Roles => [];
+        public IReadOnlyCollection<string> Permissions => [];
         public bool IsAuthenticated => false;
     }
 

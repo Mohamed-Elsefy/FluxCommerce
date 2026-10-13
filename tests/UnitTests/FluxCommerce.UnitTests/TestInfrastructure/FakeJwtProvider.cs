@@ -10,13 +10,20 @@ public sealed class FakeJwtProvider : IJwtProvider
 
     public IReadOnlyCollection<string>? LastRoles { get; private set; }
 
+    public IReadOnlyCollection<string>? LastPermissions { get; private set; }
+
     public string Token { get; set; } = "access-token";
 
-    public string CreateAccessToken(Guid userId, string email, IReadOnlyCollection<string> roles)
+    public string CreateAccessToken(
+        Guid userId,
+        string email,
+        IReadOnlyCollection<string> roles,
+        IReadOnlyCollection<string>? permissions = null)
     {
         LastUserId = userId;
         LastEmail = email;
         LastRoles = roles;
+        LastPermissions = permissions;
 
         return Token;
     }

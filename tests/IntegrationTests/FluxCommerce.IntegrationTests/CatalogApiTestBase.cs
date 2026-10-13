@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using Microsoft.Extensions.DependencyInjection;
 using ContractsProductVisibility = FluxCommerce.Modules.Catalog.Contracts.Enums.ProductVisibility;
 
@@ -31,11 +32,12 @@ public abstract class CatalogApiTestBase
         if (_accessToken is not null)
             return;
 
-        // Catalog mutations now require AdminPolicy (Phase D). Create an Admin JWT directly
-        // (role claim is sufficient for Authorization, no DB user needed for test speed).
+        // Catalog mutations now require the catalog.manage permission (Phase D). Create an Admin JWT
+        // carrying that permission directly (claims are sufficient for Authorization, no DB user
+        // needed for test speed).
         var jwtProvider = Factory.Services.GetRequiredService<IJwtProvider>();
         var adminEmail = $"catalog-admin-{Guid.NewGuid():N}@example.com";
-        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), adminEmail, ["Admin"]);
+        var adminToken = jwtProvider.CreateAccessToken(Guid.NewGuid(), adminEmail, ["Admin"], [PermissionCatalog.CatalogManage]);
         _accessToken = adminToken;
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
         await Task.CompletedTask;

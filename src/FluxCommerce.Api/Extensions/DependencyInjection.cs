@@ -2,6 +2,7 @@ using FluxCommerce.Api.HealthChecks;
 using FluxCommerce.Api.Json;
 using FluxCommerce.Api.Options;
 using FluxCommerce.Api.Localization;
+using FluxCommerce.Api.Services;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Infrastructure.DependencyInjection;
 using FluxCommerce.BuildingBlocks.Infrastructure.Services;
@@ -10,6 +11,7 @@ using FluxCommerce.BuildingBlocks.Observability;
 using FluxCommerce.BuildingBlocks.Persistence.Interceptors;
 using FluxCommerce.BuildingBlocks.Web.Localization;
 using FluxCommerce.BuildingBlocks.Web.Middleware;
+using FluxCommerce.BuildingBlocks.Web.Services;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using FluxCommerce.Modules.Cart.Infrastructure;
 using FluxCommerce.Modules.Catalog.Infrastructure;
@@ -35,7 +37,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptionsConfiguration(configuration)
-                .AddPresentationLayer()
+                .AddPresentationLayer(configuration)
                 .AddSwaggerConfiguration()
                 .AddLocalizationConfiguration()
                 .AddLocalizationServices()
@@ -54,6 +56,10 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<CorsOptions>()
+            .Bind(configuration.GetSection(CorsOptions.SectionName))
+            .ValidateOnStart();
+
         services.AddOptions<MessageBrokerOptions>()
             .Bind(configuration.GetSection(MessageBrokerOptions.SectionName))
             .ValidateDataAnnotations()
@@ -64,30 +70,59 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddOptions<StripeOptions>()
-            .Bind(configuration.GetSection(StripeOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
-        services.AddOptions<FluxCommerce.Modules.Payments.Domain.Options.StripeOptions>()
-            .Bind(configuration.GetSection(FluxCommerce.Modules.Payments.Domain.Options.StripeOptions.SectionName))
+        // Single payment-gateway source of truth: the Infrastructure options bound once.
+        // The former Api.Options duplicate was removed to prevent silent drift, and the
+        // Domain-owned StripeOptions was moved to Infrastructure (it configures the
+        // provider adapter, not payment business rules). Section name stays "Stripe".
+        services.AddOptions<FluxCommerce.Modules.Payments.Infrastructure.Options.PaymentGatewayOptions>()
+            .Bind(configuration.GetSection(FluxCommerce.Modules.Payments.Infrastructure.Options.PaymentGatewayOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
         return services;
     }
 
-    private static IServiceCollection AddPresentationLayer(this IServiceCollection services)
+    private static IServiceCollection AddPresentationLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddExceptionHandler<ExceptionHandler>();
         services.AddProblemDetails();
 
         services.AddSingleton<IErrorCodeLocalizer, ErrorCodeLocalizer>();
 
+        var allowedOrigins = configuration.GetSection($"{CorsOptions.SectionName}:AllowedOrigins").Get<string[]>()
+            ?? [];
+        allowedOrigins = allowedOrigins
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim().TrimEnd('/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        services.AddCors(options =>
+        {
+            options.AddPolicy(CorsOptions.PolicyName, policy =>
+            {
+                if (allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins);
+                }
+                else
+                {
+                    // No origins configured: deny all cross-origin requests (fail-closed).
+                    policy.WithOrigins();
+                }
+
+                policy.AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+            });
+        });
+
         services.AddControllers().AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new NullableGuidJsonConverter());
         });
+
+        services.AddScoped<IDashboardComposer, DashboardComposer>();
 
         return services;
     }
@@ -99,16 +134,7 @@ public static class DependencyInjection
 
         services.AddPersistence(configuration);
 
-        services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
-        services.AddCartInfrastructure(configuration);
-        services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
-        services.AddInventoryInfrastructure(
-            GetConnectionString(configuration, "Inventory"),
-            expirationOptions => configuration
-                .GetSection(ReservationExpirationOptions.SectionName)
-                .Bind(expirationOptions));
-        services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
-        services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
+        AddModuleInfrastructure(services, configuration);
 
         // Web-backed correlation provider overrides the modules' fallback (last registration wins),
         // so Outbox records written inside HTTP requests carry the request's X-Correlation-ID.
@@ -119,6 +145,28 @@ public static class DependencyInjection
         services.AddRabbitMQ(GetRabbitMQConnectionString(configuration));
         services.AddRabbitMQPublisher(GetRabbitMQExchangeName(configuration));
 
+        AddSagaConsumers(services, configuration);
+        AddHealthChecks(services);
+
+        return services;
+    }
+
+    private static void AddModuleInfrastructure(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddCatalogInfrastructure(GetConnectionString(configuration, "Catalog"));
+        services.AddCartInfrastructure(configuration);
+        services.AddOrdersInfrastructure(GetConnectionString(configuration, "Orders"));
+        services.AddInventoryInfrastructure(
+            GetConnectionString(configuration, "Inventory"),
+            expirationOptions => configuration
+                .GetSection(ReservationExpirationOptions.SectionName)
+                .Bind(expirationOptions));
+        services.AddPaymentsInfrastructure(GetConnectionString(configuration, "Payments"));
+        services.AddIdentityInfrastructure(GetConnectionString(configuration, "Identity"));
+    }
+
+    private static void AddSagaConsumers(IServiceCollection services, IConfiguration configuration)
+    {
         // Phase 7.9: the first real integration event consumer. The Order Summary projection consumer
         // consumes orders.order_created from the same Phase 6 topic exchange through the dedicated
         // module queue, inside the Orders idempotent-processing boundary (Business State + ProcessedMessage
@@ -126,7 +174,7 @@ public static class DependencyInjection
         // through the Orders boundary — never through a container-wide IIdempotentProcessor, which
         // Inventory (registered last) also registers.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.summary");
-        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderSummaryProjectionConsumer, OrdersIdempotentProcessor>();
+        services.AddIntegrationEventConsumer<OrderCreatedIntegrationEvent, OrderCreatedCompositeConsumer, OrdersIdempotentProcessor>();
 
         // Phase 8.4: the Inventory reservation-request consumer. The Orders saga (8.3) stages one
         // inventory.reservation_requested per order line item through the Orders outbox; the Inventory
@@ -175,11 +223,23 @@ public static class DependencyInjection
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.succeeded");
         services.AddIntegrationEventConsumer<PaymentSucceededIntegrationEvent, PaymentSucceededConsumer, OrdersIdempotentProcessor>();
 
+        // Payment correlation tracking: Payments stages payments.payment_initiated atomically
+        // with intent creation; Orders records (PaymentId, ProviderPaymentIntentId) on the saga
+        // via MarkPaymentRequested so later steps (e.g. refund) use tracked ids.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.initiated");
+        services.AddIntegrationEventConsumer<PaymentInitiatedIntegrationEvent, PaymentInitiatedConsumer, OrdersIdempotentProcessor>();
+
         // Phase 10.5: Orders consumer for payments.payment_failed. Payments webhook stages
         // payments.payment_failed via Payments outbox; Orders transitions saga to ReleasingInventory
         // and stages inventory.release_requested for each recorded reservation atomically.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.failed");
         services.AddIntegrationEventConsumer<PaymentFailedIntegrationEvent, PaymentFailedConsumer, OrdersIdempotentProcessor>();
+
+        // Orders consumer for payments.payment_canceled. Payments webhook stages
+        // payments.payment_canceled via Payments outbox; Orders leaves WaitingForPayment for
+        // compensation (same release sweep as payment_failed) instead of hanging until expiry.
+        services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.payment.canceled");
+        services.AddIntegrationEventConsumer<PaymentCanceledIntegrationEvent, PaymentCanceledConsumer, OrdersIdempotentProcessor>();
 
         // Phase 10.6: Orders consumer for inventory.released compensation. Inventory publishes
         // inventory.released via Inventory outbox after successful Release; Orders transitions
@@ -207,14 +267,15 @@ public static class DependencyInjection
         // delivered in sub-phases 11.5/11.6. The orchestrator stub returns Ignored (a safe no-op) until then.
         services.AddRabbitMQConsumer(GetRabbitMQExchangeName(configuration), "q.orders.inventory.expired");
         services.AddIntegrationEventConsumer<InventoryReservationExpiredIntegrationEvent, InventoryReservationExpiredConsumer, OrdersIdempotentProcessor>();
+    }
 
+    private static void AddHealthChecks(IServiceCollection services)
+    {
         services.AddHealthChecks()
                 .AddCheck<AppHealthCheck>("app", tags: ["app"])
                 .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "infrastructure"])
                 .AddCheck<RedisHealthCheck>("redis", tags: ["cache", "infrastructure"])
                 .AddCheck<RabbitMQHealthCheck>("rabbitmq", tags: ["messaging", "infrastructure"]);
-
-        return services;
     }
 
     private static string GetRedisConnectionString(IConfiguration configuration)

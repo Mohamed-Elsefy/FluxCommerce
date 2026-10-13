@@ -36,10 +36,27 @@ public sealed class ListCategoriesQueryHandler
         var pageNumber = query.PageNumber ?? DefaultPageNumber;
         var pageSize = query.PageSize ?? DefaultPageSize;
 
-        var result = await _categoryRepository.GetPagedAsync(pageNumber, pageSize, cancellationToken);
+        var hasFilters = !string.IsNullOrWhiteSpace(query.SearchTerm)
+            || query.Status is not null;
 
-        var items = CategoryResponseMapper.ToResponses(result.Items);
+        if (!hasFilters)
+        {
+            var result = await _categoryRepository.GetPagedAsync(pageNumber, pageSize, cancellationToken);
 
-        return Result.Success(new PagedResult<CategoryResponse>(items, result.TotalCount, pageNumber, pageSize));
+            var items = CategoryResponseMapper.ToResponses(result.Items);
+
+            return Result.Success(new PagedResult<CategoryResponse>(items, result.TotalCount, pageNumber, pageSize));
+        }
+
+        var filtered = await _categoryRepository.SearchAsync(
+            query.SearchTerm ?? string.Empty,
+            query.Status,
+            pageNumber,
+            pageSize,
+            cancellationToken);
+
+        var filteredItems = CategoryResponseMapper.ToResponses(filtered.Items);
+
+        return Result.Success(new PagedResult<CategoryResponse>(filteredItems, filtered.TotalCount, pageNumber, pageSize));
     }
 }

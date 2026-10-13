@@ -11,7 +11,7 @@ public class OrderSagaRefundOrchestratorTests : OrderSagaTestBase
 {
     private static readonly DateTimeOffset RefundAt = new(2026, 8, 27, 12, 0, 0, TimeSpan.Zero);
 
-    private async Task<(FluxCommerce.Modules.Orders.Domain.Aggregates.Order order, FluxCommerce.Modules.Orders.Domain.Sagas.OrderSaga saga)> CreateCompletedSagaAsync(FluxCommerce.Modules.Orders.Infrastructure.DbContexts.OrdersDbContext ctx)
+    private async Task<(FluxCommerce.Modules.Orders.Domain.Aggregates.Order order, FluxCommerce.Modules.Orders.Domain.Sagas.OrderSaga saga, Guid paymentId)> CreateCompletedSagaAsync(FluxCommerce.Modules.Orders.Infrastructure.DbContexts.OrdersDbContext ctx)
     {
         var order = await CreatePlacedOrderAsync(("SKU-1", 1));
         var orchestrator = CreateOrchestrator(ctx);
@@ -20,20 +20,23 @@ public class OrderSagaRefundOrchestratorTests : OrderSagaTestBase
         var reservationId = Guid.NewGuid();
         await orchestrator.ApplyReservationSuccessAsync(order.Id, reservationId, Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(1));
         await ctx.SaveChangesAsync();
-        await orchestrator.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(2));
+        var paymentId = Guid.NewGuid();
+        await orchestrator.ApplyPaymentInitiatedAsync(order.Id, paymentId, "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(1).AddSeconds(30));
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyPaymentSucceededAsync(order.Id, paymentId, "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(2));
         await ctx.SaveChangesAsync();
         var saga = await ctx.OrderSagas.SingleAsync();
         Assert.Equal(OrderSagaState.Completed, saga.State);
         var reloadedOrder = await ctx.Orders.SingleAsync();
         Assert.Equal(OrderStatus.Confirmed, reloadedOrder.Status);
-        return (order, saga);
+        return (order, saga, paymentId);
     }
 
     [Fact]
     public async Task RequestRefund_FromCompleted_StagesRefundRequest_AndTransitionsToRefunding()
     {
         await using var ctx = CreateContext();
-        var (order, _) = await CreateCompletedSagaAsync(ctx);
+        var (order, _, paymentId) = await CreateCompletedSagaAsync(ctx);
         var orchestrator = CreateOrchestrator(ctx);
 
         var correlation = Guid.NewGuid();
@@ -50,13 +53,15 @@ public class OrderSagaRefundOrchestratorTests : OrderSagaTestBase
         var payload = JsonSerializer.Deserialize<RefundPaymentRequestedIntegrationEvent>(outbox.Payload);
         Assert.Equal(order.Id.Value, payload!.OrderId);
         Assert.Equal("downstream failure", payload.Reason);
+        Assert.Equal(paymentId, payload.PaymentId);
+        Assert.Equal("pi_test_123", payload.ProviderPaymentIntentId);
     }
 
     [Fact]
     public async Task RequestRefund_DuplicateOnRefunding_IsIdempotent()
     {
         await using var ctx = CreateContext();
-        var (order, _) = await CreateCompletedSagaAsync(ctx);
+        var (order, _, _) = await CreateCompletedSagaAsync(ctx);
         var orchestrator = CreateOrchestrator(ctx);
 
         await orchestrator.RequestRefundAsync(order.Id, "reason", Guid.NewGuid(), Guid.NewGuid());
@@ -76,7 +81,7 @@ public class OrderSagaRefundOrchestratorTests : OrderSagaTestBase
     public async Task ApplyPaymentRefunded_FromRefunding_StagesInventoryRelease()
     {
         await using var ctx = CreateContext();
-        var (order, _) = await CreateCompletedSagaAsync(ctx);
+        var (order, _, _) = await CreateCompletedSagaAsync(ctx);
         var orchestrator = CreateOrchestrator(ctx);
         await orchestrator.RequestRefundAsync(order.Id, "reason", Guid.NewGuid(), Guid.NewGuid());
         await ctx.SaveChangesAsync();
@@ -97,7 +102,7 @@ public class OrderSagaRefundOrchestratorTests : OrderSagaTestBase
     public async Task ApplyPaymentRefunded_Duplicate_IsIdempotent()
     {
         await using var ctx = CreateContext();
-        var (order, _) = await CreateCompletedSagaAsync(ctx);
+        var (order, _, _) = await CreateCompletedSagaAsync(ctx);
         var orchestrator = CreateOrchestrator(ctx);
         await orchestrator.RequestRefundAsync(order.Id, "reason", Guid.NewGuid(), Guid.NewGuid());
         await ctx.SaveChangesAsync();
@@ -115,7 +120,7 @@ public class OrderSagaRefundOrchestratorTests : OrderSagaTestBase
     public async Task FullRefundFlow_CompletedToRefundingToReleasingInventoryToCancelledToCompleted()
     {
         await using var ctx = CreateContext();
-        var (order, _) = await CreateCompletedSagaAsync(ctx);
+        var (order, _, _) = await CreateCompletedSagaAsync(ctx);
         var orchestrator = CreateOrchestrator(ctx);
 
         await orchestrator.RequestRefundAsync(order.Id, "downstream", Guid.NewGuid(), Guid.NewGuid());

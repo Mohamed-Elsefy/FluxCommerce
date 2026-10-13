@@ -30,13 +30,17 @@ enum UserStatus { Pending = 0, Active = 1, Suspended = 2, Locked = 3, Deleted = 
 
 ### Roles (strings, not an enum)
 
-Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Wire: `LoginResponse.roles: string[]`, `UserResponse.roles: string[]`, JWT `Role[]` claims, `AssignRoleRequest.role: string`. Policies `Customer|Admin|SuperAdmin` = `RequireRole(...)`.
+Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Wire: `LoginResponse.roles: string[]`, `UserResponse.roles: string[]`, JWT `Role[]` claims, `AssignRoleRequest.role: string`. Role policies are role-or-SuperAdmin (SuperAdmin passes all); `SuperAdmin` policy stays exact.
+
+### Permissions (strings, not an enum)
+
+Catalog `PermissionCatalog`: `orders.read|orders.cancel|orders.refund|payments.read|payments.stats|inventory.read|inventory.manage|catalog.manage|users.read`. Wire: JWT `permission[]` claims, `UserResponse.permissions: string[]`, `GrantPermissionRequest.permission: string`. Assigning `Admin` grants nothing — every permission is granted manually; grants apply on next login/refresh (`AdminBundle` = reference full set only).
 
 ---
 
 ## 2. Catalog (all numbers on wire)
 
-### `ProductStatus` — `ProductResponse.status`; `GET /catalog?status=` filter
+### `ProductStatus` — `ProductResponse.status`; `GET /catalog?status=` and `GET /catalog/products?status=` filters
 
 | Value | Number | Meaning |
 |---|---|---|
@@ -49,7 +53,7 @@ Constants `Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdm
 enum ProductStatus { Draft = 0, Active = 1, Inactive = 2, Archived = 3 }
 ```
 
-### `ProductVisibility` — `Create/UpdateProductRequest.visibility`, `ProductResponse.visibility`; `GET /catalog?visibility=`
+### `ProductVisibility` — `Create/UpdateProductRequest.visibility`, `ProductResponse.visibility`; `GET /catalog?visibility=` and `GET /catalog/products?visibility=`
 
 | Value | Number | Meaning |
 |---|---|---|
@@ -108,7 +112,7 @@ enum AttributeStatus { Active = 0, Inactive = 1 }
 enum AttributeDataType { Text = 0, Number = 1, Decimal = 2, Boolean = 3, Date = 4, DateTime = 5 }
 ```
 
-### `CatalogProductSortBy` / `CatalogProductSortDirection` — `GET /catalog?sortBy=&sortDirection=` only
+### `CatalogProductSortBy` / `CatalogProductSortDirection` — `GET /catalog?sortBy=&sortDirection=` and `GET /catalog/products?sortBy=&sortDirection=`
 
 | Enum | Values |
 |---|---|
@@ -211,6 +215,7 @@ Backend-only: `PaymentWebhookAction (Ignore=0,Succeed=1,Fail=2,Cancel=3,Process=
 - `CheckoutPersistStatus`: `Created=0, Duplicate=1` (implicit values, no explicit assignment; idempotent-replay signal, frontend sees `CheckoutResponse` or `Order.IdempotencyConflict 409`)
 - `CartCheckoutConsumptionStatus`: `Consumed=0, AlreadyEmpty=1, CartNotFound=2, AccessDenied=3, ConcurrencyConflict=4, Failed=5` (best-effort post-checkout cart clear; checkout still succeeds)
 - `OrderSagaTransitionOutcome`: `Applied=0, Duplicate=1, Conflicting=2, Invalid=3, Ignored=4` (implicit; reservation-expiry on terminal saga → `Ignored`)
+- `RefundRequestOutcome`: `Applied=0, Duplicate=1, NotEligible=2, OrderNotFound=3` (explicit; admin refund saga decision, frontend sees `OrderDetailsResponse` or `404/409`)
 - `OutboxStatus`: `Pending=0, InProgress=1, Published=2, Failed=3`
 - `ConsumerMessageAction`: `Ack=0, Requeue=1, Reject=2, DeadLetter=3`; `ConsumerFailureClassification`: `Retryable=0, Permanent=1`; `ConsumerBackoffType` (Fixed/Linear/Exponential + `MaxDelay`) — broker internals, no UI mapping.
 
@@ -227,12 +232,16 @@ Backend-only: `PaymentWebhookAction (Ignore=0,Succeed=1,Fail=2,Cancel=3,Process=
 { "id": "…", "dataType": 0, "status": 0, "isRequired": false, "sortOrder": 0 }
 // ProductAttributeValueResponse — dataType NUMBER, value string:
 { "id": "…", "dataType": 0, "value": "cotton" }
-// UserResponse — status as NUMBER, roles as STRINGS:
-{ "id": "…", "roles": ["Customer"], "status": 1 }
+// UserResponse — status as NUMBER, roles/permissions as STRINGS:
+{ "id": "…", "roles": ["Customer"], "permissions": ["orders.read"], "status": 1 }
 // CheckoutResponse / OrderDetailsResponse — status as STRING:
 { "orderId": "…", "orderNumber": "ORD-ABC123DEF456", "status": "Pending" }
 // PaymentResponse — status as STRING:
+// GET /api/payments/mine → PagedResult<PaymentAdminResponse> (status STRING, same union):
 { "id": "…", "status": "Succeeded" }
+// GET /admin/dashboard — NO enums: recent lists reuse the shapes above; dailySeries uses
+// plain strings/numbers (date is an invariant "yyyy-MM-dd" UTC string, never localized):
+{ "recentOrders": [], "recentPayments": [], "recentUsers": [], "dailySeries": [{ "date": "2026-10-05", "orders": 2, "revenue": [{ "currency": "USD", "amount": 140.00 }] }] }
 // InventoryReservationResponse — status as NUMBER:
 { "reservationId": "…", "status": 0 }
 // GET /catalog?status=Active&visibility=Visible&sortBy=Name&sortDirection=Ascending

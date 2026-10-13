@@ -716,6 +716,8 @@ public class OrdersOutboxDispatcherIntegrationTests
 
         public string[] Roles => [];
 
+        public IReadOnlyCollection<string> Permissions => [];
+
         public bool IsAuthenticated => false;
     }
 }

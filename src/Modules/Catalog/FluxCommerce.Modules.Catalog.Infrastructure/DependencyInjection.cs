@@ -36,6 +36,7 @@ using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductSpecificati
 using FluxCommerce.Modules.Catalog.Application.Commands.UpdateProductVariant;
 using FluxCommerce.Modules.Catalog.Application.Interfaces;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetAttributeDefinition;
+using FluxCommerce.Modules.Catalog.Application.Queries.GetCatalogCounts;
 using FluxCommerce.Modules.Catalog.Application.Services;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Catalog.Application.Queries.GetCategory;
@@ -80,6 +81,8 @@ public static class DependencyInjection
         services.AddScoped<IProductRepository, ProductRepository>();
 
         services.AddScoped<IVariantRepository, VariantRepository>();
+
+        services.AddScoped<ICatalogCountsStore, CatalogCountsStore>();
 
         services.AddScoped<IAttributeDefinitionRepository, AttributeDefinitionRepository>();
 
@@ -158,8 +161,8 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<ReorderProductImagesCommand, Result>, ReorderProductImagesCommandHandler>();
 
         services.AddScoped<IQueryHandler<GetCategoryQuery, Result<CategoryResponse>>, GetCategoryQueryHandler>();
-
         services.AddScoped<IQueryHandler<ListCategoriesQuery, Result<PagedResult<CategoryResponse>>>, ListCategoriesQueryHandler>();
+        services.AddScoped<IQueryHandler<GetCatalogCountsQuery, Result<CatalogCountsResponse>>, GetCatalogCountsQueryHandler>();
 
         services.AddScoped<IQueryHandler<GetProductQuery, Result<ProductResponse>>, GetProductQueryHandler>();
 

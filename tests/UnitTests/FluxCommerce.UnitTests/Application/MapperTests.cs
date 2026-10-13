@@ -108,6 +108,8 @@ public class MapperTests
         Assert.Equal(variant.ProductId, response.ProductId);
         Assert.Equal("SKU-1", response.Sku);
         Assert.Equal("128GB", response.Name);
+        Assert.Equal(variant.UnitPrice.Amount, response.UnitPriceAmount);
+        Assert.Equal(variant.UnitPrice.Currency, response.Currency);
         Assert.Equal(ContractEnums.VariantStatus.Active, response.Status);
         Assert.False(response.IsDeleted);
     }
@@ -321,6 +323,8 @@ public class MapperTests
         Assert.Equal(variant.Id, summary.Id);
         Assert.Equal("SKU-1", summary.Sku);
         Assert.Equal("128GB", summary.Name);
+        Assert.Equal(variant.UnitPrice.Amount, summary.UnitPriceAmount);
+        Assert.Equal(variant.UnitPrice.Currency, summary.Currency);
     }
 
     // ---- CatalogSpecificationSummaryMapper ----

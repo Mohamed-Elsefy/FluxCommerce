@@ -14,8 +14,6 @@ public sealed class User : AggregateRoot<Guid>
 
     public const int LastNameMaxLength = 100;
 
-    public const int DisplayNameMaxLength = FirstNameMaxLength + 1 + LastNameMaxLength;
-
     public const int PhoneNumberMaxLength = 30;
 
     public const int AvatarUrlMaxLength = 2048;
@@ -32,6 +30,8 @@ public sealed class User : AggregateRoot<Guid>
 
     private readonly List<string> _roles = [];
 
+    private readonly List<string> _permissions = [];
+
     public Email Email { get; }
 
     public string PasswordHash { get; private set; }
@@ -40,7 +40,7 @@ public sealed class User : AggregateRoot<Guid>
 
     public string LastName { get; private set; }
 
-    public string? DisplayName { get; private set; }
+    public string DisplayName => $"{FirstName} {LastName}";
 
     public string? PhoneNumber { get; private set; }
 
@@ -55,6 +55,8 @@ public sealed class User : AggregateRoot<Guid>
     public UserStatus Status { get; private set; }
 
     public IReadOnlyCollection<string> Roles => _roles.AsReadOnly();
+
+    public IReadOnlyCollection<string> Permissions => _permissions.AsReadOnly();
 
     public bool IsEmailVerified { get; private set; }
 
@@ -87,7 +89,6 @@ public sealed class User : AggregateRoot<Guid>
         PasswordHash = passwordHash;
         FirstName = ValidateName(firstName, nameof(firstName), FirstNameMaxLength);
         LastName = ValidateName(lastName, nameof(lastName), LastNameMaxLength);
-        DisplayName = $"{FirstName} {LastName}";
         PhoneNumber = null;
         IsPhoneVerified = false;
         AvatarUrl = null;
@@ -328,6 +329,105 @@ public sealed class User : AggregateRoot<Guid>
         _roles.Add(role);
 
         return DomainResult.Success();
+    }
+
+    /// <summary>
+    /// Grants an action-level permission (ADR-016). Unknown permissions are rejected; a repeated
+    /// grant fails explicitly so the API can answer 409 instead of silently succeeding.
+    /// </summary>
+    public DomainResult GrantPermission(string permission)
+    {
+        if (string.IsNullOrWhiteSpace(permission))
+            throw new ArgumentException("A permission name is required.", nameof(permission));
+
+        var normalized = permission.Trim();
+
+        if (!PermissionCatalog.IsDefined(normalized))
+            throw new ArgumentException($"Unknown permission '{normalized}'.", nameof(permission));
+
+        if (_permissions.Contains(normalized, StringComparer.Ordinal))
+            return DomainResult.Failure(UserErrors.PermissionAlreadyGranted);
+
+        _permissions.Add(normalized);
+
+        return DomainResult.Success();
+    }
+
+    /// <summary>
+    /// Revokes an action-level permission. Absent permissions are a benign no-op so revocation
+    /// stays idempotent at the API boundary.
+    /// </summary>
+    public DomainResult RevokePermission(string permission)
+    {
+        if (string.IsNullOrWhiteSpace(permission))
+            throw new ArgumentException("A permission name is required.", nameof(permission));
+
+        _permissions.RemoveAll(granted => string.Equals(granted, permission.Trim(), StringComparison.Ordinal));
+
+        return DomainResult.Success();
+    }
+
+    /// <summary>
+    /// Updates the editable profile fields. Each argument is optional: <c>null</c> leaves the
+    /// current value unchanged, while an empty value clears an optional field. Required names
+    /// must remain non-empty when supplied. Validation of lengths and shapes is the caller's
+    /// (application layer's) responsibility; this method enforces the domain invariants.
+    /// </summary>
+    public void UpdateProfile(
+        string? firstName,
+        string? lastName,
+        string? phoneNumber,
+        string? avatarUrl,
+        string? preferredLanguage,
+        string? timeZone)
+    {
+        if (firstName is not null)
+            FirstName = ValidateName(firstName, nameof(firstName), FirstNameMaxLength);
+
+        if (lastName is not null)
+            LastName = ValidateName(lastName, nameof(lastName), LastNameMaxLength);
+
+        if (phoneNumber is not null)
+        {
+            var phone = phoneNumber.Trim();
+            if (phone.Length > PhoneNumberMaxLength)
+                throw new ArgumentException($"A phone number must not exceed {PhoneNumberMaxLength} characters.", nameof(phoneNumber));
+
+            PhoneNumber = string.IsNullOrEmpty(phone) ? null : phone;
+        }
+
+        if (avatarUrl is not null)
+        {
+            var avatar = avatarUrl.Trim();
+            if (avatar.Length > AvatarUrlMaxLength)
+                throw new ArgumentException($"An avatar URL must not exceed {AvatarUrlMaxLength} characters.", nameof(avatarUrl));
+
+            AvatarUrl = string.IsNullOrEmpty(avatar) ? null : avatar;
+        }
+
+        if (preferredLanguage is not null)
+        {
+            var language = preferredLanguage.Trim();
+            if (string.IsNullOrEmpty(language))
+                throw new ArgumentException("A preferred language is required.", nameof(preferredLanguage));
+
+            if (language.Length > PreferredLanguageMaxLength)
+                throw new ArgumentException($"A preferred language must not exceed {PreferredLanguageMaxLength} characters.", nameof(preferredLanguage));
+
+            PreferredLanguage = language;
+        }
+
+        if (timeZone is not null)
+        {
+            var zone = timeZone.Trim();
+            if (string.IsNullOrEmpty(zone))
+                throw new ArgumentException("A time zone is required.", nameof(timeZone));
+
+            if (zone.Length > TimeZoneMaxLength)
+                throw new ArgumentException($"A time zone must not exceed {TimeZoneMaxLength} characters.", nameof(timeZone));
+
+            TimeZone = zone;
+        }
     }
 
     public void Unlock() =>

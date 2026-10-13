@@ -51,6 +51,12 @@ public abstract class ApiControllerBase : ControllerBase
             : ErrorResult(result.Error);
     }
 
+    /// <summary>
+    /// Maps a domain/application <see cref="Error"/> to its ProblemDetails response without
+    /// going through a <see cref="Result"/> wrapper.
+    /// </summary>
+    protected IActionResult FromError(Error error) => ErrorResult(error);
+
     protected IActionResult Invalid(Dictionary<string, string[]> errors)
     {
         var problem = new ValidationProblemDetail

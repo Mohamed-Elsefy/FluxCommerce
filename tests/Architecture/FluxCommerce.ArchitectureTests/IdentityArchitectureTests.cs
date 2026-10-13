@@ -122,8 +122,11 @@ public class IdentityArchitectureTests
     }
 
     [Fact]
-    public void AdminController_ShouldRequire_SuperAdminPolicy()
+    public void AdminController_Actions_ShouldRequire_PermissionPolicies()
     {
+        // Reads are delegatable via users.read; every mutation (roles, unlock, grant, revoke)
+        // and the permission catalog document require SuperAdmin explicitly (class-level gate
+        // is plain authentication because policies do not inherit exclusively).
         var apiAssembly = ArchitectureRegistry.Api;
         var adminController = apiAssembly.GetTypes().FirstOrDefault(t => t.Name == "AdminController");
 
@@ -134,24 +137,42 @@ public class IdentityArchitectureTests
             .FirstOrDefault();
 
         Assert.NotNull(classAuth);
-        Assert.Equal("SuperAdmin", classAuth!.Policy);
+        Assert.Null(classAuth!.Policy);
+
+        var expectedPolicies = new Dictionary<string, string>
+        {
+            ["AssignRole"] = "SuperAdmin",
+            ["UnlockUser"] = "SuperAdmin",
+            ["GetUsers"] = "users.read",
+            ["GetUserCounts"] = "users.read",
+            ["GetUser"] = "users.read",
+            ["GrantPermission"] = "SuperAdmin",
+            ["RevokePermission"] = "SuperAdmin",
+            ["GetUserPermissions"] = "users.read",
+            ["GetPermissionCatalog"] = "SuperAdmin",
+        };
 
         var methods = adminController.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly)
-            .Where(m => m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false).Any());
+            .Where(m => m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false).Any()
+                || m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpGetAttribute), false).Any()
+                || m.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpDeleteAttribute), false).Any())
+            .ToList();
 
-        Assert.True(methods.Any(), "AdminController should have POST actions");
+        Assert.NotEmpty(methods);
 
         foreach (var method in methods)
         {
-            var methodAuth = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            var methodAuth = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false)
                 .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                 .FirstOrDefault();
 
-            // Class-level SuperAdmin covers all, but if method has its own it must also be SuperAdmin
-            if (methodAuth != null)
+            if (methodAuth is null)
             {
-                Assert.Equal("SuperAdmin", methodAuth.Policy);
+                Assert.Fail($"AdminController.{method.Name} has no explicit policy; every action must declare one (class-level gate is plain authentication).");
             }
+
+            Assert.True(expectedPolicies.TryGetValue(method.Name, out var expected), $"Unexpected AdminController action: {method.Name}");
+            Assert.Equal(expected, methodAuth!.Policy);
         }
     }
 
@@ -177,7 +198,48 @@ public class IdentityArchitectureTests
     }
 
     [Fact]
-    public void CatalogMutations_ShouldRequire_AdminPolicy()
+    public void NoController_ShouldRequire_CoarseAdminPolicy()
+    {
+        // Phase D: every administrative action moved to a permission policy (or exact
+        // SuperAdmin). The coarse "Admin" role policy must not gate any controller action.
+        var apiAssembly = ArchitectureRegistry.Api;
+        var failures = new List<string>();
+
+        var controllers = apiAssembly.GetTypes()
+            .Where(t => t.Name.EndsWith("Controller") && t.Namespace?.StartsWith("FluxCommerce.Api.Controllers") == true)
+            .ToList();
+
+        Assert.True(controllers.Any(), "API controllers should exist");
+
+        foreach (var controller in controllers)
+        {
+            var classPolicy = controller
+                .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                .FirstOrDefault()?.Policy;
+
+            if (classPolicy == "Admin")
+                failures.Add($"{controller.Name} is gated by the coarse AdminPolicy");
+
+            var methods = controller.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
+
+            foreach (var method in methods)
+            {
+                var methodPolicy = method
+                    .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false)
+                    .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                    .FirstOrDefault()?.Policy;
+
+                if (methodPolicy == "Admin")
+                    failures.Add($"{controller.Name}.{method.Name} is gated by the coarse AdminPolicy");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Fact]
+    public void CatalogMutations_ShouldRequire_CatalogManagePermission()
     {
         var apiAssembly = ArchitectureRegistry.Api;
         var catalogControllers = apiAssembly.GetTypes()
@@ -210,8 +272,8 @@ public class IdentityArchitectureTests
                     .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                     .ToList();
 
-                // Must have Authorize with Admin policy either on method or class
-                var hasAdminPolicy = authorizeAttrs.Any(a => a.Policy == "Admin");
+                // Must have Authorize with the catalog.manage permission either on method or class
+                var hasAdminPolicy = authorizeAttrs.Any(a => a.Policy == "catalog.manage");
 
                 if (!hasAdminPolicy)
                 {
@@ -219,17 +281,31 @@ public class IdentityArchitectureTests
                         .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
                         .FirstOrDefault();
 
-                    hasAdminPolicy = classAuth != null && classAuth.Policy == "Admin";
+                    hasAdminPolicy = classAuth != null && classAuth.Policy == "catalog.manage";
                 }
 
                 if (!hasAdminPolicy)
                 {
-                    failures.Add($"{controller.Name}.{method.Name} is a mutation but does not require AdminPolicy");
+                    failures.Add($"{controller.Name}.{method.Name} is a mutation but does not require the catalog.manage permission");
                 }
             }
         }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // ---- Contract mirror drift protection ----
+
+    [Fact]
+    public void UserStatus_ContractsMirror_ShouldMatchDomain()
+    {
+        var domainType = typeof(FluxCommerce.Modules.Identity.Domain.Enums.UserStatus);
+        var contractType = typeof(FluxCommerce.Modules.Identity.Contracts.Enums.UserStatus);
+
+        Assert.Equal(Enum.GetNames(domainType), Enum.GetNames(contractType));
+        Assert.Equal(
+            Enum.GetValues(domainType).Cast<int>().ToArray(),
+            Enum.GetValues(contractType).Cast<int>().ToArray());
     }
 
     private static void AssertNoDependencies(

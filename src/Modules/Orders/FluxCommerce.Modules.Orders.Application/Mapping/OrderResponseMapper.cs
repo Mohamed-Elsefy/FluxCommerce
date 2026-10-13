@@ -1,3 +1,5 @@
+using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Orders.Application.ReadModels;
 using FluxCommerce.Modules.Orders.Contracts.Responses;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
@@ -22,6 +24,19 @@ public static class OrderResponseMapper
     public static IReadOnlyList<OrderSummaryResponse> ToSummaries(
         IEnumerable<OrderSummaryReadModel> orders) =>
         orders.Select(ToSummary).ToList();
+
+    public static Result<CheckoutResponse> ToCheckout(Result<Order> result)
+    {
+        if (result.IsFailure)
+            return Result<CheckoutResponse>.Failure(result.Error);
+
+        var order = result.Value!;
+        return Result<CheckoutResponse>.Success(new CheckoutResponse(
+            order.Id.Value,
+            order.OrderNumber.Value,
+            order.Status.ToString(),
+            order.CreatedAtUtc));
+    }
 
     public static OrderDetailsResponse ToDetails(Order order)
     {

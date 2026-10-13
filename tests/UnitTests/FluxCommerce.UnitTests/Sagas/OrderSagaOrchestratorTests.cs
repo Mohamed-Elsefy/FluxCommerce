@@ -2,6 +2,7 @@ using FluxCommerce.Modules.Inventory.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.UnitTests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Xunit;

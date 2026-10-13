@@ -1,6 +1,7 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
+using FluxCommerce.Modules.Cart.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Orders.Application.Errors;
 using FluxCommerce.Modules.Orders.Application.Interfaces;
@@ -9,6 +10,7 @@ using FluxCommerce.Modules.Orders.Application.Enums;
 using FluxCommerce.Modules.Orders.Application.Services;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
+using System.Diagnostics;
 
 namespace FluxCommerce.Modules.Orders.Application.Commands.Checkout;
 
@@ -65,7 +67,7 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
         if (string.IsNullOrEmpty(idempotencyKey) || idempotencyKey.Length > IdempotencyKeyMaxLength)
             return Result.Failure<Order>(CheckoutErrors.InvalidIdempotencyKey);
 
-        var fingerprint = CheckoutRequestFingerprint.Compute(
+        var fingerprintV1 = CheckoutRequestFingerprint.Compute(
             command.CartId,
             command.ShippingAddress,
             command.BillingAddress);
@@ -76,7 +78,11 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
 
         if (existing is not null)
         {
-            return await ResolveExistingAsync(existing, fingerprint, cancellationToken).ConfigureAwait(false);
+            return await ResolveExistingAsync(
+                existing,
+                fingerprintV1,
+                ct => ComputeCurrentV2Async(command, ct),
+                cancellationToken).ConfigureAwait(false);
         }
 
         var cart = await _cartSnapshotProvider
@@ -123,6 +129,13 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
 
         var order = build.Value;
 
+        // v2 records cover cart lines; the cart is guaranteed present on this path.
+        var fingerprintV2 = CheckoutRequestFingerprint.ComputeV2(
+            command.CartId,
+            command.ShippingAddress,
+            command.BillingAddress,
+            cart.Items.Select(item => new CheckoutRequestFingerprint.CartLine(item.VariantId, item.Quantity)));
+
         var persist = await _checkoutStore.PersistAsync(
             order,
             new CheckoutIdempotencyRecord(
@@ -130,7 +143,7 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
                 userId.Value,
                 idempotencyKey,
                 order.Id.Value,
-                fingerprint,
+                fingerprintV2,
                 utcNow),
             cancellationToken).ConfigureAwait(false);
 
@@ -141,7 +154,11 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
             return Result.Success(order);
         }
 
-        return await ResolveExistingAsync(persist.Existing!, fingerprint, cancellationToken).ConfigureAwait(false);
+        return await ResolveExistingAsync(
+            persist.Existing!,
+            fingerprintV1,
+            _ => Task.FromResult<string?>(fingerprintV2),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -159,23 +176,52 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
     {
         try
         {
-            await _cartConsumption
+            var outcome = await _cartConsumption
                 .ConsumeAsync(cartId, customerId, cancellationToken)
                 .ConfigureAwait(false);
+
+            // The transaction boundary stays Orders-only: a non-consumed cart must never roll back
+            // or duplicate a committed Checkout. The outcome is recorded on the ambient activity
+            // (Application never logs directly) so a stuck cart stays visible in tracing.
+            if (outcome.Status != CartCheckoutConsumptionStatus.Consumed)
+            {
+                Activity.Current?.AddEvent(new ActivityEvent(
+                    "checkout.cart_consumption_not_consumed",
+                    tags: new ActivityTagsCollection
+                    {
+                        { "cart.id", cartId.ToString() },
+                        { "consumption.status", outcome.Status.ToString() }
+                    }));
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // The transaction boundary stays Orders-only: the consumption contract never throws,
-            // but a sibling implementation must not be allowed to break a committed Checkout either.
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "checkout.cart_consumption_failed",
+                tags: new ActivityTagsCollection
+                {
+                    { "cart.id", cartId.ToString() },
+                    { "exception.type", ex.GetType().FullName },
+                    { "exception.message", ex.Message }
+                }));
         }
     }
 
     private async Task<Result<Order>> ResolveExistingAsync(
         CheckoutIdempotencyRecord existing,
-        string fingerprint,
+        string fingerprintV1,
+        Func<CancellationToken, Task<string?>> computeV2Async,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
+        // v2 rows are compared with the current v2 hash, which needs the cart.
+        // The cart is loaded lazily so legacy v1 replays keep their no-cart fast path.
+        // When the cart is already consumed (post-commit replay), Matches falls back
+        // to the v1 half embedded in the stored v2 fingerprint.
+        string? fingerprintV2 = null;
+        if (CheckoutRequestFingerprint.IsV2(existing.RequestFingerprint))
+            fingerprintV2 = await computeV2Async(cancellationToken).ConfigureAwait(false);
+
+        if (!CheckoutRequestFingerprint.Matches(existing.RequestFingerprint, fingerprintV1, fingerprintV2))
             return Result.Failure<Order>(CheckoutErrors.IdempotencyConflict);
 
         var order = await _checkoutStore
@@ -186,6 +232,24 @@ public sealed class CheckoutCommandHandler : ICommandHandler<CheckoutCommand, Re
             return Result.Failure<Order>(OrderQueryErrors.NotFound);
 
         return Result.Success(order);
+    }
+
+    private async Task<string?> ComputeCurrentV2Async(
+        CheckoutCommand command,
+        CancellationToken cancellationToken)
+    {
+        var cart = await _cartSnapshotProvider
+            .GetCheckoutSnapshotAsync(command.CartId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (cart is null)
+            return null;
+
+        return CheckoutRequestFingerprint.ComputeV2(
+            command.CartId,
+            command.ShippingAddress,
+            command.BillingAddress,
+            cart.Items.Select(item => new CheckoutRequestFingerprint.CartLine(item.VariantId, item.Quantity)));
     }
 
     private static OrderAddress MapAddress(CheckoutAddressData address) =>

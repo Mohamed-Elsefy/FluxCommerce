@@ -10,6 +10,7 @@ using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

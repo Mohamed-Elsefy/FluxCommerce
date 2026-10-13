@@ -5,6 +5,7 @@ using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -21,14 +22,14 @@ public sealed class RefundPaymentRequestedConsumer : IIntegrationEventHandler<Re
     public const string StableHandlerName = "Payments.RefundPayment";
 
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IStripePaymentGateway _stripeGateway;
+    private readonly IPaymentGateway _stripeGateway;
     private readonly PaymentsDbContext _dbContext;
     private readonly IntegrationEventOutboxMessageFactory _outboxFactory;
     private readonly ILogger<RefundPaymentRequestedConsumer> _logger;
 
     public RefundPaymentRequestedConsumer(
         IPaymentRepository paymentRepository,
-        IStripePaymentGateway stripeGateway,
+        IPaymentGateway stripeGateway,
         PaymentsDbContext dbContext,
         IntegrationEventOutboxMessageFactory outboxFactory,
         ILogger<RefundPaymentRequestedConsumer> logger)
@@ -52,7 +53,7 @@ public sealed class RefundPaymentRequestedConsumer : IIntegrationEventHandler<Re
 
     private async Task HandleCoreAsync(RefundPaymentRequestedIntegrationEvent @event, IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
     {
-        using var activity = new ActivitySource("FluxCommerce").StartActivity("Payments.HandleRefundRequested", ActivityKind.Internal);
+        using var activity = PaymentsActivitySource.Source.StartActivity("Payments.HandleRefundRequested", ActivityKind.Internal);
         activity?.SetTag("order.id", @event.OrderId);
         activity?.SetTag("payment.id", @event.PaymentId);
         activity?.SetTag("correlation.id", envelope.CorrelationId);

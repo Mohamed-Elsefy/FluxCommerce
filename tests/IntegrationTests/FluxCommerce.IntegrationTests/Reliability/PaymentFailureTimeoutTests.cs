@@ -1,9 +1,10 @@
-using FluxCommerce.BuildingBlocks.Application.Abstractions;
+using FluxCommerce.BuildingBlocks.Messaging.Consuming;
 using FluxCommerce.BuildingBlocks.Outbox.Mapping;
 using FluxCommerce.Modules.Inventory.Domain.Aggregates;
 using FluxCommerce.Modules.Orders.Domain.Enums;
 using FluxCommerce.Modules.Orders.Infrastructure.Persistence.Stores;
 using FluxCommerce.Modules.Orders.Infrastructure.Sagas;
+using FluxCommerce.Modules.Orders.Infrastructure.Options;
 using FluxCommerce.Modules.Inventory.Domain.ValueObjects;
 using FluxCommerce.Modules.Inventory.Infrastructure.DbContexts;
 using FluxCommerce.Modules.Orders.Domain.Aggregates;
@@ -11,15 +12,16 @@ using FluxCommerce.Modules.Orders.Domain.Entities;
 using FluxCommerce.Modules.Orders.Domain.Sagas;
 using FluxCommerce.Modules.Orders.Domain.ValueObjects;
 using FluxCommerce.Modules.Orders.Infrastructure.DbContexts;
-using FluxCommerce.Modules.Payments.Application.Commands.CreatePayment;
 using FluxCommerce.Modules.Payments.Application.Enums;
 using FluxCommerce.Modules.Payments.Application.Interfaces;
 using FluxCommerce.Modules.Payments.Application.Models;
 using FluxCommerce.Modules.Payments.Application.Services;
+using FluxCommerce.Modules.Payments.Contracts.IntegrationEvents;
 using FluxCommerce.Modules.Payments.Domain.Aggregates;
 using FluxCommerce.Modules.Payments.Domain.Entities;
 using FluxCommerce.Modules.Payments.Domain.Enums;
 using FluxCommerce.Modules.Payments.Infrastructure.DbContexts;
+using FluxCommerce.Modules.Payments.Infrastructure.Consuming;
 using FluxCommerce.Modules.Payments.Infrastructure.Persistence.Repositories;
 using FluxCommerce.Modules.Payments.Infrastructure.Webhook;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +40,7 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
 {
     // ------------------------------------------------ Helper: Flaky Stripe gateway
 
-    private sealed class FlakyStripeGateway : IStripePaymentGateway
+    private sealed class FlakyStripeGateway : IPaymentGateway
     {
         private readonly int _failFirstN;
         private readonly string _failureMessage;
@@ -69,20 +71,30 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
         public Task<PaymentStatus> GetPaymentIntentStatusAsync(string paymentIntentId, CancellationToken cancellationToken = default)
             => Task.FromResult(PaymentStatus.Pending);
 
+        public Task<string?> RetrieveClientSecretAsync(string paymentIntentId, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("secret_" + paymentIntentId);
+
         public Task<RefundResult> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(new RefundResult($"re_{request.PaymentId:N}", "succeeded"));
     }
 
-    private sealed class TestCurrentUser : ICurrentUser
-    {
-        public TestCurrentUser(Guid userId) => UserId = userId;
-        public Guid? UserId { get; }
-        public string? Email => "test@example.com";
-        public string[] Roles => ["Customer"];
-        public bool IsAuthenticated => true;
-    }
-
     // ------------------------------------------------ Payment provider outages & retries without duplicate intent
+    // Retries go through the saga consumer (the production path): transient Stripe
+    // failures throw for redelivery, the payment row persists without intent, and the
+    // redelivered event reuses the same row and deterministic idempotency key.
+
+    private static (CreatePaymentRequestedIntegrationEvent Event, IntegrationEventEnvelope Envelope) CreatePaymentEvent(
+        Guid orderId,
+        Guid userId)
+    {
+        var @event = new CreatePaymentRequestedIntegrationEvent(orderId, userId, 42.50m, "USD")
+        {
+            EventId = Guid.NewGuid(),
+            CorrelationId = Guid.NewGuid(),
+            OccurredAtUtc = DateTime.UtcNow
+        };
+        return (@event, IntegrationEventEnvelope.From(@event, CreatePaymentRequestedIntegrationEvent.EventType));
+    }
 
     [Fact]
     public async Task Stripe_TransientTimeout_Retries_WithoutDuplicateIntent()
@@ -90,37 +102,36 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
         var orderId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var gateway = new FlakyStripeGateway(failFirstN: 2, failureMessage: "Timeout Stripe");
-        var handler = CreateHandler(gateway, userId);
+        var consumer = CreateConsumer(gateway);
 
-        // First attempt — transient timeout, handler returns StripeError but persists Payment without intent.
-        var result1 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(result1.IsFailure);
-        Assert.Equal("Payment.StripeError", result1.Error.Code);
+        // First attempt — transient timeout, consumer throws for redelivery but persists Payment without intent.
+        var (event1, envelope1) = CreatePaymentEvent(orderId, userId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.HandleAsync(event1, envelope1, CancellationToken.None));
         Assert.Equal(1, await PaymentsContext.Payments.AsNoTracking().Where(p => p.OrderId == orderId).CountAsync());
         var paymentAfter1 = await PaymentsContext.Payments.AsNoTracking().FirstAsync(p => p.OrderId == orderId);
         Assert.True(string.IsNullOrWhiteSpace(paymentAfter1.ProviderPaymentIntentId));
         Assert.Equal(1, gateway.CallCount);
 
         // Second attempt — still transient, reuses same Payment (idempotent), same idempotency key.
-        var result2 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(result2.IsFailure);
+        var (event2, envelope2) = CreatePaymentEvent(orderId, userId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.HandleAsync(event2, envelope2, CancellationToken.None));
         Assert.Equal(1, await PaymentsContext.Payments.AsNoTracking().Where(p => p.OrderId == orderId).CountAsync());
         Assert.Equal(2, gateway.CallCount);
         Assert.Equal(gateway.IdempotencyKeys[0], gateway.IdempotencyKeys[1]); // deterministic reuse
 
         // Third attempt — success, updates same Payment with intent.
-        var result3 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(result3.IsSuccess);
-        Assert.NotNull(result3.Value);
+        var (event3, envelope3) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(event3, envelope3, CancellationToken.None);
         Assert.Equal(1, await PaymentsContext.Payments.AsNoTracking().Where(p => p.OrderId == orderId).CountAsync());
         var paymentAfter3 = await PaymentsContext.Payments.AsNoTracking().FirstAsync(p => p.OrderId == orderId);
         Assert.False(string.IsNullOrWhiteSpace(paymentAfter3.ProviderPaymentIntentId));
         Assert.StartsWith("pi_", paymentAfter3.ProviderPaymentIntentId);
 
-        // Fourth duplicate call after success — returns existing intent without calling Stripe again.
-        var result4 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(result4.IsSuccess);
-        Assert.Equal(paymentAfter3.ProviderPaymentIntentId, result4.Value!.StripePaymentIntentId);
+        // Fourth duplicate delivery after success — acknowledged without calling Stripe again.
+        var (event4, envelope4) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(event4, envelope4, CancellationToken.None);
+        var paymentAfter4 = await PaymentsContext.Payments.AsNoTracking().FirstAsync(p => p.OrderId == orderId);
+        Assert.Equal(paymentAfter3.ProviderPaymentIntentId, paymentAfter4.ProviderPaymentIntentId);
         Assert.Equal(3, gateway.CallCount); // no fourth Stripe call
         Assert.Equal(1, await PaymentsContext.Payments.AsNoTracking().Where(p => p.OrderId == orderId).CountAsync());
     }
@@ -131,12 +142,12 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
         var orderId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var gateway = new FlakyStripeGateway(failFirstN: 1, failureMessage: "HTTP 5xx Stripe");
-        var handler = CreateHandler(gateway, userId);
+        var consumer = CreateConsumer(gateway);
 
-        var r1 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r1.IsFailure);
-        var r2 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r2.IsSuccess);
+        var (event1, envelope1) = CreatePaymentEvent(orderId, userId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.HandleAsync(event1, envelope1, CancellationToken.None));
+        var (event2, envelope2) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(event2, envelope2, CancellationToken.None);
         Assert.Equal(1, await PaymentsContext.Payments.AsNoTracking().Where(p => p.OrderId == orderId).CountAsync());
         Assert.Equal(2, gateway.CallCount);
         Assert.Equal(gateway.IdempotencyKeys[0], gateway.IdempotencyKeys[1]);
@@ -148,17 +159,18 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
         var orderId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var gateway = new FlakyStripeGateway(failFirstN: 0);
-        var handler = CreateHandler(gateway, userId);
+        var consumer = CreateConsumer(gateway);
 
-        var r1 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r1.IsSuccess);
-        var pi1 = r1.Value!.StripePaymentIntentId;
+        var (event1, envelope1) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(event1, envelope1, CancellationToken.None);
+        var pi1 = (await PaymentsContext.Payments.AsNoTracking().FirstAsync(p => p.OrderId == orderId)).ProviderPaymentIntentId;
 
-        var r2 = await handler.HandleAsync(new CreatePaymentIntentCommand(orderId), CancellationToken.None);
-        Assert.True(r2.IsSuccess);
-        Assert.Equal(pi1, r2.Value!.StripePaymentIntentId);
+        var (event2, envelope2) = CreatePaymentEvent(orderId, userId);
+        await consumer.HandleAsync(event2, envelope2, CancellationToken.None);
+        var pi2 = (await PaymentsContext.Payments.AsNoTracking().FirstAsync(p => p.OrderId == orderId)).ProviderPaymentIntentId;
+        Assert.Equal(pi1, pi2);
         Assert.Equal(1, await PaymentsContext.Payments.AsNoTracking().Where(p => p.OrderId == orderId).CountAsync());
-        Assert.Equal(1, gateway.CallCount); // second call did not hit Stripe
+        Assert.Equal(1, gateway.CallCount); // second delivery did not hit Stripe
     }
 
     // ------------------------------------------------ Duplicate & out-of-order webhooks
@@ -401,11 +413,15 @@ public sealed class PaymentFailureTimeoutTests : ReliabilityTestBase
 
     // ------------------------------------------------ helpers
 
-    private CreatePaymentIntentCommandHandler CreateHandler(IStripePaymentGateway gateway, Guid userId)
+    private CreatePaymentRequestedConsumer CreateConsumer(IPaymentGateway gateway)
     {
         var repo = new PaymentRepository(PaymentsContext);
-        var currentUser = new TestCurrentUser(userId);
-        return new CreatePaymentIntentCommandHandler(repo, gateway, currentUser);
+        return new CreatePaymentRequestedConsumer(
+            repo,
+            gateway,
+            PaymentsContext,
+            new IntegrationEventOutboxMessageFactory(),
+            NullLogger<CreatePaymentRequestedConsumer>.Instance);
     }
 
     private WebhookEventProcessor CreateWebhookProcessor(IServiceScope? scope = null)

@@ -16,4 +16,5 @@ public sealed record UserResponse(
     string? AvatarUrl,
     string PreferredLanguage,
     string TimeZone,
-    UserStatus Status);
+    UserStatus Status,
+    IReadOnlyCollection<string> Permissions);

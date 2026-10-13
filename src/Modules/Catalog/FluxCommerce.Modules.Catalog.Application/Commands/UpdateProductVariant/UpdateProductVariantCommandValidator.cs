@@ -13,6 +13,15 @@ public sealed class UpdateProductVariantCommandValidator(ILocalizer localizer)
         VariantRules.ValidateSku(command.Sku, errors, localizer);
         VariantRules.ValidateName(command.Name, "Name", localizer["Validation.Fields.VariantName"], errors, localizer);
 
+        if (command.UnitPriceAmount.HasValue || command.Currency is not null)
+            VariantRules.ValidateUnitPrice(
+                command.UnitPriceAmount ?? 0,
+                command.Currency,
+                "UnitPriceAmount",
+                "Currency",
+                errors,
+                localizer);
+
         return errors.Count == 0
             ? ValidationResult.Success()
             : ValidationResult.Failure(errors);

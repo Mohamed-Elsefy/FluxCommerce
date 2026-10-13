@@ -13,6 +13,15 @@ namespace FluxCommerce.BuildingBlocks.Idempotency.Processing;
 /// runs inside the transaction, so the future consumer infrastructure can invoke any application handler
 /// through this boundary without knowing the persistence details.
 /// </summary>
+/// <remarks>
+/// Idempotency is deliberately modeled as three surfaces, not one:
+/// <see cref="FluxCommerce.BuildingBlocks.Idempotency.Stores.IIdempotencyStore"/>
+/// is the persistence CRUD port,
+/// <see cref="FluxCommerce.BuildingBlocks.Idempotency.Detection.IDuplicateDetector"/>
+/// is the claim/check policy,
+/// and this processor is the ONLY atomic business boundary consumers may invoke. Merging them would
+/// couple querying, claiming, and transacted execution into a single abstraction.
+/// </remarks>
 public interface IIdempotentProcessor
 {
     /// <summary>

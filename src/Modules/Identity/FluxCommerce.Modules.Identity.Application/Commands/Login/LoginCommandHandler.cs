@@ -85,7 +85,7 @@ public sealed class LoginCommandHandler : ICommandHandler<LoginCommand, Result<L
             return Result.Failure<LoginResponse>(MapFailure(authentication.Error));
         }
 
-        var accessToken = _jwtProvider.CreateAccessToken(user.Id, user.Email.Value, user.Roles);
+        var accessToken = _jwtProvider.CreateAccessToken(user.Id, user.Email.Value, user.Roles, user.Permissions);
 
         var refreshToken = user.IssueRefreshToken(
             _tokenGenerator.GenerateRefreshToken(),

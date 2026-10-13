@@ -41,10 +41,17 @@ Semantics: `items` = this page only (may be `[]`); `totalCount` = total matches 
 
 | Endpoint | Paginated | Query | Ordering |
 |---|---|---|---|
-| `GET /catalog/products` | Yes | `pageNumber?, pageSize?` | Unspecified (no sort params) |
+| `GET /catalog/products` | Yes | `pageNumber?, pageSize?, searchTerm?, status?, visibility?, categoryId?, sortBy?, sortDirection?` | `sortBy: Name\|CreatedAtUtc` + `sortDirection: Ascending\|Descending`; nulls = `Name` ascending (same as `GET /catalog`) |
 | `GET /catalog` (search) | Yes | `searchTerm?, categoryId?, status?, visibility?, sortBy?, sortDirection?, pageNumber?, pageSize?` | `sortBy: Name\|CreatedAtUtc` + `sortDirection: Ascending\|Descending`; nulls = server default |
-| `GET /catalog/categories` | Yes | `pageNumber?, pageSize?` | Unspecified |
-| `GET /orders` | Yes | `pageNumber?, pageSize?` | Fixed newest-first (no sort param) |
+| `GET /catalog/categories` | Yes | `pageNumber?, pageSize?, searchTerm?, status?` | Fixed `Name` (no sort params) |
+| `GET /orders` | Yes | `pageNumber?, pageSize?, status?` | Fixed newest-first (no sort param) |
+| `GET /api/payments/mine` | Yes | `pageNumber?, pageSize?, status?` | Fixed newest-first (no sort param) |
+| `GET /admin/orders` | Yes | `pageNumber?, pageSize?, status?, customerId?, search?, from?, to?` | Fixed newest-first (no sort param) |
+| `GET /admin/payments` | Yes | `pageNumber?, pageSize?, status?, orderId?, customerId?, from?, to?` | Fixed newest-first (no sort param) |
+| `GET /inventory` | Yes | `pageNumber?, pageSize?, search?, maxAvailable?` | Fixed by SKU (no sort param) |
+| `GET /inventory/reservations` | Yes | `pageNumber?, pageSize?, status?, sku?, orderId?` | Fixed newest-first (no sort param) |
+| `GET /admin/users` | Yes | `pageNumber?, pageSize?, status?, role?, search?` | Fixed newest-first (no sort param) |
+| `GET /admin/dashboard` | No — fixed windows, full arrays | `lowStockThreshold?: int (default 5, >=0)`, `days?: int (default 30, 1..90)` | Recents fixed newest-5 (`recentOrders/recentPayments/recentUsers`); `dailySeries` trailing `days`, oldest-first, zero-filled; full paging via the list endpoints above |
 | `GET /catalog/products/{id}/variants` | No | — | Unspecified collection |
 | `GET /catalog/attribute-definitions` | No | — | Unspecified collection |
 | `GET /catalog/products/{id}/attributes` | No | — | Unspecified collection |
@@ -62,11 +69,14 @@ Single-resource `GET …/{id}` never paginates. Non-paginated lists return `ApiR
 - Limits: `pageNumber >= 1`; `1 <= pageSize <= 100` (`PaginationRules.MinPageNumber=1, MinPageSize=1, MaxPageSize=100`; `OrderPaginationRules` same + defaults).
 - Catalog validates only when present (`ValidatePageNumber/ValidatePageSize` add `errors{pageNumber,pageSize}` → `400 ValidationProblemDetail` with `errors` dict). Orders validates resolved values (`Validate(pageNumber,pageSize)` → `Error.Validation("Order.ValidationFailed")` → `400`).
 - `400` examples: `pageNumber=0`, `pageSize=0`, `pageSize=101`. Never send `pageSize=0` to mean “all” — request `pageSize=100` repeatedly instead.
+- Dashboard windows (not pagination): `days` default `30`, range `1..90` (outside → `400 Dashboard.ValidationFailed`); `lowStockThreshold` default `5`, negative → `400` — both rejected regardless of entitlement.
 
 ```ts
 interface PagingQuery { pageNumber?: number; pageSize?: number } // both optional, 1-based
-// Sorting/filtering ONLY on GET /catalog:
+// Filtering on GET /catalog, GET /catalog/products, GET /catalog/categories (product status: 4 values; category status: Active|Inactive only):
 interface CatalogSearchQuery extends PagingQuery { searchTerm?: string; categoryId?: string; status?: "Draft"|"Active"|"Inactive"|"Archived"; visibility?: "Visible"|"Hidden"; sortBy?: "Name"|"CreatedAtUtc"; sortDirection?: "Ascending"|"Descending" }
+interface ProductListQuery extends PagingQuery { searchTerm?: string; categoryId?: string; status?: "Draft"|"Active"|"Inactive"|"Archived"; visibility?: "Visible"|"Hidden"; sortBy?: "Name"|"CreatedAtUtc"; sortDirection?: "Ascending"|"Descending" }
+interface CategoryListQuery extends PagingQuery { searchTerm?: string; status?: "Active"|"Inactive" } // no sortBy/sortDirection
 ```
 
 ---
@@ -93,5 +103,5 @@ Rules: always render from echoed `data.pageNumber/pageSize/totalCount`, not requ
 - Don’t expect `totalPages/hasNext/cursors` — they don’t exist.
 - Don’t treat `items: []` as error — it means empty result or out-of-range page (`200`).
 - Don’t send `pageNumber=0` (1-based) or `pageSize>100` (both `400`).
-- Don’t add `sortBy/sortDirection` to `GET /orders`, `GET /catalog/products`, or `GET /catalog/categories` — only `GET /catalog` supports them.
-- Don’t wrap non-paginated lists (`variants`, `images`, `attributes`, `specs`) in pager logic — they are full `T[]`.
+- Don’t add `sortBy/sortDirection` to `GET /orders` or `GET /catalog/categories` — only the product lists (`GET /catalog`, `GET /catalog/products`) support them.
+- Don’t wrap non-paginated lists (`variants`, `images`, `attributes`, `specs`, dashboard `recentOrders/recentPayments/recentUsers/dailySeries`) in pager logic — they are full `T[]`.

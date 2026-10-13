@@ -9,8 +9,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build" />
-  <img src="https://img.shields.io/badge/tests-2856%20passing-brightgreen?style=flat-square" alt="Tests" />
-  <img src="https://img.shields.io/badge/arch%20tests-177%2F177-brightgreen?style=flat-square" alt="Arch Tests" />
+  <img src="https://img.shields.io/badge/tests-3157%20passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/arch%20tests-187%2F187-brightgreen?style=flat-square" alt="Arch Tests" />
   <img src="https://img.shields.io/badge/coverage-RabbitMQ%20%7C%20Redis%20%7C%20SQL%20Server-blue?style=flat-square" alt="Infra" />
 </p>
 
@@ -21,6 +21,7 @@
 ## Table of Contents
 
 - [Why FluxCommerce](#why-fluxcommerce)
+- [Live Demo in 5 Minutes](#live-demo-in-5-minutes)
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [Tech Stack](#tech-stack)
 - [Key Reliability Patterns](#key-reliability-patterns)
@@ -45,7 +46,7 @@ Most e-commerce tutorials stop at `POST /orders`. This project starts there and 
 | Question | Answer in this repo |
 |---|---|
 | Why Modular Monolith over Microservices? | [ADR-001](docs/adr/001-modular-monolith.md) — one deployable, strong boundaries, cheap extraction later |
-| How to prevent overselling with `Available = 1` and two concurrent reserves? | Atomic conditional `UPDATE` + `Version` optimistic token ([Phase 5](docs/completed/PHASE_5_COMPLETION_REPORT.md)) |
+| How to prevent overselling with `Available = 1` and two concurrent reserves? | Atomic conditional `UPDATE` + `Version` optimistic token ([Phase 5](docs/IMPLEMENTATION_PLAN.md#phase-5--inventory--concurrency-)) |
 | What if RabbitMQ delivers the same event twice? | `ProcessedMessage (EventId, Handler)` PK + `IIdempotentProcessor` boundary ([ADR-008](docs/adr/008-consumer-contract-and-idempotency.md)) |
 | What if the consumer crashes after DB commit but before ACK? | At-least-once + redelivery → idempotency → exactly-one business effect |
 | Duplicate Stripe webhook? | `ProcessedWebhookEvents` unique `StripeEventId` + 200 on duplicate ([ADR-013](docs/adr/013-webhook-idempotency.md)) |
@@ -57,36 +58,78 @@ Most e-commerce tutorials stop at `POST /orders`. This project starts there and 
 
 ---
 
+## Live Demo in 5 Minutes
+
+Watch a full order survive the async pipeline — checkout, inventory reservation, payment intent, webhook, confirmation. Prerequisites: [.NET SDK 10.0.302+](https://dotnet.microsoft.com/download), [Docker Desktop](https://www.docker.com/products/docker-desktop).
+
+```bash
+# 1. Infrastructure + API
+cp .env.example .env
+docker compose up -d
+dotnet user-secrets set "Identity:Seeder:SuperAdmin:Password" "Test123!" --project src/FluxCommerce.Api
+dotnet run --project src/FluxCommerce.Api --launch-profile https
+# Swagger: https://localhost:7119/swagger | RabbitMQ UI: http://localhost:15672 | Mail: http://localhost:5000
+```
+
+```bash
+# 2. Register + verify (grab the token from http://localhost:5000) + login
+curl -X POST https://localhost:7119/auth/register -H "Content-Type: application/json" \
+  -d '{"email":"demo@flux.local","password":"Test123!","firstName":"Demo","lastName":"User"}'
+curl -X POST https://localhost:7119/auth/verify-email -H "Content-Type: application/json" \
+  -d '{"token":"<token-from-smtp4dev>"}'
+TOKEN=$(curl -s -X POST https://localhost:7119/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"demo@flux.local","password":"Test123!"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['accessToken'])")
+
+# 3. Browse the catalog, fill a cart, check out (idempotent — retry safely with the same key)
+curl "https://localhost:7119/catalog?searchTerm=&pageNumber=1&pageSize=5" -H "Authorization: Bearer $TOKEN"
+curl -X POST https://localhost:7119/cart -H "Authorization: Bearer $TOKEN"
+curl -X POST https://localhost:7119/cart/items -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"variantId":"<variantId>","unitPriceAmount":49.99,"currency":"USD","quantity":1}'
+curl -X POST https://localhost:7119/orders/checkout -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: demo-attempt-1" \
+  -d '{"cartId":"<cartId>","shippingAddress":{...},"billingAddress":{...}}'
+# → 200 Pending. The saga now reserves inventory and creates the Stripe intent (watch the logs).
+
+# 4. Pay (Stripe test mode) and watch the order confirm
+docker compose --profile stripe up -d stripe-cli   # forwards webhooks to the API, see docs/current/LOCAL_DEVELOPMENT.md
+# confirm the payment in Stripe test mode, then poll until Confirmed:
+curl https://localhost:7119/orders/<orderId> -H "Authorization: Bearer $TOKEN"
+```
+
+Prefer clicking through it? Every step above maps 1:1 to operations in the Swagger UI, and the admin dashboard (`GET /admin/dashboard`, SuperAdmin login `admin@flux.local`) shows orders, payments, inventory, and users in one snapshot.
+
+---
+
 ## Architecture at a Glance
 
 **Style:** Modular Monolith · Clean Architecture · DDD · Event-Driven
 
 ```
-                 Angular (Storefront / Admin)          ← future
-                         \        /
-                          \      /
-                    ASP.NET Core API Host
-                             │
-                     Modular Monolith
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-     Catalog              Orders              Inventory
-        │                    │                    │
-        │                 Payments                │
-        └────────────────────┼────────────────────┘
-                             │
-                      SQL Server (1 instance, N DbContexts)
-                             │
-                ┌────────────┼──────────┐
-                │            │          │
-             Redis       Outbox     RabbitMQ (topic: fluxcommerce.events)
-                │            │          │
-                └────────────┼──────────┘
-                             │
-                    Background Workers
-                             │
-                         Stripe
+                  Angular (Storefront / Admin)          ← future
+                          \        /
+                           \      /
+                     ASP.NET Core API Host
+                              │
+                      Modular Monolith
+                              │
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+      Catalog              Orders              Inventory
+      Cart                   │                    │
+         │                Payments                │
+         └────────────────────┼────────────────────┘
+                              │
+                       SQL Server (1 instance, N DbContexts)
+                              │
+                 ┌────────────┼──────────┐
+                 │            │          │
+              Redis       Outbox     RabbitMQ (topic: fluxcommerce.events)
+                 │            │          │
+                 └────────────┼──────────┘
+                              │
+                     Background Workers
+                              │
+                          Stripe
 ```
 
 **Request → Event flow:**
@@ -110,9 +153,9 @@ Business Operation → DB Transaction (State + Outbox) → Outbox Dispatcher →
 | **Messaging** | RabbitMQ 4 (durable topic exchange + confirms), Transactional Outbox |
 | **Payments** | Stripe.net 42.3 (isolated to `Payments.Infrastructure` only) |
 | **Observability** | Serilog, OpenTelemetry (ActivitySource `FluxCommerce`), W3C Trace Context |
-| **Auth** | ASP.NET Identity + JWT (Access + Refresh), `Roles: Customer/Admin/SuperAdmin` |
+| **Auth** | ASP.NET Identity + JWT (Access + Refresh), roles `Customer/Admin/SuperAdmin` + 9 per-admin action permissions |
 | **Tooling** | Docker Compose, Swashbuckle, NetArchTest, xUnit, Moq, MailKit |
-| **Quality Gates** | `TreatWarningsAsErrors`, `EnforceCodeStyleInBuild`, 177 arch tests |
+| **Quality Gates** | `TreatWarningsAsErrors`, `EnforceCodeStyleInBuild`, 187 arch tests |
 
 ---
 
@@ -132,12 +175,13 @@ Business Operation → DB Transaction (State + Outbox) → Outbox Dispatcher →
 
 | Module | Owns | Highlights |
 |---|---|---|
-| **Identity** | Users, Roles, Tokens | JWT + Refresh, `Customer/Admin/SuperAdmin`, email verify, lockout, config-driven seeder |
+| **Identity** | Users, Roles, Permissions, Tokens | JWT + Refresh, `Customer/Admin/SuperAdmin` + 9 per-admin permissions (SuperAdmin supremacy), email verify, lockout, config-driven seeder |
 | **Catalog** | Products, Variants, SKU | SQL filtering/sorting/pagination, soft delete, `decimal(18,6)` money |
 | **Cart** | Guest & Auth carts | Redis primary, opaque `CartId`, merge Guest→Auth, Catalog contract `ICatalogVariantCartLookup` |
 | **Orders** | Order, OrderLine, Saga | Immutable snapshot, `Idempotency-Key` header `(UserId,Key)` unique, `Pending→Cancelled/Confirmed` |
 | **Inventory** | Stock, Reservations | Reservation lifecycle, expiration worker, oversell-proof |
 | **Payments** | Payment, Webhook, Refund | Stripe intent isolation, `ProcessedWebhookEvents`, Outbox `payments.payment_succeeded/failed` |
+| **Admin Dashboard** | Read-only snapshot (host-composed) | Any authenticated user gets 200 with entitled sections only; per-module parallelism |
 | **BuildingBlocks** | Cross-cutting only | `Domain`, `Application` (Result/Error), `Messaging` (contract-only), `Outbox`, `Idempotency`, `Persistence`, `Observability`, `Localization`, `Web`, `Infrastructure` |
 
 > `Pricing`, `Promotions`, `Wishlist`, `Reviews`, `Shipping`, `Notifications`, `Analytics`, `Search` are deferred until Core MVP (Phase 12) is green — see [Roadmap](#roadmap).
@@ -203,7 +247,7 @@ dotnet run --project src/FluxCommerce.Api --launch-profile https
 
 ```bash
 dotnet build FluxCommerce.slnx -c Debug      # 0 warnings, 0 errors
-dotnet test --filter "Architecture"          # 177/177
+dotnet test tests/Architecture/FluxCommerce.ArchitectureTests -c Debug   # 187/187
 ```
 
 > More: [`docs/current/LOCAL_DEVELOPMENT.md`](docs/current/LOCAL_DEVELOPMENT.md) · [`docs/current/EF_CORE_COMMANDS.md`](docs/current/EF_CORE_COMMANDS.md)
@@ -229,18 +273,19 @@ All secrets are externalized via `IConfiguration` / `IOptions<T>` — never comm
 
 ## API Reference
 
-Swagger is available at `/swagger` when the API is running. Key endpoints:
+Swagger is available at `/swagger` when the API is running. Key endpoints (see [`docs/frontend-contract/API_CONTRACT.md`](docs/frontend-contract/API_CONTRACT.md) for the full contract):
 
 | Area | Method & Path | Auth |
 |---|---|---|
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` | Anonymous |
-| Catalog | `GET /catalog/products`, `POST /catalog/products` | Read anon, Write `Admin` |
-| Cart | `POST /cart/guest`, `POST /cart/authenticated`, `POST /cart/merge` | Guest / Auth |
-| Orders | `POST /orders/checkout` (`Idempotency-Key` header), `GET /orders`, `POST /orders/{id}/cancel` | `Customer` |
-| Inventory | `GET /inventory/items` | `Admin` |
-| Payments | `GET /api/payments/{paymentId}`, `POST /api/payments/webhook` | Owner `Customer` / `AllowAnonymous` (Stripe sig) |
+| Catalog | `GET /catalog/products`, `POST /catalog/products` | Read anon, Write `catalog.manage` |
+| Cart | `POST /cart/guest`, `POST /cart`, `POST /cart/merge` | Guest / Auth |
+| Orders | `POST /orders/checkout` (`Idempotency-Key` header), `GET /orders`, `POST /orders/{id}/cancel` | Authenticated (ownership-scoped) |
+| Inventory | `GET /inventory`, `POST /inventory` | `inventory.read` / `inventory.manage` |
+| Payments | `GET /api/payments/{paymentId}`, `POST /api/payments/webhook` | Owner check / `AllowAnonymous` (Stripe sig) |
+| Admin | `GET /admin/dashboard`, `GET /admin/orders`, `GET /admin/payments`, `GET /admin/users` | Per-permission (`orders.read`, `payments.read`, `users.read`, …), SuperAdmin passes all |
 
-ProblemDetails are localized (`en/fr/de/es/ar` via `Accept-Language` / `?culture=` / cookie, `Content-Language` header) — see [`docs/ARCHITECTURE.md#26`](docs/ARCHITECTURE.md).
+ProblemDetails are localized (`en/fr/de/es/ar` via `Accept-Language` / `?culture=` / cookie, `Content-Language` header) — see [`docs/ARCHITECTURE.md` §26](docs/ARCHITECTURE.md#-26-localization-architecture).
 
 ---
 
@@ -249,7 +294,8 @@ ProblemDetails are localized (`en/fr/de/es/ar` via `Accept-Language` / `?culture
 ```
 FluxCommerce.slnx
 ├── src/
-│   ├── FluxCommerce.Api/                 # Host, Program.cs, middleware, Swagger
+│   ├── FluxCommerce.Api/                 # Host: Controllers, Services (dashboard composer),
+│   │                                     # Mapping, Models, middleware, Swagger
 │   ├── BuildingBlocks/                   # Domain, Application, Messaging, Outbox, Idempotency,
 │   │                                     # Persistence, Infrastructure, Observability, Localization, Web
 │   └── Modules/
@@ -260,18 +306,17 @@ FluxCommerce.slnx
 │       ├── Inventory/  (Domain/Application/Infrastructure/Contracts)
 │       └── Payments/   (Domain/Application/Infrastructure/Contracts — Stripe isolated)
 ├── tests/
-│   ├── Architecture/   # 177 tests — dependency & layer rules (NetArchTest)
-│   ├── UnitTests/      # 2277 tests — domain & application
-│   ├── IntegrationTests/ # 402 tests — EF + Redis + RabbitMQ (real infra)
-│   └── Reliability/    # Failure harness (Phase 12)
+│   ├── Architecture/   # 187 tests — dependency & layer rules (NetArchTest)
+│   ├── UnitTests/      # 2412 tests — domain & application
+│   ├── IntegrationTests/ # 561 tests — EF + Redis + RabbitMQ (real infra)
+│   └── Reliability/    # Failure-harness scenarios (run as Category=Reliability integration tests)
 └── docs/
-    ├── PROJECT_CONTEXT.md   # Master spec & AI implementation guide
-    ├── ARCHITECTURE.md      # Architecture specification
-    ├── adr/ (15)            # Architecture Decision Records
-    ├── phases/ (11)         # Phase implementation plans
-    ├── completed/ (13)      # Phase completion reports + INDEX
-    ├── refactoring/         # Refactoring cycles R1/R2
-    └── current/             # LOCAL_DEVELOPMENT, EF_CORE_COMMANDS
+    ├── PROJECT_CONTEXT.md      # Master spec & AI implementation guide
+    ├── ARCHITECTURE.md         # Architecture specification
+    ├── IMPLEMENTATION_PLAN.md  # All phases + sub-phases + refactoring cycles (R1/R2/R3)
+    ├── adr/ (17)               # Architecture Decision Records
+    ├── frontend-contract/      # Frontend API contract (DTOs, errors, enums, auth flow)
+    └── current/                # LOCAL_DEVELOPMENT, EF_CORE_COMMANDS
 ```
 
 Conventions: `TreatWarningsAsErrors`, `Nullable=enable`, one `DbContext` per module, `Contracts` depend only on `BuildingBlocks.Messaging`.
@@ -286,18 +331,15 @@ dotnet test tests/Architecture/FluxCommerce.ArchitectureTests -c Debug
 dotnet test tests/UnitTests/FluxCommerce.UnitTests -c Debug
 dotnet test tests/IntegrationTests/FluxCommerce.IntegrationTests -c Debug
 
-# with infra (sqlserver + redis + rabbitmq must be up)
-dotnet test tests/IntegrationTests -c Debug  # 402/402
-
 # EF model drift check (should be "No changes")
 dotnet ef migrations has-pending-model-changes --project src/Modules/Orders/FluxCommerce.Modules.Orders.Infrastructure --startup-project src/FluxCommerce.Api
 ```
 
-| Suite | Result (R2.8) | What it proves |
+| Suite | Result | What it proves |
 |---|---|---|
-| Architecture | **177/177** | No cross-module DbContext access, `Stripe` infra-only, layer boundaries |
-| Unit | **2277/2277** | Domain invariants, saga matrix, webhook interpreter, idempotency |
-| Integration | **402/402** | Outbox atomic claim, consumer redelivery, saga E2E, oversell race |
+| Architecture | **187/187** | No cross-module DbContext access, `Stripe` infra-only, layer boundaries, enum-mirror guards |
+| Unit | **2412/2412** | Domain invariants, saga matrix, webhook interpreter, idempotency |
+| Integration | **558/561** | Outbox atomic claim, consumer redelivery, saga E2E, oversell race (3 pre-existing email-link env failures, reproduced on the clean tree) |
 
 ---
 
@@ -307,12 +349,11 @@ dotnet ef migrations has-pending-model-changes --project src/Modules/Orders/Flux
 |---|---|
 | [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) | Master spec — read this first (phases, ownership, reliability) |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module structure, BuildingBlocks, messaging, saga, observability |
-| [`docs/adr/`](docs/adr/) | 15 ADRs — modular monolith → refund compensation |
-| [`docs/phases/`](docs/phases/) | Implementation plans per phase (0–12) |
-| [`docs/completed/`](docs/completed/) | Completion reports + [`INDEX.md`](docs/completed/INDEX.md) |
-| [`docs/current/LOCAL_DEVELOPMENT.md`](docs/current/LOCAL_DEVELOPMENT.md) | Docker, seeder, Swagger, troubleshooting |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | All phases + sub-phases + refactoring cycles (R1/R2/R3) with verification |
+| [`docs/adr/`](docs/adr/) | 17 ADRs — modular monolith → user delegation |
+| [`docs/frontend-contract/`](docs/frontend-contract/) | Frontend contract — API, DTOs, errors, enums, auth flow, pagination, localization |
+| [`docs/current/LOCAL_DEVELOPMENT.md`](docs/current/LOCAL_DEVELOPMENT.md) | Docker, seeder, Swagger, Stripe CLI, troubleshooting |
 | [`docs/current/EF_CORE_COMMANDS.md`](docs/current/EF_CORE_COMMANDS.md) | `dotnet ef` recipes per module |
-| [`docs/refactoring/`](docs/refactoring/) | R1/R2 hardening — findings, moves, verification |
 
 ---
 
@@ -335,7 +376,10 @@ Incremental — future phases are **not** implemented prematurely.
 | 9 Stripe Payments | ✅ Done | Intent isolation, webhook dedup |
 | 10 Payment Saga & Compensation | ✅ Done | Refund, release, cancel orchestration |
 | 11 Reservation Expiry | ✅ Done | Expiration worker → Saga cancel |
-| **12 Failure Testing** | **▶ Next** | Chaos, redelivery, DLQ, timeout harness |
+| **12 Failure Testing** | ✅ **Done** | Chaos, redelivery, DLQ, timeout harness |
+| 21 Permissions · 22 Adaptive Dashboard | ✅ Done | Per-admin permissions, SuperAdmin supremacy, adaptive dashboard |
+| 23 Dashboard Data | 🔄 Planned | Refunded totals, recent lists, daily series |
+| R1 · R2 · R3 Refactoring | ✅ Done | Structural hardening without behavior change |
 | 13 Search · 14 Promotions · 15 Wishlist · 16 Reviews · 17 Notifications · 18 Shipping · 19 Analytics · 20 Hardening | ⏳ Planned | Post-MVP |
 
 Core MVP is complete after Phase 12.
@@ -360,15 +404,15 @@ Concurrency → Async → Failure Handling → Observability → Hardening
 
 ## Contributing
 
-Contributions are welcome — especially failure-scenario tests for Phase 12.
+Contributions are welcome — especially post-MVP phases (13–20), the Phase 23 dashboard data surface, and frontend clients built on [`docs/frontend-contract/`](docs/frontend-contract/).
 
 1. Read `docs/PROJECT_CONTEXT.md` and `docs/ARCHITECTURE.md`
-2. Check the current phase in `docs/completed/INDEX.md` — do not implement future phases early
+2. Check the current phase in `docs/IMPLEMENTATION_PLAN.md` — do not implement future phases early
 3. Respect module boundaries (`No cross-DbContext`, `Contracts` only via `BuildingBlocks.Messaging`)
 4. Add/maintain Architecture + Unit + Integration tests
 5. Run `dotnet build` (0W/0E) and `dotnet test` per-suite before PR
 
-See `docs/refactoring/REFACTORING_2_PLAN.md` for the hardening bar that gates Phase 12.
+See `docs/IMPLEMENTATION_PLAN.md` (Refactoring Cycle R2) for the hardening bar that gates Phase 12.
 
 ---
 

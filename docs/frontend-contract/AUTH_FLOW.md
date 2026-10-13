@@ -17,7 +17,7 @@ POST /auth/register ──→ Pending user + verification email (24h token, Fron
   → authed: POST /auth/change-password {current,new,confirm}
 ```
 
-Refresh never uses JWT — it presents the opaque refresh token (`AllowAnonymous`). `register/login/refresh/logout/verify-email/resend-verification/forgot/reset` are `AllowAnonymous`; `register-admin` needs `SuperAdmin`; `change-password` + `me` need any JWT; `admin/users/*` need `SuperAdmin`.
+Refresh never uses JWT — it presents the opaque refresh token (`AllowAnonymous`). `register/login/refresh/logout/verify-email/resend-verification/forgot/reset` are `AllowAnonymous`; `register-admin` needs `SuperAdmin`; `change-password`, `PUT /auth/profile`, `GET /auth/me` need any JWT; `/admin/users` reads need `users.read`, writes need `SuperAdmin`.
 
 ---
 
@@ -53,6 +53,7 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 ```
 
 - Access token: short-lived JWT (15m, 5m clock tolerance). Decode `exp` client-side for proactive refresh; never trust claims for authz — server re-checks roles per policy.
+- Permission claims (Phase B, ADR-016; `dashboard.read` removed in Phase 22 E1): the access token additionally carries one `permission` claim per granted action-level permission (`orders.read`, `orders.cancel`, `orders.refund`, `payments.read`, `payments.stats`, `inventory.read`, `inventory.manage`, `catalog.manage`, `users.read`). Grants/revokes take effect on the **next login/refresh** only — a demoted admin keeps rights until the current token expires. `GET /auth/me` returns the authoritative `permissions: string[]` for menu rendering; `SuperAdmin` bypasses every role/permission gate server-side.
 - Refresh token: opaque DB-backed string (`TokenGenerator`), `7d` expiry (`refreshTokenExpiresAtUtc: DateTime`). Rotation: `RotateRefreshToken(oldValue, newValue, now, now+7d)` revokes old + issues new; presenting a revoked/reused/unknown value → `401 Unauthorized Identity.InvalidToken` (see `RefreshCommandHandler`: null token/user or rotation failure all map to `InvalidToken()`).
 - Verify/reset tokens: email link tokens (`24h` / `1h`), single-use.
 
@@ -60,16 +61,30 @@ interface LoginResponse { userId: string; email: string; roles: string[]; access
 
 ## 4. Roles and endpoint matrix
 
-`Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Policies = `RequireRole(...)` each.
+`Roles`: `Customer="Customer"`, `Admin="Admin"`, `SuperAdmin="SuperAdmin"`. Role policies are role-or-SuperAdmin (SuperAdmin passes all); `SuperAdmin` policy stays exact. Permission policies (Phase 21, full catalog in `API_CONTRACT.md` §0.5) require the matching `permission` claim — SuperAdmin passes those too.
 
 | Endpoint | Policy | Frontend meaning |
 |---|---|---|
 | `POST /auth/register,login,refresh,logout,verify-email,resend-verification,forgot-password,reset-password` | Anonymous | Public |
-| `POST /auth/change-password`, `GET /auth/me` | Any authenticated JWT | Any logged-in user |
-| `POST /auth/register-admin`, `POST /admin/users/{id}/roles`, `POST /admin/users/{id}/unlock` | `SuperAdmin` | Bootstrap/admin console only; `401` no JWT, `403` wrong role |
-| Catalog writes, `GET /inventory/*` | `Admin` | Admin console; customers get `401/403` |
+| `POST /auth/change-password`, `PUT /auth/profile`, `GET /auth/me` | Any authenticated JWT | Any logged-in user |
+| `POST /auth/register-admin` | `SuperAdmin` | Bootstrap only; `401` no JWT, `403` otherwise |
+| `/admin/users` reads (`GET` list/counts/get/permissions) | `users.read` | Support viewers; customers get `401/403` |
+| `/admin/users` writes (roles/unlock/grant/revoke) + permission catalog | `SuperAdmin` | No delegated user management; `401` no JWT, `403` otherwise |
+| Catalog writes | `catalog.manage` | Admin console with the permission; otherwise `401/403` |
+| `GET /inventory/**` | `inventory.read` | Reader permission |
+| `POST/PATCH /inventory/**` | `inventory.manage` | Stock-manager permission |
+| `GET /admin/orders/**` | `orders.read` | Sales-viewer permission |
+| `POST /admin/orders/{id}/cancel` | `orders.cancel` | — |
+| `POST /admin/orders/{id}/refund` | `orders.refund` | — |
+| `GET /admin/payments/**` (except stats) | `payments.read` | — |
+| `GET /admin/payments/stats` | `payments.stats` | — |
+| `GET /admin/dashboard` | Any authenticated JWT (adaptive: objects `null` when unauthorized, recent/series lists `[]` — never 403) | Landing screen for everyone; no forbidden redirect |
+| `GET /admin/dashboard` sections | `orders`+`recentOrders` ← `orders.read`; `payments` ← `payments.read` or `payments.stats`; `recentPayments` ← `payments.read` only (stats-only viewers get stats but no list); `inventory` ← `inventory.read`; `catalog` ← `catalog.manage`; `users`+`recentUsers` ← `users.read`; `dailySeries` ← `orders.read` or `payments.read`/`stats` (unauthorized side zeroed, shape stable) | Render cards per non-`null` section + `recent*` widgets + `dailySeries` chart |
+| `GET /admin/dashboard` validation | `lowStockThreshold<0` → `400`; `days∉1..90` → `400 Dashboard.ValidationFailed` — both rejected regardless of entitlement | Validate query locally before relying on sections |
 | Catalog reads, guest cart | Anonymous | Storefront, no token |
-| Auth cart (`/cart`, `/cart/items`, `/cart/merge`), `POST /orders/*`, `GET /orders*`, `GET /api/payments/{id}` | Authenticated (+ ownership on orders/payments/cart) | Customer JWT; other-user ids → `403/404` masked |
+| Auth cart (`/cart`, `/cart/items`, `/cart/merge`), `POST /orders/*`, `GET /orders*`, `GET /api/payments/mine`, `GET /api/payments/{id}` | Authenticated (+ ownership on orders/payments/cart) | Customer JWT; other-user ids → `403/404` masked |
+
+`SuperAdmin` passes every row above (supremacy); a missing permission → `403` like a wrong role.
 
 `GET /auth/me` resolves user from `ICurrentUser` (JWT `NameIdentifier`) — no id param, so no IDOR.
 
@@ -120,3 +135,18 @@ curl -X POST https://localhost:7119/auth/logout -H "Content-Type: application/js
 ```
 
 Rules: generate no client token state beyond the pair; on `refresh 401` drop both and redirect to login (don’t retry); after login call `POST /cart/merge {guestCartId}` to preserve guest cart; `GET /auth/me` after login/refresh to sync `roles/isEmailVerified/status`.
+
+```ts
+// Admin console: render menus/sections from me.permissions (string[], §0.5 catalog in API_CONTRACT.md).
+// On 403: do NOT retry in a loop and do NOT force logout — the session is valid but unauthorized.
+// A single refresh+retry is legitimate (permissions may have been granted moments ago and land
+// on the next login/refresh); if it still 403s, show an inline "no access" state:
+async function adminFetch(url: string, init: RequestInit = {}) {
+  let res = await authedFetch(url, init);
+  if (res.status === 403) {
+    await refreshOnce(); // picks up newly granted permissions, if any
+    res = await authedFetch(url, init);
+  }
+  return res; // still 403 → render empty/locked state, never redirect to login
+}
+```

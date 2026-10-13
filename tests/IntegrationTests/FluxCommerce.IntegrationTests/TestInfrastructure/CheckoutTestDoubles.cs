@@ -1,4 +1,5 @@
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
+using FluxCommerce.Modules.Cart.Contracts.Enums;
 using FluxCommerce.Modules.Cart.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Abstractions;
 using FluxCommerce.Modules.Catalog.Contracts.Enums;

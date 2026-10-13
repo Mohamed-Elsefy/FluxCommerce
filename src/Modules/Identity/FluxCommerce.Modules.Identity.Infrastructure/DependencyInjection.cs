@@ -4,16 +4,24 @@ using FluxCommerce.Modules.Identity.Application.Commands.AssignRole;
 using FluxCommerce.Modules.Identity.Application.Commands.ChangePassword;
 using FluxCommerce.Modules.Identity.Application.Commands.ForgotPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.GetCurrentUser;
+using FluxCommerce.Modules.Identity.Application.Commands.GrantPermission;
 using FluxCommerce.Modules.Identity.Application.Commands.Login;
 using FluxCommerce.Modules.Identity.Application.Commands.Logout;
 using FluxCommerce.Modules.Identity.Application.Commands.Refresh;
 using FluxCommerce.Modules.Identity.Application.Commands.RegisterAdmin;
+using FluxCommerce.Modules.Identity.Application.Commands.RevokePermission;
 using FluxCommerce.Modules.Identity.Application.Commands.RegisterCustomer;
 using FluxCommerce.Modules.Identity.Application.Commands.ResendVerification;
 using FluxCommerce.Modules.Identity.Application.Commands.ResetPassword;
 using FluxCommerce.Modules.Identity.Application.Commands.UnlockUser;
+using FluxCommerce.Modules.Identity.Application.Commands.UpdateProfile;
 using FluxCommerce.Modules.Identity.Application.Commands.VerifyEmail;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Repositories;
+using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUser;
+using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUserCounts;
+using FluxCommerce.Modules.Identity.Application.Queries.GetAdminUsers;
+using FluxCommerce.Modules.Identity.Application.Queries.GetPermissionCatalog;
+using FluxCommerce.Modules.Identity.Application.Queries.GetUserPermissions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Services;
 using FluxCommerce.Modules.Identity.Contracts.Responses;
@@ -49,6 +57,12 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserAdminStore, UserAdminStore>();
+        services.AddScoped<IQueryHandler<GetAdminUsersQuery, Result<PagedResult<UserAdminResponse>>>, GetAdminUsersQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminUserQuery, Result<UserAdminResponse>>, GetAdminUserQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAdminUserCountsQuery, Result<UserAdminCountsResponse>>, GetAdminUserCountsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetUserPermissionsQuery, Result<IReadOnlyCollection<string>>>, GetUserPermissionsQueryHandler>();
+        services.AddScoped<IQueryHandler<GetPermissionCatalogQuery, Result<IReadOnlyCollection<string>>>, GetPermissionCatalogQueryHandler>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<ITokenRepository, TokenRepository>();
 
@@ -83,6 +97,10 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<GetCurrentUserCommand, Result<UserResponse>>, GetCurrentUserCommandHandler>();
         services.AddScoped<ICommandHandler<AssignRoleCommand, Result<UserResponse>>, AssignRoleCommandHandler>();
         services.AddScoped<ICommandHandler<UnlockUserCommand, Result<UserResponse>>, UnlockUserCommandHandler>();
+        services.AddScoped<ICommandHandler<GrantPermissionCommand, Result<UserResponse>>, GrantPermissionCommandHandler>();
+        services.AddScoped<ICommandHandler<RevokePermissionCommand, Result<UserResponse>>, RevokePermissionCommandHandler>();
+        services.AddScoped<IQueryHandler<GetUserPermissionsQuery, Result<IReadOnlyCollection<string>>>, GetUserPermissionsQueryHandler>();
+        services.AddScoped<ICommandHandler<UpdateProfileCommand, Result<UserResponse>>, UpdateProfileCommandHandler>();
 
         return services;
     }

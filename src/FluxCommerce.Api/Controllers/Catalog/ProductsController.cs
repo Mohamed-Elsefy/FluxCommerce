@@ -28,7 +28,9 @@ using DomainCatalogProductSortDirection = FluxCommerce.Modules.Catalog.Domain.En
 using DomainProductStatus = FluxCommerce.Modules.Catalog.Domain.Enums.ProductStatus;
 using DomainProductVisibility = FluxCommerce.Modules.Catalog.Domain.Enums.ProductVisibility;
 
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -81,7 +83,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Creates a new product.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Create([FromBody] CreateProductRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateProductCommand(
@@ -100,7 +102,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Updates an existing product.</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateProductCommand(
@@ -116,7 +118,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Activates a product.</summary>
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
     {
         var command = new ActivateProductCommand(id);
@@ -125,7 +127,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Deactivates a product.</summary>
     [HttpPost("{id:guid}/deactivate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeactivateProductCommand(id);
@@ -134,7 +136,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Archives a product.</summary>
     [HttpPost("{id:guid}/archive")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Archive(Guid id, CancellationToken cancellationToken)
     {
         var command = new ArchiveProductCommand(id);
@@ -143,7 +145,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Soft deletes a product.</summary>
     [HttpPost("{id:guid}/soft-delete")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> SoftDelete(Guid id, CancellationToken cancellationToken)
     {
         var command = new SoftDeleteProductCommand(id);
@@ -152,7 +154,7 @@ public sealed class ProductsController : ApiControllerBase
 
     /// <summary>Restores a soft-deleted product.</summary>
     [HttpPost("{id:guid}/restore")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken)
     {
         var command = new RestoreProductCommand(id);
@@ -168,15 +170,29 @@ public sealed class ProductsController : ApiControllerBase
         return Success(await _getProductHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists non-deleted products with pagination.</summary>
+    /// <summary>Lists non-deleted products with pagination, optional filters and sorting.</summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> List(
         [FromQuery] int? pageNumber,
         [FromQuery] int? pageSize,
+        [FromQuery] string? searchTerm,
+        [FromQuery] ContractsProductStatus? status,
+        [FromQuery] ContractsProductVisibility? visibility,
+        [FromQuery] Guid? categoryId,
+        [FromQuery] ContractsCatalogProductSortBy? sortBy,
+        [FromQuery] ContractsCatalogProductSortDirection? sortDirection,
         CancellationToken cancellationToken)
     {
-        var query = new ListProductsQuery(pageNumber, pageSize);
+        var query = new ListProductsQuery(
+            pageNumber,
+            pageSize,
+            searchTerm,
+            ToDomainStatus(status),
+            ToDomainVisibility(visibility),
+            categoryId,
+            ToDomainSortBy(sortBy),
+            ToDomainSortDirection(sortDirection));
         return Success(await _listProductsHandler.HandleAsync(query, cancellationToken));
     }
 
@@ -219,51 +235,20 @@ public sealed class ProductsController : ApiControllerBase
     }
 
     private static DomainProductVisibility ToDomainVisibility(ContractsProductVisibility visibility) =>
-        visibility switch
-        {
-            ContractsProductVisibility.Visible => DomainProductVisibility.Visible,
-            ContractsProductVisibility.Hidden => DomainProductVisibility.Hidden,
-            _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null)
-        };
+        ContractEnumMappers.ToDomainVisibility(visibility);
 
     private static DomainProductVisibility? ToDomainVisibility(ContractsProductVisibility? visibility) =>
-        visibility switch
-        {
-            null => null,
-            ContractsProductVisibility.Visible => DomainProductVisibility.Visible,
-            ContractsProductVisibility.Hidden => DomainProductVisibility.Hidden,
-            _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null)
-        };
+        ContractEnumMappers.ToDomainVisibility(visibility);
 
     private static DomainProductStatus? ToDomainStatus(ContractsProductStatus? status) =>
-        status switch
-        {
-            null => null,
-            ContractsProductStatus.Draft => DomainProductStatus.Draft,
-            ContractsProductStatus.Active => DomainProductStatus.Active,
-            ContractsProductStatus.Inactive => DomainProductStatus.Inactive,
-            ContractsProductStatus.Archived => DomainProductStatus.Archived,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
-        };
+        ContractEnumMappers.ToDomainProductStatus(status);
 
     private static DomainCatalogProductSortBy? ToDomainSortBy(ContractsCatalogProductSortBy? sortBy) =>
-        sortBy switch
-        {
-            null => null,
-            ContractsCatalogProductSortBy.Name => DomainCatalogProductSortBy.Name,
-            ContractsCatalogProductSortBy.CreatedAtUtc => DomainCatalogProductSortBy.CreatedAtUtc,
-            _ => throw new ArgumentOutOfRangeException(nameof(sortBy), sortBy, null)
-        };
+        ContractEnumMappers.ToDomainSortBy(sortBy);
 
     private static DomainCatalogProductSortDirection? ToDomainSortDirection(
         ContractsCatalogProductSortDirection? sortDirection) =>
-        sortDirection switch
-        {
-            null => null,
-            ContractsCatalogProductSortDirection.Ascending => DomainCatalogProductSortDirection.Ascending,
-            ContractsCatalogProductSortDirection.Descending => DomainCatalogProductSortDirection.Descending,
-            _ => throw new ArgumentOutOfRangeException(nameof(sortDirection), sortDirection, null)
-        };
+        ContractEnumMappers.ToDomainSortDirection(sortDirection);
 
     private static SeoMetadataCommand? ToSeoCommand(SeoRequest? seo) =>
         seo is null ? null : new SeoMetadataCommand(seo.Title, seo.Description, seo.Keywords);

@@ -15,7 +15,12 @@ using FluxCommerce.Modules.Catalog.Application.Queries.ListCategories;
 using FluxCommerce.Modules.Catalog.Contracts.Requests;
 using FluxCommerce.Modules.Catalog.Contracts.Responses;
 
+using ContractsCategoryStatus = FluxCommerce.Modules.Catalog.Contracts.Enums.CategoryStatus;
+using DomainCategoryStatus = FluxCommerce.Modules.Catalog.Domain.Enums.CategoryStatus;
+
+using FluxCommerce.Api.Constants;
 using FluxCommerce.Api.Extensions;
+using FluxCommerce.Api.Mapping;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -62,7 +67,7 @@ public sealed class CategoriesController : ApiControllerBase
 
     /// <summary>Creates a new category.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Create([FromBody] CreateCategoryRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateCategoryCommand(request.Name, request.Slug, request.Description, request.ParentId);
@@ -75,7 +80,7 @@ public sealed class CategoriesController : ApiControllerBase
 
     /// <summary>Updates an existing category.</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCategoryRequest request, CancellationToken cancellationToken)
     {
         var command = new UpdateCategoryCommand(id, request.Name, request.Slug, request.Description, request.ParentId);
@@ -84,7 +89,7 @@ public sealed class CategoriesController : ApiControllerBase
 
     /// <summary>Activates a category.</summary>
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
     {
         var command = new ActivateCategoryCommand(id);
@@ -93,7 +98,7 @@ public sealed class CategoriesController : ApiControllerBase
 
     /// <summary>Deactivates a category.</summary>
     [HttpPost("{id:guid}/deactivate")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeactivateCategoryCommand(id);
@@ -102,7 +107,7 @@ public sealed class CategoriesController : ApiControllerBase
 
     /// <summary>Soft deletes a category.</summary>
     [HttpPost("{id:guid}/soft-delete")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> SoftDelete(Guid id, CancellationToken cancellationToken)
     {
         var command = new SoftDeleteCategoryCommand(id);
@@ -111,7 +116,7 @@ public sealed class CategoriesController : ApiControllerBase
 
     /// <summary>Restores a soft-deleted category.</summary>
     [HttpPost("{id:guid}/restore")]
-    [Authorize(Policy = AuthenticationConfiguration.AdminPolicy)]
+    [Authorize(Policy = AuthenticationConfiguration.CatalogManagePolicy)]
     public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken)
     {
         var command = new RestoreCategoryCommand(id);
@@ -127,15 +132,20 @@ public sealed class CategoriesController : ApiControllerBase
         return Success(await _getCategoryHandler.HandleAsync(query, cancellationToken));
     }
 
-    /// <summary>Lists non-deleted categories with pagination.</summary>
+    /// <summary>Lists non-deleted categories with pagination and optional filters.</summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> List(
         [FromQuery] int? pageNumber,
         [FromQuery] int? pageSize,
+        [FromQuery] string? searchTerm,
+        [FromQuery] ContractsCategoryStatus? status,
         CancellationToken cancellationToken)
     {
-        var query = new ListCategoriesQuery(pageNumber, pageSize);
+        var query = new ListCategoriesQuery(pageNumber, pageSize, searchTerm, ToDomainStatus(status));
         return Success(await _listCategoriesHandler.HandleAsync(query, cancellationToken));
     }
+
+    private static DomainCategoryStatus? ToDomainStatus(ContractsCategoryStatus? status) =>
+        ContractEnumMappers.ToDomainCategoryStatus(status);
 }

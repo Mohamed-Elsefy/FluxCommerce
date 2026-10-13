@@ -3,6 +3,7 @@ using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.BuildingBlocks.Application.Results;
 using FluxCommerce.BuildingBlocks.Localization.Abstractions;
 using FluxCommerce.Modules.Catalog.Application.Interfaces;
+using FluxCommerce.Modules.Catalog.Domain.Enums;
 using FluxCommerce.Modules.Catalog.Domain.Errors;
 using FluxCommerce.Modules.Catalog.Domain.Repositories;
 using FluxCommerce.Modules.Catalog.Domain.Results;
@@ -68,6 +69,35 @@ public sealed class UpdateProductVariantCommandHandler : ICommandHandler<UpdateP
 
         if (changeSkuResult.IsFailure)
             return Result.Failure(ToApplicationError(changeSkuResult));
+
+        if (command.UnitPriceAmount.HasValue || command.Currency is not null)
+        {
+            Money unitPrice;
+            try
+            {
+                unitPrice = new Money(command.UnitPriceAmount ?? 0, command.Currency);
+            }
+            catch (ArgumentException)
+            {
+                return Result.Failure(
+                    Error.Validation(CatalogErrors.InvalidUnitPrice.Code, CatalogErrors.InvalidUnitPrice.Description));
+            }
+
+            var priceResult = variant.SetUnitPrice(unitPrice);
+
+            if (priceResult.IsFailure)
+                return Result.Failure(ToApplicationError(priceResult));
+        }
+
+        if (command.Status.HasValue)
+        {
+            var statusResult = command.Status.Value == VariantStatus.Active
+                ? variant.Activate()
+                : variant.Deactivate();
+
+            if (statusResult.IsFailure)
+                return Result.Failure(ToApplicationError(statusResult));
+        }
 
         await _variantRepository.UpdateAsync(variant, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

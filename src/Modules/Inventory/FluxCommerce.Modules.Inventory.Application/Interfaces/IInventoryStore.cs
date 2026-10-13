@@ -1,4 +1,7 @@
+using FluxCommerce.BuildingBlocks.Application.Results;
+using FluxCommerce.Modules.Inventory.Application.ReadModels;
 using FluxCommerce.Modules.Inventory.Domain.Aggregates;
+using FluxCommerce.Modules.Inventory.Domain.Enums;
 using FluxCommerce.Modules.Inventory.Domain.ValueObjects;
 
 namespace FluxCommerce.Modules.Inventory.Application.Interfaces;
@@ -92,4 +95,35 @@ public interface IInventoryStore
     /// in that case nothing from this attempt is persisted.
     /// </summary>
     Task<bool> SaveLifecycleChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Administrative item list ordered by SKU with optional substring search and an optional
+    /// available-quantity ceiling. Served from a lightweight projection; no aggregates are tracked.
+    /// </summary>
+    Task<PagedResult<InventoryItemReadModel>> GetItemsPageAsync(
+        string? search,
+        int? maxAvailable,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Administrative reservation list, newest first, with optional status, SKU and order filters.
+    /// Served from a lightweight projection; no aggregates are tracked.
+    /// </summary>
+    Task<PagedResult<InventoryReservationReadModel>> GetReservationsPageAsync(
+        InventoryReservationStatus? status,
+        InventorySku? sku,
+        OrderId? orderId,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Aggregate Inventory counts for the administrative overview. <paramref name="lowStockThreshold"/>
+    /// is the inclusive available-quantity ceiling for <c>LowStockItems</c>.
+    /// </summary>
+    Task<InventoryCountsReadModel> GetCountsAsync(
+        int lowStockThreshold,
+        CancellationToken cancellationToken = default);
 }

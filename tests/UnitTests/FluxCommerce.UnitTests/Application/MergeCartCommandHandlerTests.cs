@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.MergeCart;
 using FluxCommerce.Modules.Cart.Application.Interfaces;
 using FluxCommerce.Modules.Cart.Application.Enums;
@@ -11,7 +11,7 @@ using Xunit;
 namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
-/// Phase 3.6.2: unit tests for the Guest â†’ Authenticated merge handler with a mocked store.
+/// Phase 3.6.2: unit tests for the Guest -> Authenticated merge handler with a mocked store.
 /// The target is persisted and the Guest source is consumed through the single atomic
 /// ICartStore.MergeAndConsumeAsync operation. Every assertion uses the stable machine-readable
 /// error codes.
@@ -43,7 +43,7 @@ public class MergeCartCommandHandlerTests
         Assert.Equal(UserId, merged.UserId);
         Assert.Equal(2, merged.Items.Count);
         Assert.Equal(2, QuantityOf(merged, VariantA));
-        Assert.Equal(4, QuantityOf(merged, VariantB)); // 3 + 1 â†’ Phase 3 duplicate rule.
+        Assert.Equal(4, QuantityOf(merged, VariantB)); // 3 + 1 -> Phase 3 duplicate rule.
         Assert.Equal(4, merged.Version);
 
         // The merged target is persisted AND the Guest source is consumed in one atomic call.

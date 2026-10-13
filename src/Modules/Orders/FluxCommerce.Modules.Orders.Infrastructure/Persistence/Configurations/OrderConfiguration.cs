@@ -26,7 +26,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasColumnName("Status");
 
         builder.Property(order => order.Version)
-            .HasColumnName("Version");
+            .HasColumnName("Version")
+            .IsConcurrencyToken();
 
         builder.Property(order => order.CreatedAtUtc)
             .HasColumnName("CreatedAtUtc");

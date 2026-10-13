@@ -1,4 +1,4 @@
-﻿using FluxCommerce.BuildingBlocks.Application.Errors;
+using FluxCommerce.BuildingBlocks.Application.Errors;
 using FluxCommerce.Modules.Cart.Application.Commands.AddAuthenticatedCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.AddGuestCartItem;
 using FluxCommerce.Modules.Cart.Application.Commands.CreateAuthenticatedCart;
@@ -14,7 +14,7 @@ using Xunit;
 namespace FluxCommerce.UnitTests.Application;
 
 /// <summary>
-/// Phase 3.6.2: Guest â†’ Authenticated merge against real Redis. Verifies source/target ownership
+/// Phase 3.6.2: Guest -> Authenticated merge against real Redis. Verifies source/target ownership
 /// validation, add-missing / sum-duplicate / no-duplicate-item semantics, implicit target creation,
 /// quantity invariants, atomic persistence AND Guest source consumption through
 /// ICartStore.MergeAndConsumeAsync, logical idempotency (a consumed Guest Cart can never be
@@ -59,7 +59,7 @@ public class MergeCartRedisIntegrationTests
         Assert.Equal(before.Version + 1, merged.Version);
         var mergedItem = Assert.Single(merged.Items);
         Assert.Equal(guestItem.VariantId, mergedItem.VariantId);
-        Assert.Equal(5, mergedItem.Quantity); // 3 + 2 â†’ Phase 3 duplicate rule.
+        Assert.Equal(5, mergedItem.Quantity); // 3 + 2 -> Phase 3 duplicate rule.
 
         // The merge is persisted, not just returned.
         var persisted = (await store.GetAsync(targetCartId))!;

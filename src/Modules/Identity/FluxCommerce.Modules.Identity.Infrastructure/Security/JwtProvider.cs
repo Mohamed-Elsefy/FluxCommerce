@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using FluxCommerce.BuildingBlocks.Application.Abstractions;
 using FluxCommerce.Modules.Identity.Application.Interfaces.Security;
+using FluxCommerce.Modules.Identity.Domain.Aggregates;
 using FluxCommerce.Modules.Identity.Infrastructure.Authentication;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -20,7 +21,11 @@ public sealed class JwtProvider : IJwtProvider
         _dateTimeProvider = dateTimeProvider;
     }
 
-    public string CreateAccessToken(Guid userId, string email, IReadOnlyCollection<string> roles)
+    public string CreateAccessToken(
+        Guid userId,
+        string email,
+        IReadOnlyCollection<string> roles,
+        IReadOnlyCollection<string>? permissions = null)
     {
         var claims = new List<Claim>
         {
@@ -29,6 +34,9 @@ public sealed class JwtProvider : IJwtProvider
         };
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+        if (permissions is not null)
+            claims.AddRange(permissions.Select(permission => new Claim(PermissionCatalog.ClaimType, permission)));
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey));
 

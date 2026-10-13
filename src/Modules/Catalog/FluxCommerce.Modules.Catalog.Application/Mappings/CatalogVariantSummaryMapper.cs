@@ -9,7 +9,9 @@ public static class CatalogVariantSummaryMapper
         new(
             variant.Id,
             variant.Sku.Value,
-            variant.Name);
+            variant.Name,
+            variant.UnitPrice.Amount,
+            variant.UnitPrice.Currency);
 
     public static IReadOnlyCollection<CatalogVariantSummary> ToSummaries(
         IEnumerable<Variant> variants) =>

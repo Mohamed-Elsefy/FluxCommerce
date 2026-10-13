@@ -153,7 +153,10 @@ public class TraceObservabilityPhase10Tests : OrderSagaTestBase
         await ctx.SaveChangesAsync();
         await orchestrator.ApplyReservationSuccessAsync(order.Id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(1));
         await ctx.SaveChangesAsync();
-        await orchestrator.ApplyPaymentSucceededAsync(order.Id, Guid.NewGuid(), "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(2));
+        var paymentId = Guid.NewGuid();
+        await orchestrator.ApplyPaymentInitiatedAsync(order.Id, paymentId, "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(1).AddSeconds(30));
+        await ctx.SaveChangesAsync();
+        await orchestrator.ApplyPaymentSucceededAsync(order.Id, paymentId, "pi_test_123", Guid.NewGuid(), Guid.NewGuid(), PlacedAtUtc.AddMinutes(2));
         await ctx.SaveChangesAsync();
 
         var correlationId = Guid.NewGuid();

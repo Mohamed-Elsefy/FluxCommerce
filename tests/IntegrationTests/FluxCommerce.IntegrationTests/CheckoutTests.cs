@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FluxCommerce.IntegrationTests.TestInfrastructure;
 using FluxCommerce.Modules.Cart.Contracts.Abstractions;
+using FluxCommerce.Modules.Cart.Contracts.Enums;
 using FluxCommerce.Modules.Cart.Contracts.ReadModels;
 using FluxCommerce.Modules.Catalog.Contracts.Enums;
 using FluxCommerce.Modules.Catalog.Contracts.ReadModels;

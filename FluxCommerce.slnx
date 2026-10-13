@@ -21,27 +21,13 @@
     <File Path="docs/adr/013-webhook-idempotency.md" />
     <File Path="docs/adr/014-payment-refund-compensation.md" />
     <File Path="docs/adr/015-identity-roles-authorization-and-seeding.md" />
-  </Folder>
-  <Folder Name="/docs/completed/">
-    <File Path="docs/completed/INDEX.md" />
-    <File Path="docs/completed/PHASE_0_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_10_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_11_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_12_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_1_5_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_1_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_2_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_3_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_4_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_5_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_6_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_7_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_8_COMPLETION_REPORT.md" />
-    <File Path="docs/completed/PHASE_9_COMPLETION_REPORT.md" />
+    <File Path="docs/adr/016-permission-based-authorization-and-superadmin-supremacy.md" />
+    <File Path="docs/adr/017-user-management-delegation.md" />
   </Folder>
   <Folder Name="/docs/current/">
     <File Path="docs/current/EF_CORE_COMMANDS.md" />
     <File Path="docs/current/LOCAL_DEVELOPMENT.md" />
+    <File Path="docs/current/seed-catalog.sql" />
   </Folder>
   <Folder Name="/docs/frontend-contract/">
     <File Path="docs/frontend-contract/API_CONTRACT.md" />
@@ -52,37 +38,11 @@
     <File Path="docs/frontend-contract/PAGINATION_CONVENTION.md" />
     <File Path="docs/frontend-contract/PAYMENT_INTEGRATION_NOTES.md" />
   </Folder>
-  <Folder Name="/docs/phases/">
-    <File Path="docs/phases/PHASE_0_ARCHITECTURE_FOUNDATION.md" />
-    <File Path="docs/phases/PHASE_10_PAYMENT_SAGA_COMPENSATION.md" />
-    <File Path="docs/phases/PHASE_11_RESERVATION_EXPIRY_ORCHESTRATION.md" />
-    <File Path="docs/phases/PHASE_12_FAILURE_TESTING.md" />
-    <File Path="docs/phases/PHASE_1_5_RUNTIME_PREPARATION.md" />
-    <File Path="docs/phases/PHASE_1_IDENTITY_ACCESS.md" />
-    <File Path="docs/phases/PHASE_2_CATALOG_MODULE.md" />
-    <File Path="docs/phases/PHASE_3_CART_MODULE.md" />
-    <File Path="docs/phases/PHASE_4_ORDERS_CHECKOUT.md" />
-    <File Path="docs/phases/PHASE_5_INVENTORY_CONCURRENCY.md" />
-    <File Path="docs/phases/PHASE_6_OUTBOX_RABBITMQ.md" />
-    <File Path="docs/phases/PHASE_7_IDEMPOTENT_CONSUMERS.md" />
-    <File Path="docs/phases/PHASE_8_ORDER_INVENTORY_SAGA_IMPLEMENTATION_PLAN.md" />
-    <File Path="docs/phases/PHASE_9_STRIPE_PAYMENTS_IMPLEMENTATION_PLAN.md" />
-  </Folder>
-  <Folder Name="/docs/refactoring/">
-    <File Path="docs/refactoring/REFACTORING_1_BASELINE.md" />
-    <File Path="docs/refactoring/REFACTORING_1_COMPLETION.md" />
-    <File Path="docs/refactoring/REFACTORING_1_FINDINGS.md" />
-    <File Path="docs/refactoring/REFACTORING_1_PLAN.md" />
-    <File Path="docs/refactoring/REFACTORING_2_BASELINE.md" />
-    <File Path="docs/refactoring/REFACTORING_2_COMPLETION.md" />
-    <File Path="docs/refactoring/REFACTORING_2_FINDINGS.md" />
-    <File Path="docs/refactoring/REFACTORING_2_PLAN.md" />
-    <File Path="docs/refactoring/REFACTORING_IDENTITY_ROLES_SEEDING_PLAN.md" />
-  </Folder>
 
   <!-- Solution Items -->
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path=".env.example" />
     <File Path=".gitignore" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />

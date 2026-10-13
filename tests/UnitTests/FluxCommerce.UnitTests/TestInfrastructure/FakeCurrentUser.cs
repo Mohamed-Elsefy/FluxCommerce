@@ -10,5 +10,7 @@ public sealed class FakeCurrentUser : ICurrentUser
 
     public string[] Roles { get; set; } = [];
 
+    public IReadOnlyCollection<string> Permissions { get; set; } = [];
+
     public bool IsAuthenticated { get; set; }
 }
